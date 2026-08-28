@@ -1,0 +1,44 @@
+{
+  "name": "@glasswall/schema",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./observation": {
+      "types": "./dist/observation.d.ts",
+      "import": "./dist/observation.js"
+    },
+    "./action": {
+      "types": "./dist/action.d.ts",
+      "import": "./dist/action.js"
+    },
+    "./policy": {
+      "types": "./dist/policy.d.ts",
+      "import": "./dist/policy.js"
+    },
+    "./audit": {
+      "types": "./dist/audit.d.ts",
+      "import": "./dist/audit.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "lint": "eslint src --ext .ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "gen:schema": "tsx scripts/gen-schema.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "tsx": "^4.16.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0",
+    "zod": "^3.23.0",
+    "zod-to-json-schema": "^3.23.0"
+  }
+}

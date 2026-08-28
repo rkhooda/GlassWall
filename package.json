@@ -1,0 +1,31 @@
+{
+  "name": "glasswall",
+  "version": "0.0.0",
+  "private": true,
+  "description": "GLASSWALL — On-device Visual Perception & Privacy Boundary for Lightweight Browser Agents",
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "gen:schema": "turbo run gen:schema",
+    "format": "prettier --write \"**/*.{ts,tsx,json,md,yaml,yml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,json,md,yaml,yml}\""
+  },
+  "engines": {
+    "node": ">=20.11.0"
+  },
+  "packageManager": "pnpm@9.6.0",
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.3.0",
+    "turbo": "^2.0.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0"
+  }
+}

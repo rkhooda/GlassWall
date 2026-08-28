@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "baseUrl": ".",
+    "paths": {
+      "@glasswall/schema/*": ["packages/schema/src/*"],
+      "@glasswall/privacy/*": ["packages/privacy/src/*"],
+      "@glasswall/perception/*": ["packages/perception/src/*"],
+      "@glasswall/inference/*": ["packages/inference/src/*"]
+    }
+  },
+  "exclude": ["node_modules", "dist", "build", "generated", ".turbo"]
+}

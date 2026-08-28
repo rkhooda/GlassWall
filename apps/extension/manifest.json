@@ -1,0 +1,36 @@
+{
+  "name": "GLASSWALL",
+  "version": "0.0.1",
+  "manifest_version": 3,
+  "description": "On-device Visual Perception & Privacy Boundary for Lightweight Browser Agents",
+  "permissions": ["activeTab", "scripting", "storage", "sidePanel", "offscreen"],
+  "host_permissions": ["http://localhost:5173/*"],
+  "background": {
+    "service_worker": "src/background/index.ts",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["src/content/index.ts"],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ],
+  "side_panel": {
+    "default_path": "src/sidepanel/index.html"
+  },
+  "offscreen": {
+    "reasons": ["WORKERS", "DOM_SCRAPING", "BLOBS"],
+    "justification": "Run ONNX Runtime Web inference with WebGPU/WASM"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' http://localhost:3000"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["offscreen.html", "sandbox.html"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
