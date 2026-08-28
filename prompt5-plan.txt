@@ -1,0 +1,37 @@
+MV3 Skeleton + Typed Message Bus Plan (Prompt 5 Part A)
+
+1. Manifest Permission Set:
+   - activeTab: Required to capture the currently active tab where the user is working
+   - scripting: Needed to inject content scripts into pages for DOM extraction and action execution
+   - storage: Used for chrome.storage.session (vault) and chrome.storage.local (settings)
+   - sidePanel: Required to show the side panel UI for task input, trace, and controls
+   - offscreen: Required to create offscreen documents for running inference (ORT-Web/Transformers.js)
+   - host_permissions: Limited to [
+       "*://localhost:5173/*",        // For bench sites
+       "*://127.0.0.1:5173/*",        // Alternative localhost
+       "<gateway_origin>"             // Will be replaced with actual backend origin
+     ]
+     Justification: We only need to communicate with our own backend gateway and bench sites. No broad permissions needed.
+
+2. Message Bus Design:
+   - Channel naming: Use namespaced strings like "perception:init", "perception:load", "privacy:sanitize", etc.
+   - Typing strategy: Define TypeScript interfaces for each message type. Use discriminated unions for message envelopes.
+   - Namespace isolation: The bus will enforce that:
+     * Lane A (us) can only send/receive on namespaces: "system:*", "extension:*"
+     * Lane B (teammate) can only register handlers under: "perception:*" and "privacy:*"
+     * The bus will validate message routing based on these rules
+   - Delivery guarantee: Use a simple ACK/NACK system with timeout retries
+   - Ordering: Maintain FIFO queues per namespace, process messages in order received
+
+3. Potential Issues from PLAN.md Section 8.2:
+   - ORT-Web multithreading requires Web Workers, but MV3 service workers cannot create them
+     * Flagged: This is the primary architectural risk. The documented workaround is to use an offscreen document.
+   - Even in offscreen document, CSP might block worker creation
+     * Flagged: Need sandboxed iframe fallback inside offscreen page if CSP blocks worker creation
+   - WebGPU availability in extension contexts
+     * Flagged: Must verify on demo machine; have WASM fallback ready
+
+The plan addresses these by:
+- All inference will live in the offscreen document behind a single RPC interface (InferenceHost)
+- If sandboxed iframe is needed, it will be hidden entirely behind the InferenceHost interface
+- We will implement both WebGPU and WASM execution paths with runtime detection

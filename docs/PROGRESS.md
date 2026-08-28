@@ -8,7 +8,7 @@
 | A-P0.2 Schema v1           | ✅    | v0.0.1-schema-v1          | RawObservation, RawElement, RawTextNode, CapturedFrame, SanitizedObservation, ObservedElement, Action, ActionEnvelope, Target, Value, ActionResult, PolicyConfig, AuditRecord, AuditPrivacyFields, SafePayload, PiiType, Branded types (SafePayload, Sensitive<T>) |
 | A-P0.3 Sanitize stub       | ✅    | v0.0.1-sanitize-stub      | `sanitize.stub.ts` with UNSAFE banner                                                     |
 | A-BS.1 ShopLite            | ✅    | v0.1.0-shoplite           | ShopLite site built with cart, checkout, orders, tracking; includes modal, same-origin iframe, open shadow DOM, virtualized list, form fields with correct autocomplete tokens, React controlled input, realistic placeholder PII |
-| A-P1.1 MV3 skeleton        | ☐     | v0.1.0-extension-skeleton | manifest.json, message bus, sidepanel, offscreen bootstrap                                |
+| A-P1.1 MV3 skeleton        | ✅    | v0.1.0-extension-skeleton | manifest.json, message bus, sidepanel, offscreen bootstrap                                |
 | A-P1.2 Offscreen RPC       | ☐     | —                         | RPC transport, sandboxed-iframe fallback                                                  |
 | A-BS.2 GovPortal           | ☐     | —                         | Bench site skeleton + C10 instrumentation                                                 |
 | A-P2.1 geometry            | ☐     | —                         | `packages/perception/geometry.ts` rect ops, IoU, quantization                             |
