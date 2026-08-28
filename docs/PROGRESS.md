@@ -9,8 +9,8 @@
 | A-P0.3 Sanitize stub       | ✅    | v0.0.1-sanitize-stub      | `sanitize.stub.ts` with UNSAFE banner                                                     |
 | A-BS.1 ShopLite            | ✅    | v0.1.0-shoplite           | ShopLite site built with cart, checkout, orders, tracking; includes modal, same-origin iframe, open shadow DOM, virtualized list, form fields with correct autocomplete tokens, React controlled input, realistic placeholder PII |
 | A-P1.1 MV3 skeleton        | ✅    | v0.1.0-extension-skeleton | manifest.json, message bus, sidepanel, offscreen bootstrap                                |
-| A-P1.2 Offscreen RPC       | ☐     | —                         | RPC transport, sandboxed-iframe fallback                                                  |
-| A-BS.2 GovPortal           | ☐     | —                         | Bench site skeleton + C10 instrumentation                                                 |
+| A-P1.2 Offscreen RPC       | ✅    | v0.1.0-offscreen-rpc      | Offscreen document lifecycle with RPC transport for InferenceHost interface, includes handler registration for Lane B implementations |
+| A-BS.2 GovPortal           | ✅    | v0.1.0-govportal          | Multi-step government form bench site for testing extension functionality, includes personal info, address, document upload, and review/submit steps |
 | A-P2.1 geometry            | ☐     | —                         | `packages/perception/geometry.ts` rect ops, IoU, quantization                             |
 | A-P2.2 Traversal           | ☐     | —                         | TreeWalker, open-shadow-root, same-origin iframes, frame IDs                              |
 | A-P2.3 Visibility+identity | ☐     | —                         | elementFromPoint centre+4 corners, id_hash, value_state, group_path                       |
