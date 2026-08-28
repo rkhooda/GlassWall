@@ -3,6 +3,24 @@ import { z } from 'zod';
 export const PolicyProfileSchema = z.enum(['STRICT', 'BALANCED', 'PERMISSIVE']);
 export type PolicyProfile = z.infer<typeof PolicyProfileSchema>;
 
+export const PiiTypeSchema = z.enum([
+  'EMAIL',
+  'PHONE',
+  'SSN',
+  'CREDIT_CARD',
+  'ADDRESS',
+  'NAME',
+  'USERNAME',
+  'PASSWORD',
+  'API_KEY',
+  'TOKEN',
+  'PERSONAL',
+  'FINANCIAL',
+  'HEALTH',
+  'NONE'
+]);
+export type PiiType = z.infer<typeof PiiTypeSchema>;
+
 export const ScreenshotPolicySchema = z.object({
   enabled: z.boolean(),
 });
@@ -47,6 +65,9 @@ export const PolicyConfigSchema = z
   })
   .strict();
 export type PolicyConfig = z.infer<typeof PolicyConfigSchema>;
+
+// Policy is the configuration that governs privacy processing
+export type Policy = PolicyConfig;
 
 export const STRICT_POLICY: PolicyConfig = {
   name: 'STRICT',

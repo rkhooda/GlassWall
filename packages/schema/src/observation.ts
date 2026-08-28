@@ -76,6 +76,81 @@ export const RawObservationSchema = z
   .strict();
 export type RawObservation = z.infer<typeof RawObservationSchema>;
 
+export const ObservedElementSchema = z.object({
+  id: z.string(),
+  id_hash: z.string(),
+  tag: z.string(),
+  role: z.string(),
+  type: z.string().optional(),
+  label_raw: z.string(),
+  placeholder_raw: z.string().optional(),
+  rect: RectSchema,
+  visible: z.boolean(),
+  enabled: z.boolean(),
+  focusable: z.boolean(),
+  value_state: z.enum(['empty', 'partial', 'filled', 'n/a']),
+  options_count: z.number().optional(),
+  group: z.string(),
+  frame: z.number(),
+  unexplained: z.boolean().optional(),
+  autocomplete: z.string().optional(),
+  input_type: z.string().optional(),
+});
+export type ObservedElement = z.infer<typeof ObservedElementSchema>;
+
+// SanitizedObservation is what comes out of the privacy layer -
+// it has additionalProperties: false at every level for strict validation
+export const SanitizedTextNodeSchema = z.object({
+  id: z.string(),
+  rect: RectSchema,
+  text: z.string(),
+  owner_element_id: z.string().nullable(),
+  source: z.literal('dom'),
+}).strict();
+
+export const SanitizedElementSchema = z.object({
+  id: z.string(),
+  id_hash: z.string(),
+  tag: z.string(),
+  role: z.string(),
+  type: z.string().optional(),
+  label_raw: z.string(),
+  placeholder_raw: z.string().optional(),
+  rect: RectSchema,
+  visible: z.boolean(),
+  enabled: z.boolean(),
+  focusable: z.boolean(),
+  value_state: z.enum(['empty', 'partial', 'filled', 'n/a']),
+  options_count: z.number().optional(),
+  group: z.string(),
+  frame: z.number(),
+  unexplained: z.boolean().optional(),
+  autocomplete: z.string().optional(),
+  input_type: z.string().optional(),
+}).strict();
+
+export const SanitizedFrameInfoSchema = z.object({
+  id: z.number(),
+  origin: z.enum(['same', 'cross']),
+  rect: RectSchema,
+}).strict();
+
+export const SanitizedObservationSchema = z
+  .object({
+    observation_id: z.string(),
+    session_id: z.string(),
+    step: z.number(),
+    page: PageInfoSchema.strict(),
+    viewport: ViewportSchema.strict(),
+    elements: z.array(SanitizedElementSchema),
+    text_nodes: z.array(SanitizedTextNodeSchema),
+    frames: z.array(SanitizedFrameInfoSchema),
+    truncated: z.boolean(),
+    list_virtualized: z.boolean(),
+  })
+  .strict();
+export type SanitizedObservation = z.infer<typeof SanitizedObservationSchema>;
+
 export const CapturedFrameSchema = z.object({
   bitmap: z.unknown(),
   dpr: z.number(),

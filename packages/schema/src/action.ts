@@ -13,37 +13,41 @@ export const ActionTypeSchema = z.enum([
 ]);
 export type ActionType = z.infer<typeof ActionTypeSchema>;
 
+export const TargetSchema = z.object({
+  id: z.string(),
+  id_hash: z.string(),
+});
+export type Target = z.infer<typeof TargetSchema>;
+
+export const ValueSchema = z.string();
+export type Value = z.infer<typeof ValueSchema>;
+
 export const ActionSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('CLICK'),
-    target_id: z.string(),
-    target_id_hash: z.string(),
+    target: TargetSchema,
   }),
   z.object({
     type: z.literal('TYPE'),
-    target_id: z.string(),
-    target_id_hash: z.string(),
-    value: z.string(),
+    target: TargetSchema,
+    value: ValueSchema,
     clear_first: z.boolean().default(true),
   }),
   z.object({
     type: z.literal('SCROLL'),
     direction: z.enum(['down', 'up', 'left', 'right']),
     amount: z.number().optional(),
-    target_id: z.string().optional(),
-    target_id_hash: z.string().optional(),
+    target: TargetSchema.optional(),
   }),
   z.object({
     type: z.literal('SELECT'),
-    target_id: z.string(),
-    target_id_hash: z.string(),
+    target: TargetSchema,
     option_index: z.number(),
   }),
   z.object({
     type: z.literal('PRESS_KEY'),
     key: z.string(),
-    target_id: z.string().optional(),
-    target_id_hash: z.string().optional(),
+    target: TargetSchema.optional(),
   }),
   z.object({
     type: z.literal('NAVIGATE'),
@@ -52,8 +56,7 @@ export const ActionSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('WAIT'),
     condition: z.enum(['stable', 'element', 'navigation']),
-    target_id: z.string().optional(),
-    target_id_hash: z.string().optional(),
+    target: TargetSchema.optional(),
     timeout_ms: z.number().default(5000),
   }),
   z.object({

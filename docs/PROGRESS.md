@@ -5,7 +5,7 @@
 | Phase                      | State | Tag                       | Notes                                                                                     |
 | -------------------------- | ----- | ------------------------- | ----------------------------------------------------------------------------------------- |
 | A-P0.1 Foundation          | ✅    | v0.0.1-foundation         | pnpm workspace, TS strict, ESLint no-fetch, schema v1, CI green                           |
-| A-P0.2 Schema v1           | ✅    | —                         | RawObservation, Action, ActionEnvelope, Policy, Audit Zod schemas                         |
+| A-P0.2 Schema v1           | ✅    | v0.0.1-schema-v1          | RawObservation, RawElement, RawTextNode, CapturedFrame, SanitizedObservation, ObservedElement, Action, ActionEnvelope, Target, Value, ActionResult, PolicyConfig, AuditRecord, AuditPrivacyFields, SafePayload, PiiType, Branded types (SafePayload, Sensitive<T>) |
 | A-P0.3 Sanitize stub       | ☐     | —                         | `sanitize.stub.ts` with UNSAFE banner                                                     |
 | A-BS.1 ShopLite            | ☐     | —                         | Bench site skeleton + C10 instrumentation                                                 |
 | A-P1.1 MV3 skeleton        | ☐     | v0.1.0-extension-skeleton | manifest.json, message bus, sidepanel, offscreen bootstrap                                |
@@ -37,9 +37,18 @@
 
 | Type                             | Frozen? | Date |
 | -------------------------------- | ------- | ---- |
-| RawElement / RawObservation (C1) | ☐       | —    |
-| Action / ActionEnvelope          | ☐       | —    |
-| SanitizedObservation (C5)        | ☐       | —    |
+| RawElement / RawObservation (C1) | ✅       | 2026-08-28    |
+| Action / ActionEnvelope          | ✅       | 2026-08-28    |
+| SanitizedObservation (C5)        | ✅       | 2026-08-28    |
+| ObservedElement                  | ✅       | 2026-08-28    |
+| Target                           | ✅       | 2026-08-28    |
+| Value                            | ✅       | 2026-08-28    |
+| ActionResult                     | ✅       | 2026-08-28    |
+| PolicyConfig                     | ✅       | 2026-08-28    |
+| AuditRecord                      | ✅       | 2026-08-28    |
+| AuditPrivacyFields               | ✅       | 2026-08-28    |
+| SafePayload                      | ✅       | 2026-08-28    |
+| PiiType                          | ✅       | 2026-08-28    |
 
 ---
 
