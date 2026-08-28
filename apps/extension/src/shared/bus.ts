@@ -16,7 +16,10 @@ export type MessageType =
     } }
   | { type: "system:ping"; payload: { timestamp: number } }
   | { type: "system:pong"; payload: { timestamp: number } }
-  | { type: "extension:ready"; payload: {} };
+  | { type: "extension:ready"; payload: {} }
+  // Lane A to Lane A communication for offscreen RPC
+  | { type: "system:offscreen-request"; payload: { method: string; args: unknown[]; requestId: string } }
+  | { type: "system:offscreen-response"; payload: { requestId: string; result?: unknown; error?: string } };
 
 export type Message = MessageType;
 
