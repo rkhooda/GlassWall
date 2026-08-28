@@ -39,14 +39,25 @@ When calling into B's code that doesn't exist yet, import from the contract type
 - **If `PLAN.md` is ambiguous, ask.** Do not invent architecture.
 - Where `PLAN.md` says _VERIFY_, verify before writing code that depends on it.
 - Prefer editing existing files over creating new ones. No new docs unless asked.
+- **Commit after every feature/build completion** with a clear, concise message per the commit rules above.
 
 ## Commits
 
-Format: `type(scope): imperative summary` — ≤50 chars, imperative mood.
+Format: `type(scope): imperative summary` — **≤50 chars, imperative mood**.
 Types: `feat fix perf refactor test docs chore build ci sec`
 Scopes: `extension content background offscreen sidepanel perception agent backend schema eval bench-site docs`
 
-Commit after every green acceptance criterion. Banned: `wip`, `update code`, `fixed stuff`, `final2`.
+**Rules:**
+- **One logical change per commit.** Split large changes into multiple commits.
+- Summary ≤ 50 chars. No filler words ("add", "implement", "create" → prefer "feat:", "fix:").
+- Body only if needed for context (not for every commit).
+- Commit after **every green acceptance criterion**.
+- Banned: `wip`, `update code`, `fixed stuff`, `final2`, `and`, `also`, `with`.
+
+Examples:
+- `feat(schema): add RawObservation Zod schema`
+- `fix(extension): resolve offscreen host type error`
+- `chore(ci): add schema stale check`
 
 ## Stack
 
