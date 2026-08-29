@@ -18,17 +18,7 @@
     "extension_pages": "connect-src 'self'"
   },
   "action": {
-    "default_title": "GLASSWALL",
-    "default_icon": {
-      "16": "icon16.png",
-      "48": "icon48.png",
-      "128": "icon128.png"
-    }
-  },
-  "icons": {
-    "16": "icon16.png",
-    "48": "icon48.png",
-    "128": "icon128.png"
+    "default_title": "GLASSWALL"
   },
   "background": {
     "service_worker": "src/background/index.ts",
