@@ -1,13 +1,29 @@
 {
-  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "outDir": "dist",
-    "rootDir": ".",
-    "composite": true,
-    "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo",
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
     "jsx": "react-jsx",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"]
+    "baseUrl": ".",
+    "paths": {
+      "@glasswall/schema": ["../../packages/schema/dist"],
+      "@glasswall/perception": ["../../packages/perception/dist"],
+      "@glasswall/schema/*": ["../../packages/schema/dist/*"],
+      "@glasswall/perception/*": ["../../packages/perception/dist/*"],
+      "@glasswall/privacy/*": ["../../packages/privacy/dist/*"],
+      "@glasswall/inference/*": ["../../packages/inference/dist/*"]
+    },
+    "outDir": "./dist",
+    "rootDir": ".",
+    "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo"
   },
-  "include": ["src/**/*", "../packages/schema/src/**/*"],
-  "exclude": ["node_modules", "dist", "build"]
+  "include": ["src/**/*"]
 }
