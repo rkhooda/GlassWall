@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GLASSWALL Inference Spike</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; line-height: 1.6; }
+    h1 { color: #1a1a1a; border-bottom: 2px solid #e0e0e0; padding-bottom: 10px; }
+    h2 { color: #333; margin-top: 30px; }
+    .panel { background: #fafafa; border: 1px solid #e0e0e0; border-radius: 8px; padding: 16px; margin: 16px 0; }
+    .panel h3 { margin-top: 0; color: #444; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+    .item { background: white; border: 1px solid #e0e0e0; border-radius: 6px; padding: 12px; }
+    .label { font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }
+    .value { font-size: 16px; font-weight: 500; color: #1a1a1a; font-family: monospace; }
+    .success { color: #1a7f37; }
+    .warning { color: #bf8700; }
+    .error { color: #cf222e; }
+    button { background: #0969da; color: white; border: none; border-radius: 6px; padding: 10px 20px; font-size: 14px; cursor: pointer; margin-right: 8px; margin-bottom: 8px; }
+    button:hover { background: #0860ca; }
+    button:disabled { background: #94b8e8; cursor: not-allowed; }
+    button.secondary { background: #6e7781; }
+    button.secondary:hover { background: #575f66; }
+    pre { background: #1e1e1e; color: #d4d4d4; padding: 16px; border-radius: 6px; overflow-x: auto; font-size: 13px; }
+    .timing { display: flex; gap: 16px; flex-wrap: wrap; margin: 12px 0; }
+    .timing-item { background: white; border: 1px solid #e0e0e0; border-radius: 6px; padding: 12px; min-width: 140px; }
+    .timing-label { font-size: 11px; color: #666; }
+    .timing-value { font-size: 20px; font-weight: 600; color: #1a1a1a; font-family: monospace; }
+    .status-badge { display: inline-block; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+    .status-ok { background: #dafbe1; color: #1a7f37; }
+    .status-warn { background: #fff8c5; color: #bf8700; }
+    .status-fail { background: #ffebe9; color: #cf222e; }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+    th, td { text-align: left; padding: 10px; border-bottom: 1px solid #e0e0e0; }
+    th { background: #f6f8fa; font-weight: 600; }
+    .output-table td { font-family: monospace; font-size: 13px; }
+    .comparison-row.webgpu { background: #eef5ff; }
+    .comparison-row.wasm { background: #f5f5f5; }
+    .diff-ok { color: #1a7f37; }
+    .diff-fail { color: #cf222e; font-weight: bold; }
+    .log { background: #1e1e1e; color: #8b949e; padding: 12px; border-radius: 6px; font-family: monospace; font-size: 12px; max-height: 300px; overflow-y: auto; }
+    .log-line { margin: 2px 0; }
+    .log-info { color: #8b949e; }
+    .log-success { color: #7ee787; }
+    .log-warn { color: #d29922; }
+    .log-error { color: #f85149; }
+  </style>
+</head>
+<body>
+  <h1>🔬 GLASSWALL Inference Spike</h1>
+  <p>Testing ONNX Runtime Web execution providers (WebGPU + WASM) in browser contexts.</p>
+
+  <div class="panel">
+    <h3>🖥️ Capability Probe</h3>
+    <div id="capability" class="grid"></div>
+  </div>
+
+  <div class="panel">
+    <h3>🎮 Controls</h3>
+    <button id="btn-probe" onclick="runProbe()">Probe Capabilities</button>
+    <button id="btn-load-webgpu" onclick="loadModel('webgpu')" disabled>Load Model (WebGPU)</button>
+    <button id="btn-load-wasm" onclick="loadModel('wasm')" disabled>Load Model (WASM)</button>
+    <button id="btn-run-webgpu" onclick="runInference('webgpu')" disabled>Run Inference (WebGPU)</button>
+    <button id="btn-run-wasm" onclick="runInference('wasm')" disabled>Run Inference (WASM)</button>
+    <button id="btn-bench-webgpu" onclick="benchModel('webgpu')" disabled>Benchmark (WebGPU)</button>
+    <button id="btn-bench-wasm" onclick="benchModel('wasm')" disabled>Benchmark (WASM)</button>
+    <button id="btn-compare" onclick="compareOutputs()" disabled>Compare WebGPU vs WASM Outputs</button>
+    <button class="secondary" onclick="clearLog()">Clear Log</button>
+  </div>
+
+  <div class="panel">
+    <h3>⏱️ Timings</h3>
+    <div id="timings" class="timing"></div>
+  </div>
+
+  <div class="panel">
+    <h3>📊 Output Comparison</h3>
+    <table id="comparison" class="comparison-table">
+      <thead>
+        <tr><th>Index</th><th>WebGPU</th><th>WASM</th><th>Diff</th><th>Status</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="panel">
+    <h3>📝 Log</h3>
+    <div id="log" class="log"></div>
+  </div>
+
+  <script type="module">
+    import { InferenceSession, Tensor } from 'onnxruntime-web';
+
+    const logEl = document.getElementById('log');
+    const capabilityEl = document.getElementById('capability');
+    const timingsEl = document.getElementById('timings');
+    const comparisonBody = document.querySelector('#comparison tbody');
+
+    let modelPath = '';
+    let sessionWebGPU = null;
+    let sessionWASM = null;
+    let outputWebGPU = null;
+    let outputWASM = null;
+
+    function log(message, type = 'info') {
+      const line = document.createElement('div');
+      line.className = `log-line log-${type}`;
+      line.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      logEl.appendChild(line);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function setCapabilityUI(caps) {
+      const items = [
+        { key: 'userAgent', label: 'User Agent', value: caps.userAgent },
+        { key: 'hardwareConcurrency', label: 'CPU Cores', value: caps.hardwareConcurrency },
+        { key: 'deviceMemory', label: 'Device Memory (GB)', value: caps.deviceMemory ?? 'N/A' },
+        { key: 'crossOriginIsolated', label: 'crossOriginIsolated', value: caps.crossOriginIsolated, type: 'bool' },
+        { key: 'wasmSimd', label: 'WASM SIMD', value: caps.wasmSimd, type: 'bool' },
+        { key: 'wasmThreads', label: 'WASM Threads', value: caps.wasmThreads, type: 'bool' },
+        { key: 'webgpu', label: 'WebGPU', value: caps.webgpu, type: 'bool' },
+      ];
+      capabilityEl.innerHTML = items.map(item => {
+        const isBool = item.type === 'bool';
+        const status = isBool ? (item.value ? 'status-ok' : 'status-fail') : '';
+        const val = isBool ? (item.value ? '✅ Yes' : '❌ No') : item.value;
+        return `<div class="item"><div class="label">${item.label}</div><div class="value ${status}">${val}</div></div>`;
+      }).join('');
+    }
+
+    function setTimingUI(timings) {
+      timingsEl.innerHTML = Object.entries(timings).map(([key, value]) => `
+        <div class="timing-item">
+          <div class="timing-label">${key}</div>
+          <div class="timing-value">${value.toFixed(2)} ms</div>
+        </div>
+      `).join('');
+    }
+
+    function setComparisonUI(webgpuOut, wasmOut) {
+      if (!webgpuOut || !wasmOut) return;
+      const wg = webgpuOut.data;
+      const ws = wasmOut.data;
+      const len = Math.min(wg.length, ws.length);
+      comparisonBody.innerHTML = '';
+      for (let i = 0; i < len; i++) {
+        const diff = Math.abs(wg[i] - ws[i]);
+        const status = diff <= 1e-2 ? 'diff-ok' : 'diff-fail';
+        const statusText = diff <= 1e-2 ? '✅ PASS' : '❌ FAIL';
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${i}</td>
+          <td>${wg[i].toFixed(6)}</td>
+          <td>${ws[i].toFixed(6)}</td>
+          <td>${diff.toFixed(6)}</td>
+          <td class="${status}">${statusText}</td>
+        `;
+        comparisonBody.appendChild(row);
+      }
+    }
+
+    async function runProbe() {
+      log('Starting capability probe...');
+      const caps = {
+        userAgent: navigator.userAgent,
+        hardwareConcurrency: navigator.hardwareConcurrency || 0,
+        deviceMemory: navigator.deviceMemory,
+        crossOriginIsolated: typeof crossOriginIsolated !== 'undefined' ? crossOriginIsolated : false,
+        wasmSimd: false,
+        wasmThreads: false,
+        webgpu: false,
+        webgpuAdapter: null,
+      };
+
+      try {
+        const wasmModule = new WebAssembly.Module(
+          new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00, 0x01, 0x05, 0x01, 0x60, 0x00, 0x01, 0x7b, 0x03, 0x02, 0x01, 0x00, 0x0a, 0x09, 0x01, 0x07, 0x00, 0x20, 0x00, 0x41, 0x02, 0x6a, 0x0b])
+        );
+        caps.wasmSimd = true;
+        log('WASM SIMD: ✅ Supported', 'success');
+      } catch {
+        log('WASM SIMD: ❌ Not supported', 'error');
+      }
+
+      if (caps.crossOriginIsolated) {
+        try {
+          const wasmModule = new WebAssembly.Module(
+            new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00, 0x01, 0x05, 0x01, 0x60, 0x00, 0x01, 0x7b, 0x03, 0x02, 0x01, 0x00, 0x0a, 0x07, 0x01, 0x05, 0x01, 0x00, 0x0b])
+          );
+          caps.wasmThreads = true;
+          log('WASM Threads: ✅ Supported', 'success');
+        } catch {
+          log('WASM Threads: ❌ Not supported', 'error');
+        }
+      } else {
+        log('WASM Threads: ❌ Requires crossOriginIsolated', 'warn');
+      }
+
+      if (navigator.gpu) {
+        try {
+          const adapter = await navigator.gpu.requestAdapter();
+          if (adapter) {
+            caps.webgpu = true;
+            caps.webgpuAdapter = {
+              vendor: adapter.info?.vendor ?? 'unknown',
+              architecture: adapter.info?.architecture ?? 'unknown',
+              device: adapter.info?.device ?? 'unknown',
+              description: adapter.info?.description ?? 'unknown',
+              backend: adapter.info?.backend ?? 'unknown',
+            };
+            log(`WebGPU: ✅ Available (${adapter.info?.device ?? 'unknown'})`, 'success');
+          } else {
+            log('WebGPU: ❌ No adapter found', 'error');
+          }
+        } catch (e) {
+          log(`WebGPU: ❌ Error: ${e.message}`, 'error');
+        }
+      } else {
+        log('WebGPU: ❌ Not supported in this browser', 'error');
+      }
+
+      setCapabilityUI(caps);
+
+      document.getElementById('btn-load-webgpu').disabled = !caps.webgpu;
+      document.getElementById('btn-load-wasm').disabled = false;
+      document.getElementById('btn-probe').disabled = true;
+
+      modelPath = new URL('models/mlp-tiny.onnx', window.location.href).href;
+      log(`Model path: ${modelPath}`);
+    }
+
+    async function loadModel(ep) {
+      log(`Loading model with ${ep.toUpperCase()}...`);
+      const start = performance.now();
+      try {
+        const session = await InferenceSession.create(modelPath, {
+          executionProviders: [ep === 'webgpu' ? 'webgpu' : 'wasm'],
+        });
+        const ms = performance.now() - start;
+        if (ep === 'webgpu') {
+          sessionWebGPU = session;
+          document.getElementById('btn-run-webgpu').disabled = false;
+          document.getElementById('btn-bench-webgpu').disabled = false;
+        } else {
+          sessionWASM = session;
+          document.getElementById('btn-run-wasm').disabled = false;
+          document.getElementById('btn-bench-wasm').disabled = false;
+        }
+        log(`Model loaded (${ep}): ${ms.toFixed(2)} ms`, 'success');
+        return session;
+      } catch (e) {
+        log(`Failed to load model (${ep}): ${e.message}`, 'error');
+        throw e;
+      }
+    }
+
+    async function runInference(ep) {
+      const session = ep === 'webgpu' ? sessionWebGPU : sessionWASM;
+      if (!session) {
+        log(`No session for ${ep}. Load first.`, 'error');
+        return;
+      }
+
+      const input = new Tensor('float32', new Float32Array([0.1, -0.2, 0.3, -0.4]), [1, 4]);
+      log(`Running inference (${ep})...`);
+      const start = performance.now();
+      try {
+        const outputs = await session.run({ input });
+        const ms = performance.now() - start;
+        log(`Inference (${ep}): ${ms.toFixed(2)} ms`, 'success');
+        
+        const timingKey = `inference_${ep}`;
+        const existing = timingsEl.querySelector(`[data-key="${timingKey}"]`);
+        if (existing) existing.remove();
+        
+        const item = document.createElement('div');
+        item.className = 'timing-item';
+        item.dataset.key = timingKey;
+        item.innerHTML = `<div class="timing-label">Inference (${ep.toUpperCase()})</div><div class="timing-value">${ms.toFixed(2)} ms</div>`;
+        timingsEl.appendChild(item);
+
+        if (ep === 'webgpu') outputWebGPU = outputs.output;
+        else outputWASM = outputs.output;
+
+        if (outputWebGPU && outputWASM) {
+          document.getElementById('btn-compare').disabled = false;
+          setComparisonUI(outputWebGPU, outputWASM);
+        }
+      } catch (e) {
+        log(`Inference failed (${ep}): ${e.message}`, 'error');
+      }
+    }
+
+    async function benchModel(ep) {
+      const session = ep === 'webgpu' ? sessionWebGPU : sessionWASM;
+      if (!session) {
+        log(`No session for ${ep}. Load first.`, 'error');
+        return;
+      }
+
+      const input = new Tensor('float32', new Float32Array([0.1, -0.2, 0.3, -0.4]), [1, 4]);
+      log(`Benchmarking ${ep} (10 iterations)...`);
+      
+      await session.run({ input });
+      
+      const warmupStart = performance.now();
+      await session.run({ input });
+      const warmupMs = performance.now() - warmupStart;
+
+      const coldStart = performance.now();
+      await session.run({ input });
+      const coldMs = performance.now() - coldStart;
+
+      let totalMs = 0;
+      for (let i = 0; i < 10; i++) {
+        const runStart = performance.now();
+        await session.run({ input });
+        totalMs += performance.now() - runStart;
+      }
+      const warmMs = totalMs / 10;
+
+      log(`Benchmark (${ep}): warmup=${warmupMs.toFixed(2)}ms cold=${coldMs.toFixed(2)}ms warm=${warmMs.toFixed(2)}ms`, 'success');
+
+      const prefix = ep === 'webgpu' ? 'webgpu' : 'wasm';
+      const timings = { [`${prefix}_warmup`]: warmupMs, [`${prefix}_cold`]: coldMs, [`${prefix}_warm`]: warmMs };
+      Object.entries(timings).forEach(([key, value]) => {
+        const existing = timingsEl.querySelector(`[data-key="${key}"]`);
+        if (existing) existing.remove();
+        const item = document.createElement('div');
+        item.className = 'timing-item';
+        item.dataset.key = key;
+        item.innerHTML = `<div class="timing-label">${key}</div><div class="timing-value">${value.toFixed(2)} ms</div>`;
+        timingsEl.appendChild(item);
+      });
+    }
+
+    function compareOutputs() {
+      if (!outputWebGPU || !outputWASM) {
+        log('Run both inferences first.', 'warn');
+        return;
+      }
+      setComparisonUI(outputWebGPU, outputWASM);
+      log('Comparison complete.', 'success');
+    }
+
+    function clearLog() {
+      logEl.innerHTML = '';
+    }
+
+    log('Ready. Click "Probe Capabilities" to start.');
+  </script>
+</body>
+</html>
