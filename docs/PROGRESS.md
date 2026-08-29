@@ -12,12 +12,11 @@
 | A-P1.2 Offscreen RPC       | ✅    | v0.1.0-offscreen-rpc      | Offscreen document lifecycle with RPC transport for InferenceHost interface, includes handler registration for Lane B implementations |
 | A-BS.2 GovPortal           | ✅    | v0.1.0-govportal          | Multi-step government form bench site for testing extension functionality, includes personal info, address, document upload, and review/submit steps |
 | A-P2.1 geometry            | ✅    | v0.2.0-geometry           | `packages/perception/geometry.ts` rect ops, IoU, occlusion helpers, area union, quantization, bidir transforms |
-| A-P2.2 Traversal           | ☐     | —                         | TreeWalker, open-shadow-root, same-origin iframes, frame IDs                              |
-| A-P2.3 Visibility+identity | ☐     | —                         | elementFromPoint centre+4 corners, id_hash, value_state, group_path                       |
-| A-P2.4 ShadowDOM+iframes   | ☐     | —                         | Cross-origin iframe unexplained, closed shadow root unexplained                           |
-| A-P2.5 WaitStable+overlay  | ☐     | —                         | MutationObserver + IntersectionObserver + fetch/XHR patch, debug overlay                  |
-| A-P2.6 Security test       | ☐     | —                         | Grep extractor for .value/.innerHTML/cookie/storage — assert absent                       |
-| A-P3.1 Capture             | ☐     | —                         | captureVisibleTab in SW, ImageBitmap transfer, throttle handling                          |
+| A-P2.2 Traversal           | ✅    | v0.2.0-traversal          | TreeWalker, open-shadow-root, same-origin iframes, frame IDs                              |
+| A-P2.3 Visibility+identity | ✅    | v0.2.0-visibility         | elementFromPoint centre+4 corners, id_hash, value_state, group_path                       |
+| A-P2.4 ShadowDOM+iframes   | ✅    | v0.2.0-shadow-iframe      | Cross-origin iframe unexplained, closed shadow root unexplained                           |
+| A-P2.5 WaitStable          | ✅    | v0.2.0-waitstable         | MutationObserver + route stability (URL/hashchange), 3s timeout/500ms stable duration     |
+| A-P3.1 Capture             | ✅    | v0.3.0-capture            | captureVisibleTab in SW, dataURL→Blob, viewport/DPI metadata                              |
 | A-P4.1 Validator           | ☐     | v0.4.0-action-protocol    | 12-rung ladder (rungs 7-8 stubbed), Action/ActionEnvelope frozen                          |
 | A-P4.2 Executor            | ☐     | —                         | CLICK/TYPE event ordering, native value setter, effect verification                       |
 | A-P4.3 Confirmation        | ☐     | —                         | Confirm.tsx for high-risk actions                                                         |
