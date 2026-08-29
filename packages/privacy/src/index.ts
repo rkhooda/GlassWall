@@ -16,6 +16,28 @@ import type {
 import type { PolicyConfig, PiiType } from '@glasswall/schema/policy';
 import type { SafePayload, Violation, SecretRegistry, Sensitive, Result } from '@glasswall/schema/branded';
 
+export * from './recognizers';
+export * from './registry';
+export * from './tokenizer';
+export * from './vault';
+export * from './sensitive';
+export * from './vault-store';
+export { 
+  type Violation, 
+  type Result, 
+  ok, 
+  err, 
+  type BindingTarget, 
+  resolveForBinding, 
+  extractPiiTypeFromHandle 
+} from './resolve';
+
+function extractPiiTypeFromHandle(handle: string): PiiType {
+  const match = handle.match(/⟦([^#]+)#/);
+  if (match) return match[1] as PiiType;
+  return 'NONE';
+}
+
 export async function sanitize(input: {
   raw: RawObservation;
   frame: CapturedFrame | null;
@@ -112,36 +134,7 @@ export function egressGate(
 }
 
 // C7 CONTRACT: resolveForBinding() - B's function, A calls before executing TYPE
-
-export function resolveForBinding(
-  handle: string,
-  target: { element_id: string; sensitivity_class: PiiType | 'none'; accepts: PiiType[] }
-): Result<Sensitive<string>, Violation> {
-  const sensitiveValue: Sensitive<string> = {
-    __sensitiveBrand: '__sensitiveBrand',
-    value: `[RESOLVED:${handle}]`,
-  };
-  
-  const handleType = extractPiiTypeFromHandle(handle);
-  if (target.accepts.length > 0 && handleType !== 'NONE' && !target.accepts.includes(handleType)) {
-    return { 
-      ok: false, 
-      error: {
-        code: 'VAULT_TYPE_MISMATCH',
-        message: `Vault handle ${handle} type ${handleType} not accepted by target (accepts: ${target.accepts.join(', ')})`,
-        details: { handle, target: target.element_id, expected: target.accepts, actual: handleType },
-      }
-    };
-  }
-  
-  return { ok: true, value: sensitiveValue };
-}
-
-function extractPiiTypeFromHandle(handle: string): PiiType {
-  const match = handle.match(/⟦([^#]+)#/);
-  if (match) return match[1] as PiiType;
-  return 'NONE';
-}
+// Now implemented in ./resolve.ts
 
 // C8 CONTRACT: Validator rungs 7 & 8
 
