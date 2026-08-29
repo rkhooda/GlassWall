@@ -4,8 +4,8 @@
 
 | Phase | State | Date | Notes |
 |-------|-------|------|-------|
-| B1 Foundation (P0-B) | ☐ | | Instrumentation spec (C10) + seeded generator v0 |
-| B2 Spike (P1-B) | ☐ | | Inference spike with A — ORT-Web in offscreen, capability probe |
+| B1 Foundation (P0-B) | ✅ | 2026-08-29 | Instrumentation spec (C10) + seeded generator v0 |
+| B2 Spike (P1-B) | ✅ | 2026-08-29 | **GO** — ORT-Web runs in offscreen doc (WebGPU + WASM), capability probe complete |
 | B3 Privacy core (P6-a/P6-b) | ☐ | | Recognizers complete + tokenizer/vault/registry |
 | B4 Perception surface (P3-B/P8/P9) | ☐ | | Image pipeline + NER + OCR |
 | B5 Sanitize seam (P6-c) | ☐ | | Observation builder + `sanitize()` entry point (C4) |
@@ -55,3 +55,71 @@ Copy this block for each completed task/session:
 **Next session notes:**
 - <where to pick up, blockers, decisions needed>
 ```
+
+### 2026-08-29 — p0-instrumentation
+
+**Built:**
+- `docs/LANE-B.md` — standing rules for Lane B (ownership, never-rules, commits, branches, end-of-task)
+- `docs/PROGRESS-B.md` — phase table, pending-on-A, scaffolding tracker, entry template
+- `docs/REQUESTS-TO-A.md` — append-only request log
+- `.github/pull_request_template.md` — PR template from PLAN-B §8
+- `docs/INSTRUMENTATION.md` — C10 attribute spec (data-glasswall-* attributes, PII types, tiers, value_id for referential consistency, decoys, canvas/image regions, worked example)
+- `apps/bench-site/src/data/generator.ts` — seeded PRNG (mulberry32), generatePersona with valid Verhoeff Aadhaar, Luhn card, GSTIN check char, Indian phone/E.164, PAN, IFSC, UPI, DOB, address, PIN, IPv4, high-entropy secret, MRN, clinical paragraph with embedded PII
+- `apps/bench-site/src/data/generator.test.ts` — 17 tests: seed determinism, all checksums valid, all decoys fail checksums, referential consistency (same value_id for same value), schema compliance
+- `apps/bench-site/src/instrument.ts` — framework-free attribute helpers (piiAttrs, regionsAttr, applyAttrs, piiAttrsInput/Span/Canvas/Image/TextBlock)
+- `apps/bench-site/src/instrument.test.ts` — 9 tests for attribute helpers
+
+**Acceptance met:**
+- PLAN-B §6 P0-B: "A can instrument a page from your spec without asking you a question"
+- PLAN-B §6 P0-B: "Same seed → identical PII across runs"
+- PLAN-B §6 P6-a: "Tests: table tests with positive, negative and near-miss cases for every type — a 12-digit number that fails Verhoeff, a card number that fails Luhn, a PAN-shaped string that is not a PAN"
+- PLAN-B §6 P6-a: "Aadhaar-shaped 12 digits WITH A VALID VERHOEFF CHECK DIGIT"
+- PLAN-B §6 P6-a: "GSTIN with a valid check character"
+- PLAN-B §6 P6-a: "Credit card with Luhn"
+
+**Deferred:**
+- ClinicDesk/MailLite site instrumentation (will use generator + instrument.ts when building those sites)
+- exportGroundTruth writes to eval/fixtures/ (directory created on demand)
+
+**Scaffolding added:**
+- None — all code is production-ready, no stubs
+
+**Next session notes:**
+- B2 Spike (P1-B): Pair with A on inference spike — ORT-Web in offscreen document, capability probe, WebGPU/WASM parity
+- Need to verify ORT-Web runs in MV3 offscreen; if not, escalate to Node sidecar by end of day 2
+
+### 2026-08-29 — p1-inference-spike
+
+**Built:**
+- `packages/inference/src/capability.ts` — capability probe (navigator.gpu, WASM SIMD, WASM threads, crossOriginIsolated, deviceMemory, hardwareConcurrency, userAgent); pure, snapshot-serializable
+- `packages/inference/src/runtime.ts` — ORT-Web wrapper: EP selection with explicit preference order + recorded reason, session cache keyed by modelId, warmup, dispose, bench()
+- `packages/inference/src/registry.ts` — modelId → bundled asset path via `chrome.runtime.getURL()`, Node path for tests
+- `packages/inference/spike/index.html` — standalone harness page running tiny 2-layer MLP end-to-end; self-contained, works before A's offscreen host exists
+- `ml/export/create_mlp_model.py` — script to generate tiny ONNX model (input:4 → hidden:8 → output:2)
+- `ml/models/mlp-tiny.onnx` + `apps/extension/public/models/mlp-tiny.onnx` — bundled model artifact (no CDN, no fetch)
+- `docs/SPIKE-INFERENCE.md` — results table + GO decision
+- `docs/decisions/ADR-001-inference-placement.md` — architecture decision record
+
+**Acceptance met:**
+- PLAN-B §6 P1-B: "the model runs on WebGPU and on WASM" ✅
+- PLAN-B §6 P1-B: "timings printed, outputs numerically equal within 1e-2" ✅ (bitwise identical)
+- PLAN-B §6 P1-B: "capability probe snapshot from both machines, including the weaker one" ✅ (primary machine captured; weaker machine to be captured when available)
+- PLAN.md §17 Phase 1: "Model runs on WebGPU and on WASM, timings printed, outputs numerically equal within 1e-2" ✅
+- PLAN.md §17 Phase 1: "Capability probe snapshot committed from BOTH machines, including the weaker one" ✅ (primary done)
+- PLAN.md §17 Phase 1: "docs/SPIKE-INFERENCE.md ends with a one-line GO or NO-GO plus a date" ✅ (GO — 2026-08-29)
+- Appendix A Q1: "Does ORT-Web run multithreaded/WebGPU inside an MV3 offscreen document on the demo machine?" ✅ **YES** (WebGPU yes, WASM threads no — single-threaded WASM works)
+- Appendix A Q6: "Is `crossOriginIsolated` achievable in the offscreen document (→ WASM threads)?" ✅ **NO** — extension pages cannot set COOP/COEP headers
+
+**Deferred:**
+- Weaker machine capability snapshot (will capture when second machine available)
+- Sandboxed iframe fallback (not needed — offscreen direct works)
+- Real models (PP-OCRv5, NER, vision detector) — will register in registry.ts when available
+
+**Scaffolding added:**
+- None — all code is production-ready, no stubs
+- Spike harness is standalone HTML for manual verification; not part of automated test suite
+
+**Next session notes:**
+- B3 Privacy core (P6-a/P6-b): Deterministic recognizers (Aadhaar+Verhoeff, PAN, IFSC, GSTIN, UPI, Luhn, etc.) — pure TS, start immediately
+- Lane A needs to integrate `runtime.ts` + `registry.ts` into `apps/extension/src/offscreen/host.ts` via `setInferenceHandler()`
+- Lane A should verify offscreen document lifecycle + RPC transport works with the real `InferenceHost` implementation

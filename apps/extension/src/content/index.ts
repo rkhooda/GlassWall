@@ -2,9 +2,10 @@
 
 import { bus } from '../shared/bus';
 import '../shared/types-chrome';
-import type { RawObservation, Rect, Viewport, PageInfo } from '@glasswall/schema';
+import type { RawObservation, Rect, Viewport, PageInfo, SanitizedObservation } from '@glasswall/schema';
 import { traverseElements } from './extractor/walk';
 import { waitForFullStability } from './extractor/stability';
+import { executeAction } from './executor';
 import {
   computeAccessibleNameForElement,
   computeRoleForElement,
@@ -15,6 +16,8 @@ import {
 console.log('GLASSWALL content script starting');
 
 let observationId = 0;
+let currentObservation: SanitizedObservation | null = null;
+let sessionVault = new Map<string, string>();
 
 // Listen for messages from service worker
 chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
@@ -134,6 +137,9 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
         list_virtualized: false
       };
 
+      // Store as current observation (sanitized version would come from SW)
+      currentObservation = rawObservation as unknown as SanitizedObservation;
+
       // Send observation to service worker
       sendResponse({
         type: 'extension:observation-ready',
@@ -160,17 +166,67 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
 
   // Handle execute action request
   if (message.type === 'extension:execute-action') {
-    console.log('Executing action:', message.payload);
-    // In real implementation, we would:
-    // 1. Validate action against current observation
-    // 2. Execute the action in the page
-    // 3. Verify effect and return result
+    try {
+      console.log('Executing action:', message.payload);
+      
+      const { action, observation, vault } = message.payload;
+      
+      if (!observation) {
+        sendResponse({
+          type: 'extension:action-result',
+          payload: { ok: false, effect_observed: false, error_code: 'STALE_OBSERVATION', error_message: 'No observation provided' }
+        });
+        return true;
+      }
 
-    sendResponse({
-      type: 'extension:action-result',
-      payload: { ok: true, effect_observed: true }
-    });
+      // Update current observation and vault
+      currentObservation = observation;
+      sessionVault = new Map(Object.entries(vault || {}));
 
+      // Get current viewport
+      const viewportInfo = await chrome.scripting.executeScript({
+        target: { tabId: sender.tab?.id ?? -1 },
+        func: () => ({
+          w: window.innerWidth,
+          h: window.innerHeight,
+          dpr: window.devicePixelRatio,
+          scrollX: window.scrollX,
+          scrollY: window.scrollY
+        })
+      });
+
+      const result = viewportInfo?.[0]?.result;
+      const viewport = {
+        w: result?.w ?? window.innerWidth,
+        h: result?.h ?? window.innerHeight,
+        dpr: result?.dpr ?? window.devicePixelRatio,
+        scrollX: result?.scrollX ?? window.scrollX,
+        scrollY: result?.scrollY ?? window.scrollY
+      };
+
+      // Execute the action using our executor
+      const actionResult = await executeAction(action, observation, viewport);
+
+      sendResponse({
+        type: 'extension:action-result',
+        payload: actionResult
+      });
+    } catch (error) {
+      const err = error as Error;
+      console.error('Error executing action:', err);
+      sendResponse({
+        type: 'extension:action-result',
+        payload: { ok: false, effect_observed: false, error_code: 'AGENT_ERROR', error_message: err.message }
+      });
+    }
+    return true;
+  }
+
+  // Handle vault update (from service worker after secret registration)
+  if (message.type === 'extension:vault-update') {
+    const { handle, value } = message.payload;
+    sessionVault.set(handle, value);
+    sendResponse({ status: 'ok' });
     return true;
   }
 
@@ -179,7 +235,6 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
 });
 
 // Report ready to bus (in real implementation, this would be via message to SW)
-// For skeleton, we'll just log
 console.log('Content script reporting ready');
 
 // Try to send ready message to service worker

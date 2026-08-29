@@ -19,7 +19,29 @@ export const TargetSchema = z.object({
 });
 export type Target = z.infer<typeof TargetSchema>;
 
-export const ValueSchema = z.string();
+export const LiteralValueSchema = z.object({
+  kind: z.literal('literal'),
+  text: z.string().max(200),
+});
+export type LiteralValue = z.infer<typeof LiteralValueSchema>;
+
+export const VaultRefValueSchema = z.object({
+  kind: z.literal('vault_ref'),
+  handle: z.string(),
+});
+export type VaultRefValue = z.infer<typeof VaultRefValueSchema>;
+
+export const UserInputValueSchema = z.object({
+  kind: z.literal('user_input'),
+  field_type: z.string(),
+});
+export type UserInputValue = z.infer<typeof UserInputValueSchema>;
+
+export const ValueSchema = z.discriminatedUnion('kind', [
+  LiteralValueSchema,
+  VaultRefValueSchema,
+  UserInputValueSchema,
+]);
 export type Value = z.infer<typeof ValueSchema>;
 
 export const ActionSchema = z.discriminatedUnion('type', [
@@ -64,7 +86,8 @@ export const ActionSchema = z.discriminatedUnion('type', [
   }),
   z.object({
     type: z.literal('DONE'),
-    summary: z.string(),
+    outcome: z.enum(['success', 'blocked', 'impossible']),
+    evidence_element: z.string().optional(),
   }),
 ]);
 export type Action = z.infer<typeof ActionSchema>;
@@ -98,8 +121,13 @@ export const ActionResultSchema = z
         'NAVIGATION_FAILED',
         'EFFECT_NOT_OBSERVED',
         'VAULT_TYPE_MISMATCH',
+        'LITERAL_CONTAINS_SECRET',
         'AGENT_ERROR',
         'ABORTED',
+        'UNKNOWN_TARGET',
+        'ELEMENT_NOT_ACTIONABLE',
+        'UNSUPPORTED_ACTION',
+        'ORIGIN_NOT_ALLOWED',
       ])
       .default('NONE'),
     error_message: z.string().optional(),

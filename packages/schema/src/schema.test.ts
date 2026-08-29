@@ -84,21 +84,20 @@ describe('Schema validation', () => {
 
   it('validates all Action types', () => {
     const actions = [
-      { type: 'CLICK', target_id: 'e1', target_id_hash: 'abc123' },
+      { type: 'CLICK', target: { id: 'e1', id_hash: 'abc123' } },
       {
         type: 'TYPE',
-        target_id: 'e1',
-        target_id_hash: 'abc123',
-        value: '@vault:EMAIL#1',
+        target: { id: 'e1', id_hash: 'abc123' },
+        value: { kind: 'vault_ref' as const, handle: '⟦EMAIL#1⟧' },
         clear_first: true,
       },
       { type: 'SCROLL', direction: 'down' as const, amount: 300 },
-      { type: 'SELECT', target_id: 'e1', target_id_hash: 'abc123', option_index: 0 },
+      { type: 'SELECT', target: { id: 'e1', id_hash: 'abc123' }, option_index: 0 },
       { type: 'PRESS_KEY', key: 'Enter' },
       { type: 'NAVIGATE', url_template: '/dashboard' },
       { type: 'WAIT', condition: 'stable' as const, timeout_ms: 5000 },
       { type: 'BACK' },
-      { type: 'DONE', summary: 'Task completed' },
+      { type: 'DONE', outcome: 'success' as const, evidence_element: 'e1' },
     ];
 
     for (const action of actions) {
@@ -109,7 +108,7 @@ describe('Schema validation', () => {
 
   it('validates ActionEnvelope', () => {
     const envelope = {
-      action: { type: 'CLICK', target_id: 'e1', target_id_hash: 'abc123' },
+      action: { type: 'CLICK', target: { id: 'e1', id_hash: 'abc123' } },
       observation_id: 'obs-1',
       step_index: 1,
       session_id: 'sess-1',

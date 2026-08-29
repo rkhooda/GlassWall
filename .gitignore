@@ -9,6 +9,10 @@ build/
 generated/
 *.tsbuildinfo
 
+# TypeScript declaration files (built artifacts)
+*.d.ts
+*.d.ts.map
+
 # Turbo
 .turbo/
 
