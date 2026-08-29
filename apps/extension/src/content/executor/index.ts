@@ -24,10 +24,9 @@ import { executeNavigate } from './navigate';
 export async function executeAction(
   action: Action,
   observation: SanitizedObservation,
-  viewport: { w: number; h: number; dpr: number; scrollX: number; scrollY: number },
-  vault: Map<string, string>
+  viewport: { w: number; h: number; dpr: number; scrollX: number; scrollY: number }
 ): Promise<ActionResult> {
-  const context: ExecutionContext = { observation, viewport, vault };
+  const context: ExecutionContext = { observation, viewport };
 
   try {
     // Validate action against available_actions (rung 6 of validation ladder)

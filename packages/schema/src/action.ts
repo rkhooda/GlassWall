@@ -121,6 +121,7 @@ export const ActionResultSchema = z
         'NAVIGATION_FAILED',
         'EFFECT_NOT_OBSERVED',
         'VAULT_TYPE_MISMATCH',
+        'LITERAL_CONTAINS_SECRET',
         'AGENT_ERROR',
         'ABORTED',
         'UNKNOWN_TARGET',

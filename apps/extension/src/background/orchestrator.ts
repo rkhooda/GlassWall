@@ -5,9 +5,9 @@ import type { RawObservation, SanitizedObservation, CapturedFrame } from '@glass
 import type { Action, ActionEnvelope, ActionResult, Target } from '@glasswall/schema/action';
 import type { PolicyConfig } from '@glasswall/schema/policy';
 import type { SanitizeResult, RedactionReason, AuditPrivacyFields } from '@glasswall/schema/audit';
-import type { SafePayload } from '@glasswall/schema/branded';
+import type { SafePayload, Violation, SecretRegistry, Result } from '@glasswall/schema/branded';
 import { send } from './net';
-import { sanitize as stubSanitize } from './sanitize.stub';
+import { sanitize, egressGate, checkVaultTypeMatch, scanLiteralAgainstRegistry } from '@glasswall/privacy';
 
 // Session state (persisted to chrome.storage.session for SW restart recovery)
 interface SessionState {
@@ -19,6 +19,8 @@ interface SessionState {
   stepIndex: number;
   consecutiveFailures: number;
   aborted: boolean;
+  // Secret registry for vault handles (C6, C7, C8)
+  secretRegistry: SecretRegistry;
   // Working memory (local, never sent)
   workingMemory: {
     observationHistory: RawObservation[];
@@ -103,6 +105,7 @@ export async function initialize(task: string, policyProfile: 'STRICT' | 'BALANC
     stepIndex: 0,
     consecutiveFailures: 0,
     aborted: false,
+    secretRegistry: new Map(),
     workingMemory: {
       observationHistory: [],
       domSnapshots: new Map(),
@@ -173,7 +176,21 @@ async function runLoop(): Promise<void> {
       updateProgress(sanitizedObs);
 
       stepTimings.gateStart = Date.now();
-      const safePayload = await egressGate(sanitizedObs);
+      const gateResult = egressGate(sanitizedObs, currentSession.secretRegistry, currentSession.policy);
+      if (!gateResult.ok) {
+        // Gate violation - fail closed per C6
+        console.error('Egress gate violation:', gateResult.error);
+        currentSession.consecutiveFailures++;
+        await recordStepResult({
+          ok: false,
+          effect_observed: false,
+          error_code: 'AGENT_ERROR',
+          error_message: `Egress gate violation: ${gateResult.error.code} - ${gateResult.error.message}`,
+        }, stepTimings);
+        await persistSession();
+        continue;
+      }
+      const safePayload = gateResult.value;
       stepTimings.gateEnd = Date.now();
 
       stepTimings.networkStart = Date.now();
@@ -312,6 +329,25 @@ function validateAction(envelope: ActionEnvelope, observation: SanitizedObservat
     }
   }
 
+  // Rung 7: Vault type match (C8) - check VAULT_TYPE_MISMATCH (potential exfiltration)
+  if (action.type === 'TYPE' && hasTarget && action.value.kind === 'vault_ref') {
+    const vaultCheck = checkVaultTypeMatch(action, observation);
+    if (!vaultCheck.ok) {
+      // Log as potential exfiltration attempt - demo beat
+      console.warn('VAULT_TYPE_MISMATCH (potential exfiltration):', vaultCheck.error);
+      return { ok: false, error_code: 'VAULT_TYPE_MISMATCH', error_message: vaultCheck.error.message };
+    }
+  }
+
+  // Rung 8: Scan literal against registry (C8)
+  if (action.type === 'TYPE' && action.value.kind === 'literal') {
+    const literalCheck = scanLiteralAgainstRegistry(action.value.text, currentSession!.secretRegistry);
+    if (!literalCheck.ok) {
+      console.warn('LITERAL_CONTAINS_SECRET:', literalCheck.error);
+      return { ok: false, error_code: 'LITERAL_CONTAINS_SECRET', error_message: literalCheck.error.message };
+    }
+  }
+
   return { ok: true };
 }
 
@@ -367,12 +403,43 @@ async function requestConfirmation(envelope: ActionEnvelope, observation: Saniti
   });
 }
 
+import { resolveForBinding } from '@glasswall/privacy';
+import type { Sensitive } from '@glasswall/schema/branded';
+
 async function execute(envelope: ActionEnvelope): Promise<ActionResult> {
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
   const tab = tabs[0];
   const tabId = tab?.id;
   if (!tabId) {
     return { ok: false, effect_observed: false, error_code: 'ELEMENT_NOT_FOUND', error_message: 'No active tab' };
+  }
+
+  // Resolve vault references before sending to content script (C7)
+  let actionToSend = envelope.action;
+  if (actionToSend.type === 'TYPE' && actionToSend.value.kind === 'vault_ref') {
+    const handle = actionToSend.value.handle;
+    const targetId = actionToSend.target!.id; // TYPE action always has target
+    // Find target element from the latest sanitized observation (has sensitivity_class)
+    const latestObs = currentSession!.workingMemory.observationHistory[currentSession!.workingMemory.observationHistory.length - 1];
+    const targetElement = latestObs?.elements.find(e => e.id === targetId);
+    if (targetElement) {
+      const bindingResult = resolveForBinding(handle, {
+        element_id: targetElement.id,
+        sensitivity_class: (targetElement as any).sensitivity_class || 'none',
+        accepts: (targetElement as any).sensitivity_class ? [(targetElement as any).sensitivity_class] : [],
+      });
+      
+      if (!bindingResult.ok) {
+        return { ok: false, effect_observed: false, error_code: 'VAULT_TYPE_MISMATCH', error_message: bindingResult.error.message };
+      }
+      
+      // Replace vault_ref with literal value for content script
+      const sensitiveValue: Sensitive<string> = bindingResult.value;
+      actionToSend = {
+        ...actionToSend,
+        value: { kind: 'literal' as const, text: sensitiveValue.value },
+      };
+    }
   }
 
   return new Promise((resolve) => {
@@ -387,7 +454,7 @@ async function execute(envelope: ActionEnvelope): Promise<ActionResult> {
 
     // chrome.tabs.sendMessage returns void, not a Promise
     try {
-      chrome.tabs.sendMessage(tabId, { type: 'extension:execute-action', payload: { action: envelope.action, observationId: envelope.observation_id } });
+      chrome.tabs.sendMessage(tabId, { type: 'extension:execute-action', payload: { action: actionToSend, observationId: envelope.observation_id } });
     } catch {
       chrome.runtime.onMessage.removeListener(listener);
       resolve({ ok: false, effect_observed: false, error_code: 'AGENT_ERROR', error_message: 'Failed to send to content script' });
@@ -518,27 +585,10 @@ export async function restoreSession(): Promise<SessionState | null> {
   if (data['glasswall:session']) {
     currentSession = {
       ...data['glasswall:session'],
+      secretRegistry: new Map(), // Re-initialize secret registry on restore
       workingMemory: { observationHistory: [], domSnapshots: new Map() },
     };
     return currentSession;
   }
   return null;
-}
-
-// C4 CONTRACT STUB - sanitize()
-async function sanitize(input: {
-  raw: RawObservation;
-  frame: CapturedFrame | null;
-  task: string;
-  step: number;
-  session: { session_id: string; policy_profile: 'STRICT' | 'BALANCED' | 'PERMISSIVE' };
-}): Promise<SanitizeResult> {
-  return stubSanitize(input);
-}
-
-// C6 CONTRACT STUB - egressGate()
-// PENDING_GATE: Brand cast to be removed when real gate is wired
-async function egressGate(payload: unknown): Promise<SafePayload> {
-  // PENDING_GATE: This brand cast will be deleted in one commit when B's egressGate is wired
-  return payload as SafePayload;
 }

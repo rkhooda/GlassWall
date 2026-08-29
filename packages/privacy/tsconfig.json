@@ -7,7 +7,7 @@
     "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo",
     "noEmit": false,
     "declaration": true,
-    "emitDeclarationOnly": true
+    "emitDeclarationOnly": false
   },
   "references": [{ "path": "../schema" }],
   "include": ["src/**/*"],

@@ -13,7 +13,7 @@ const CHAR_DELAY_MS = 12; // ~12ms per character as specified in PLAN.md
  * Executes a TYPE action with exact event ordering and native value setter
  */
 export async function executeType(
-  action: Action & { type: 'TYPE'; value: { kind: 'literal'; text: string } | { kind: 'vault_ref'; handle: string } },
+  action: Action & { type: 'TYPE'; value: { kind: 'literal'; text: string } },
   context: ExecutionContext
 ): Promise<{ ok: boolean; effectObserved: boolean; errorCode?: string; errorMessage?: string; ms: number }> {
   const startTime = performance.now();
@@ -46,11 +46,8 @@ export async function executeType(
     await new Promise(r => setTimeout(r, 50));
   }
 
-  // 5. Resolve the value (literal or vault reference)
-  const text = resolveValue(action.value, context.vault);
-  if (text === null) {
-    return { ok: false, effectObserved: false, errorCode: 'VAULT_TYPE_MISMATCH', errorMessage: `Vault handle not found or type mismatch`, ms: performance.now() - startTime };
-  }
+  // 5. Resolve the value (now always literal, vault resolved in orchestrator)
+  const text = resolveValue(action.value);
 
   // 6. Focus the element
   (element as HTMLElement).focus();
@@ -116,16 +113,9 @@ function isTypeableElement(element: Element, target: SanitizedElement): boolean 
 }
 
 function resolveValue(
-  value: { kind: 'literal'; text: string } | { kind: 'vault_ref'; handle: string },
-  vault: Map<string, string>
-): string | null {
-  if (value.kind === 'literal') {
-    return value.text;
-  }
-  if (value.kind === 'vault_ref') {
-    return vault.get(value.handle) || null;
-  }
-  return null;
+  value: { kind: 'literal'; text: string }
+): string {
+  return value.text;
 }
 
 function clearElementValue(element: Element): void {

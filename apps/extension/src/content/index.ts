@@ -205,7 +205,7 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
       };
 
       // Execute the action using our executor
-      const actionResult = await executeAction(action, observation, viewport, sessionVault);
+      const actionResult = await executeAction(action, observation, viewport);
 
       sendResponse({
         type: 'extension:action-result',

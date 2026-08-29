@@ -16,8 +16,6 @@ import type {
 import type { PolicyConfig, PiiType } from '@glasswall/schema/policy';
 import type { SafePayload, Violation, SecretRegistry, Sensitive, Result } from '@glasswall/schema/branded';
 
-export * from './recognizers';
-
 export async function sanitize(input: {
   raw: RawObservation;
   frame: CapturedFrame | null;

@@ -6,7 +6,6 @@ import type { SanitizedObservation } from '@glasswall/schema/observation';
 export interface ExecutionContext {
   observation: SanitizedObservation;
   viewport: { w: number; h: number; dpr: number; scrollX: number; scrollY: number };
-  vault: Map<string, string>; // handle -> real value
 }
 
 export interface ElementRect {

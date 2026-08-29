@@ -18,6 +18,7 @@
       "@glasswall/perception": ["../../packages/perception/dist"],
       "@glasswall/schema/*": ["../../packages/schema/dist/*"],
       "@glasswall/perception/*": ["../../packages/perception/dist/*"],
+      "@glasswall/privacy": ["../../packages/privacy/dist"],
       "@glasswall/privacy/*": ["../../packages/privacy/dist/*"],
       "@glasswall/inference/*": ["../../packages/inference/dist/*"]
     },
@@ -25,5 +26,8 @@
     "rootDir": ".",
     "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo"
   },
+  "references": [
+    { "path": "../../packages/privacy" }
+  ],
   "include": ["src/**/*"]
 }
