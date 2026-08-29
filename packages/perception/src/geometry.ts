@@ -81,23 +81,88 @@ export function areaUnion(rects: Rect[]): number {
     return 0;
   }
 
-  // Simple approach: merge all rects and calculate area of the union
-  // For better performance with many rects, we could use a sweep line algorithm
-  // but for typical use cases (small number of rects), this is fine
+  // For small number of rects, we can compute the exact union area
+  // by creating a grid from all x and y coordinates and checking coverage
 
-  // Explicitly handle the first element to help TypeScript
-  let unionRect: Rect = rects[0];
-  // TypeScript might still not know rects[0] exists, so let's be extra explicit
-  if (unionRect === undefined) {
-    // This should never happen due to the length check above, but helps TypeScript
-    return 0;
+  // Collect all unique x and y coordinates from rectangle edges
+  const xCoords = new Set<number>();
+  const yCoords = new Set<number>();
+
+  for (const rect of rects) {
+    xCoords.add(rect.x);
+    xCoords.add(rect.x + rect.width);
+    yCoords.add(rect.y);
+    yCoords.add(rect.y + rect.height);
   }
 
-  for (let i = 1; i < rects.length; i++) {
-    unionRect = union(unionRect, rects[i]);
+  // Convert to sorted arrays
+  const sortedX = Array.from(xCoords).sort((a, b) => a - b);
+  const sortedY = Array.from(yCoords).sort((a, b) => a - b);
+
+  // Handle edge case where we don't have enough coordinates to form a grid
+  if (sortedX.length < 2 || sortedY.length < 2) {
+    // Fallback to simple bounding box approach for degenerate cases
+    const firstRect = rects[0];
+    if (firstRect === undefined) {
+      return 0; // Should not happen due to length check above
+    }
+    let unionRect: Rect = firstRect;
+    for (let i = 1; i < rects.length; i++) {
+      const rect = rects[i];
+      if (rect !== undefined) {
+        unionRect = union(unionRect, rect);
+      }
+    }
+    return area(unionRect);
   }
 
-  return area(unionRect);
+  // Check each cell in the grid
+  let totalArea = 0;
+  for (let i = 0; i < sortedX.length - 1; i++) {
+    const cellX = sortedX[i];
+    const cellX2 = sortedX[i + 1];
+    // TypeScript needs help seeing these are defined
+    if (cellX === undefined || cellX2 === undefined) {
+      continue;
+    }
+    const cellWidth = cellX2 - cellX;
+    for (let j = 0; j < sortedY.length - 1; j++) {
+      const cellY = sortedY[j];
+      const cellY2 = sortedY[j + 1];
+      // TypeScript needs help seeing these are defined
+      if (cellY === undefined || cellY2 === undefined) {
+        continue;
+      }
+      const cellHeight = cellY2 - cellY;
+
+      // Check if this cell is covered by any rectangle
+      let covered = false;
+      for (let k = 0; k < rects.length; k++) {
+        // Safety check for TypeScript
+        if (k >= rects.length) {
+          break;
+        }
+        const rect = rects[k];
+        if (rect !== undefined) {
+          if (
+            cellX >= rect.x &&
+            cellX + cellWidth <= rect.x + rect.width &&
+            cellY >= rect.y &&
+            cellY + cellHeight <= rect.y + rect.height
+          ) {
+            covered = true;
+            break;
+          }
+        }
+      }
+
+      if (covered) {
+        totalArea += cellWidth * cellHeight;
+      }
+    }
+  }
+
+  return totalArea;
 }
 
 // Quantize a value to the nearest grid step

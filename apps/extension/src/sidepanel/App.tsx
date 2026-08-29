@@ -14,17 +14,17 @@ const App: React.FC = () => {
 
     const interval = setInterval(() => {
       if (isRunning) {
-        setTrace(prev => [
-          ...prev,
+        setTrace(prevTrace => [
+          ...prevTrace,
           {
-            step: prev.length + 1,
-            message: `Simulated step ${prev.length + 1}`,
+            step: prevTrace.length + 1,
+            message: `Simulated step ${prevTrace.length + 1}`,
             timestamp: Date.now()
           }
         ]);
 
         // Auto-stop after 5 steps for demo
-        if (prev.length >= 4) {
+        if (trace.length >= 4) {
           setIsRunning(false);
         }
       }

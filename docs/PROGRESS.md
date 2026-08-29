@@ -11,7 +11,7 @@
 | A-P1.1 MV3 skeleton        | ✅    | v0.1.0-extension-skeleton | manifest.json, message bus, sidepanel, offscreen bootstrap                                |
 | A-P1.2 Offscreen RPC       | ✅    | v0.1.0-offscreen-rpc      | Offscreen document lifecycle with RPC transport for InferenceHost interface, includes handler registration for Lane B implementations |
 | A-BS.2 GovPortal           | ✅    | v0.1.0-govportal          | Multi-step government form bench site for testing extension functionality, includes personal info, address, document upload, and review/submit steps |
-| A-P2.1 geometry            | ☐     | —                         | `packages/perception/geometry.ts` rect ops, IoU, quantization                             |
+| A-P2.1 geometry            | ✅    | v0.2.0-geometry           | `packages/perception/geometry.ts` rect ops, IoU, occlusion helpers, area union, quantization, bidir transforms |
 | A-P2.2 Traversal           | ☐     | —                         | TreeWalker, open-shadow-root, same-origin iframes, frame IDs                              |
 | A-P2.3 Visibility+identity | ☐     | —                         | elementFromPoint centre+4 corners, id_hash, value_state, group_path                       |
 | A-P2.4 ShadowDOM+iframes   | ☐     | —                         | Cross-origin iframe unexplained, closed shadow root unexplained                           |
@@ -32,41 +32,3 @@
 | A-P15.1 Demo               | ☐     | v1.0.0 🎉                 | Demo script, backup videos, README/ARCHITECTURE/DEMO.md, dress rehearsals                 |
 
 ---
-
-## Frozen Types
-
-| Type                             | Frozen? | Date |
-| -------------------------------- | ------- | ---- |
-| RawElement / RawObservation (C1) | ✅       | 2026-08-28    |
-| Action / ActionEnvelope          | ✅       | 2026-08-28    |
-| SanitizedObservation (C5)        | ✅       | 2026-08-28    |
-| ObservedElement                  | ✅       | 2026-08-28    |
-| Target                           | ✅       | 2026-08-28    |
-| Value                            | ✅       | 2026-08-28    |
-| ActionResult                     | ✅       | 2026-08-28    |
-| PolicyConfig                     | ✅       | 2026-08-28    |
-| AuditRecord                      | ✅       | 2026-08-28    |
-| AuditPrivacyFields               | ✅       | 2026-08-28    |
-| SafePayload                      | ✅       | 2026-08-28    |
-| PiiType                          | ✅       | 2026-08-28    |
-
----
-
-## Outstanding Scaffolding to Delete
-
-| Marker                    | Where                                            | Delete at                        |
-| ------------------------- | ------------------------------------------------ | -------------------------------- |
-| `sanitize.stub.ts`        | `apps/extension/src/background/sanitize.stub.ts` | Day 7 (P5.5)                     |
-| UNSAFE banner             | SidePanel + console.warn                         | Day 7 (P5.5)                     |
-| Validator rungs 7–8 stubs | `apps/extension/src/background/validator.ts`     | Day 8 (P5.5)                     |
-| Scripted planner only     | `apps/backend/src/providers/scripted.ts`         | After real provider lands (P5.4) |
-
----
-
-## Session Entry Template
-
-**Built:** Monorepo foundation (pnpm workspaces + turbo, TS strict, ESLint with fetch restriction, Prettier, Vitest, Playwright, GitHub Actions CI, .nvmrc, full directory skeleton, packages/schema with Zod→JSON Schema, ADR-000)
-**Acceptance criteria met:** pnpm i && pnpm build && pnpm test && pnpm lint all green from clean clone; CI green; ESLint fetch rule verified (errors outside net.ts, passes in net.ts)
-**Deferred:** Actual application code (extraction, executor, privacy pipeline, etc.)
-**New scaffolding added:** packages/schema (observation.ts, action.ts, policy.ts, audit.ts, gen-schema.ts), packages/privacy, perception, inference, apps/extension (manifest, background, content, offscreen, sidepanel), apps/backend, apps/bench-site, eval, ml, docs/decisions/ADR-000.md
-**Notes for next session:** Begin P1 - Extension skeleton with message bus, offscreen document, and inference spike. Pair with B on Day 2 for inference spike go/no-go.
