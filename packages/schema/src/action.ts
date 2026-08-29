@@ -86,7 +86,8 @@ export const ActionSchema = z.discriminatedUnion('type', [
   }),
   z.object({
     type: z.literal('DONE'),
-    summary: z.string(),
+    outcome: z.enum(['success', 'blocked', 'impossible']),
+    evidence_element: z.string().optional(),
   }),
 ]);
 export type Action = z.infer<typeof ActionSchema>;

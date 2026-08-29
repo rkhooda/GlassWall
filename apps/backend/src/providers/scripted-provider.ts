@@ -28,7 +28,7 @@ export class ScriptedProvider implements Provider {
     if (!result) {
       // Script exhausted - return DONE
       return {
-        action: { type: 'DONE', summary: 'Scripted plan completed' },
+        action: { type: 'DONE', outcome: 'impossible' as const },
         observation_id: observation.observation_id,
         step_index: stepIndex,
         session_id: observation.session_id,
@@ -41,7 +41,7 @@ export class ScriptedProvider implements Provider {
     // Check done condition
     if (this.script.doneCondition && this.script.doneCondition(observation)) {
       return {
-        action: { type: 'DONE', summary: 'Task success condition met' },
+        action: { type: 'DONE', outcome: 'success' as const },
         observation_id: observation.observation_id,
         step_index: stepIndex,
         session_id: observation.session_id,

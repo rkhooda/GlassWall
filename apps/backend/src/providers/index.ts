@@ -21,3 +21,5 @@ export interface ProviderResult {
 }
 
 export type { ScriptedStep, TaskScript } from './scripted';
+export { scriptedProvider } from './scripted-provider';
+export { anthropicProvider } from './anthropic-provider';

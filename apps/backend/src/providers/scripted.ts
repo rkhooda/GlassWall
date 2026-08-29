@@ -108,7 +108,7 @@ export const GENERIC_SCRIPT: TaskScript = {
       requiresConfirmation: false,
     },
     {
-      action: { type: 'DONE', summary: 'Scripted planner exhausted - task may need manual completion' },
+      action: { type: 'DONE', outcome: 'impossible' as const, evidence_element: undefined },
       rationale: 'complete',
       risk: 'low',
       requiresConfirmation: false,

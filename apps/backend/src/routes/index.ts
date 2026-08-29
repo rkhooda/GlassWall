@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { SanitizedObservationSchema } from '@glasswall/schema/observation';
 import { ActionEnvelopeSchema, type ActionEnvelope, type Action } from '@glasswall/schema/action';
 import { PolicyConfigSchema, PolicyProfileSchema, type PolicyConfig } from '@glasswall/schema/policy';
-import { scriptedProvider } from '../providers/scripted-provider';
+import { scriptedProvider, anthropicProvider, Provider } from '../providers';
 import { validateActionEnvelope, buildRepairPrompt } from '../guard';
 import { assemblePrompt, ACTION_ENVELOPE_JSON_SCHEMA } from '../prompt';
 
@@ -21,6 +21,105 @@ interface Session {
 }
 
 const sessions = new Map<string, Session>();
+
+// Progress object - computed locally, sent to model (cheap, high-yield reliability tactic)
+interface Progress {
+  fields_filled: number;
+  fields_remaining: number;
+  page_type_sequence: string[];
+}
+
+function computeProgress(observation: any, history: ActionEnvelope[], task: string): Progress {
+  // Count filled vs empty input fields
+  const inputElements = observation.elements.filter((e: any) => 
+    e.tag === 'input' && 
+    ['text', 'email', 'tel', 'password', 'search', 'url', 'number'].includes(e.type || '')
+  );
+  const fields_filled = inputElements.filter((e: any) => e.value_state === 'filled').length;
+  const fields_remaining = inputElements.filter((e: any) => e.value_state === 'empty' || e.value_state === 'partial').length;
+  
+  // Track page type sequence from history
+  const page_type_sequence = [...new Set(history.map(h => h.action.type))].slice(-5);
+  
+  return { fields_filled, fields_remaining, page_type_sequence };
+}
+
+// Repeat-action detector: same action 3x -> force SCROLL or abort
+function detectLoop(history: ActionEnvelope[]): string | null {
+  if (history.length < 3) return null;
+  
+  const last3 = history.slice(-3);
+  const first = last3[0];
+  if (!first) return null;
+  const firstAction = JSON.stringify(first.action);
+  
+  if (last3.every(h => JSON.stringify(h.action) === firstAction)) {
+    const targetId = 'target' in first.action && first.action.target ? first.action.target.id : 'no-target';
+    return `${first.action.type}:${targetId}`;
+  }
+  return null;
+}
+
+function isSameAction(action1: Action, action2: string): boolean {
+  const [type, targetId] = action2.split(':');
+  if (action1.type !== type) return false;
+  if ('target' in action1 && action1.target) {
+    return action1.target.id === targetId;
+  }
+  return targetId === 'no-target';
+}
+
+// Success predicate for DONE - prevents early victory declaration
+function checkSuccessPredicate(
+  action: { type: 'DONE'; outcome: string; evidence_element?: string },
+  observation: any,
+  task: string
+): { met: boolean; reason: string } {
+  if (action.outcome !== 'success') {
+    return { met: true, reason: 'Non-success outcome accepted' };
+  }
+
+  // For form-filling tasks: check if required fields are filled
+  const lowerTask = task.toLowerCase();
+  if (lowerTask.includes('fill') && lowerTask.includes('form')) {
+    const requiredInputs = observation.elements.filter((e: any) => 
+      e.tag === 'input' && 
+      e.visible && 
+      e.enabled &&
+      ['text', 'email', 'tel', 'password'].includes(e.type || '')
+    );
+    const unfilled = requiredInputs.filter((e: any) => e.value_state === 'empty' || e.value_state === 'partial');
+    if (unfilled.length > 0) {
+      return { met: false, reason: `${unfilled.length} required fields still empty` };
+    }
+  }
+
+  // For search/add-to-cart tasks: check if we're on cart/confirmation page
+  if (lowerTask.includes('search') && lowerTask.includes('cart')) {
+    const url = observation.page.url_template || '';
+    if (!url.includes('/cart') && !url.includes('/checkout')) {
+      return { met: false, reason: 'Not on cart or checkout page' };
+    }
+  }
+
+  // For checkout tasks: check if on confirmation page
+  if (lowerTask.includes('checkout') || lowerTask.includes('submit')) {
+    const url = observation.page.url_template || '';
+    if (!url.includes('/confirm') && !url.includes('/success') && !url.includes('/order')) {
+      return { met: false, reason: 'Not on confirmation/success page' };
+    }
+  }
+
+  // Generic: if evidence_element provided, verify it exists and is visible
+  if (action.evidence_element) {
+    const evidence = observation.elements.find((e: any) => e.id === action.evidence_element);
+    if (!evidence || !evidence.visible) {
+      return { met: false, reason: `Evidence element ${action.evidence_element} not found or not visible` };
+    }
+  }
+
+  return { met: true, reason: 'Success predicate satisfied' };
+}
 
 // Request/Response schemas
 const CreateSessionSchema = z.object({
@@ -102,8 +201,16 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     session.budget.stepsLeft--;
     session.budget.msLeft -= Date.now() - startTime;
 
-    // Use scripted provider (deterministic, no network)
-    const provider = scriptedProvider;
+    // Select provider: real LLM if configured, else scripted
+    const useRealProvider = await anthropicProvider.healthCheck();
+    const provider: Provider = useRealProvider ? anthropicProvider : scriptedProvider;
+
+    // Compute progress object locally (cheap, high-yield reliability tactic)
+    const progress = computeProgress(observation, history, session.task);
+    
+    // Repeat-action detector (same action 3x -> force SCROLL or abort)
+    const loopAction = detectLoop(history);
+    const forceAlternative = loopAction !== null;
 
     // Try planning with validation + one repair retry
     let attempt = 0;
@@ -115,6 +222,14 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       
       let prompt = assemblePrompt(session.task, observation, history, session.policy);
       
+      // Add progress and loop info to prompt for model awareness
+      if (progress.fields_remaining > 0) {
+        prompt += `\n\nProgress: ${progress.fields_filled} fields filled, ${progress.fields_remaining} remaining. Page types: ${progress.page_type_sequence.join(' -> ')}`;
+      }
+      if (forceAlternative) {
+        prompt += `\n\nLOOP DETECTED: "${loopAction}" repeated 3 times. You MUST choose a different action (e.g., SCROLL to find new elements) or DONE with outcome="impossible".`;
+      }
+
       // If this is a repair attempt, append the repair prompt
       if (attempt === 2 && lastError) {
         prompt = buildRepairPrompt(prompt, lastError);
@@ -122,6 +237,12 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
 
       const result = await provider.plan(observation, history, session.task);
       
+      // If loop detected and model still returns same action, force alternative
+      if (forceAlternative && isSameAction(result.action, loopAction)) {
+        lastError = `Loop detected: repeated action "${loopAction}" not allowed`;
+        continue;
+      }
+
       // Validate the result
       const validation = validateActionEnvelope(
         {
@@ -157,13 +278,28 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       });
     }
 
+    // Success predicate check for DONE action
+    if (envelope.action.type === 'DONE') {
+      const predicateMet = checkSuccessPredicate(envelope.action as { type: 'DONE'; outcome: 'success' | 'blocked' | 'impossible'; evidence_element?: string }, observation, session.task);
+      if (!predicateMet.met) {
+        // Override DONE -> continue with SCROLL or force alternative
+        envelope = {
+          ...envelope,
+          action: { type: 'SCROLL', direction: 'down', amount: 1 },
+          risk: 'low',
+          requires_confirmation: false,
+          reasoning: `Success predicate not met: ${predicateMet.reason}. Forcing SCROLL to continue.`,
+        };
+      }
+    }
+
     // Store in history (sanitized - last 5 only)
     session.history.push(envelope);
     if (session.history.length > 5) {
       session.history.shift();
     }
 
-    return reply.send({ action_envelope: envelope });
+    return reply.send({ action_envelope: envelope, progress });
   });
 
   // Helper to get policy preset
