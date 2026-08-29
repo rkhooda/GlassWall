@@ -66,7 +66,7 @@ export function piiAttrsInput(
   valueId: string,
   opts?: { decoy?: boolean }
 ): Record<string, string> {
-  return piiAttrs(pii, tier, valueId, opts);
+  return piiAttrs(pii, tier, valueId, opts) as unknown as Record<string, string>;
 }
 
 export function piiAttrsSpan(
@@ -75,7 +75,7 @@ export function piiAttrsSpan(
   valueId: string,
   opts?: { decoy?: boolean }
 ): Record<string, string> {
-  return piiAttrs(pii, tier, valueId, opts);
+  return piiAttrs(pii, tier, valueId, opts) as unknown as Record<string, string>;
 }
 
 export function piiAttrsCanvas(regions: Region[]): Record<string, string> {
@@ -87,5 +87,5 @@ export function piiAttrsImage(regions: Region[]): Record<string, string> {
 }
 
 export function piiAttrsTextBlock(): Record<string, string> {
-  return { 'data-glasswall-pii': 'NONE', 'data-glasswall-tier': 3, 'data-glasswall-value-id': 'v_0' };
+  return { 'data-glasswall-pii': 'NONE', 'data-glasswall-tier': '3', 'data-glasswall-value-id': 'v_0' };
 }

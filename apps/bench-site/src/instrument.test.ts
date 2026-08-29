@@ -69,7 +69,7 @@ describe('instrument — attribute helpers', () => {
   it('piiAttrsTextBlock returns NONE tier 3', () => {
     const attrs = piiAttrsTextBlock();
     expect(attrs['data-glasswall-pii']).toBe('NONE');
-    expect(attrs['data-glasswall-tier']).toBe(3);
+    expect(attrs['data-glasswall-tier']).toBe('3');
     expect(attrs['data-glasswall-value-id']).toBe('v_0');
   });
 });
