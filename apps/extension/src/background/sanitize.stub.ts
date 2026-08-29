@@ -1,15 +1,7 @@
 // DELETE ON PROMPT 22 - B INTEGRATION
 
 import { type RawObservation, type CapturedFrame, type SanitizedObservation } from '@glasswall/schema/observation';
-import { type AuditPrivacyFields } from '@glasswall/schema/audit';
-
-interface SanitizeResult {
-  observation: SanitizedObservation;
-  redactions: Array<{ rect: [number, number, number, number]; reason: string; source: string; score: number }>;
-  audit: AuditPrivacyFields;
-  timings: { rules: number; ner: number; ocr: number; vision: number; fuse: number; build: number };
-  degraded: string[];
-}
+import { type AuditPrivacyFields, type RedactionReason, type SanitizeResult } from '@glasswall/schema/audit';
 
 /**
  * STUB: Identity passthrough sanitize function
@@ -38,7 +30,7 @@ export async function sanitize(input: {
 
   return {
     observation,
-    redactions: [],
+    redactions: [] as RedactionReason[],
     audit: {
       detections: [],
       policy: [],
