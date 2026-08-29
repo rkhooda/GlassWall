@@ -20,9 +20,9 @@
 | A-P4.1 Validator           | ☐     | v0.4.0-action-protocol    | 12-rung ladder (rungs 7-8 stubbed), Action/ActionEnvelope frozen                          |
 | A-P4.2 Executor            | ✅    | v0.4.0-executor           | CLICK/TYPE/SCROLL/SELECT/PRESS_KEY/NAVIGATE/WAIT/BACK event ordering, native value setter, effect verification |
 | A-P4.3 Confirmation        | ✅    | v0.4.0-confirmation       | Confirm.tsx: risk classification (SUBMIT_LIKE/NAVIGATE_EXTERNAL/PAYMENT/DELETE), blocking modal with approve/deny |
-| A-P5.1 Gateway             | ☐     | —                         | Fastify /v1/session, /v1/step, /v1/health, provider abstraction                           |
-| A-P5.2 Orchestrator        | ☐     | —                         | Step loop, budgets, abort, consecutive_failures, SW-restart persistence                   |
-| A-P5.3 Trace               | ☐     | —                         | Trace.tsx, progress object, loop/oscillation detector                                     |
+| A-P5.1 Gateway             | ✅    | v0.5.1-gateway          | Fastify /v1/session, /v1/step, /v1/health, provider abstraction, scripted planner, response guard |
+| A-P5.2 Orchestrator        | ✅    | v0.5.2-orchestrator     | Step loop, budgets, abort, consecutive_failures ≥3, SW-restart persistence, sanitize/gate stubs |
+| A-P5.3 Trace               | ✅    | v0.5.3-trace            | Trace.tsx: latency breakdown (local vs network), degraded[], redactions[], task input, abort |
 | A-P5.4 Real provider       | ☐     | —                         | One real LLM provider + scripted planner, prompt assembly with `<untrusted_page_content>` |
 | A-P5.5 Integrate B         | ☐     | v0.5.0-mvp-closed-loop ⭐ | Swap stub→sanitize(), net.ts→SafePayload, rungs 7-8, vault binding, delete stub           |
 | A-P12.1 Harness            | ☐     | v0.12.0                   | Playwright driver, task YAML, success predicates, CDP metrics                             |
