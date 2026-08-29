@@ -18,8 +18,8 @@
 | A-P2.5 WaitStable          | ✅    | v0.2.0-waitstable         | MutationObserver + route stability (URL/hashchange), 3s timeout/500ms stable duration     |
 | A-P3.1 Capture             | ✅    | v0.3.0-capture            | captureVisibleTab in SW, dataURL→Blob, viewport/DPI metadata                              |
 | A-P4.1 Validator           | ☐     | v0.4.0-action-protocol    | 12-rung ladder (rungs 7-8 stubbed), Action/ActionEnvelope frozen                          |
-| A-P4.2 Executor            | ☐     | —                         | CLICK/TYPE event ordering, native value setter, effect verification                       |
-| A-P4.3 Confirmation        | ☐     | —                         | Confirm.tsx for high-risk actions                                                         |
+| A-P4.2 Executor            | ✅    | v0.4.0-executor           | CLICK/TYPE/SCROLL/SELECT/PRESS_KEY/NAVIGATE/WAIT/BACK event ordering, native value setter, effect verification |
+| A-P4.3 Confirmation        | ✅    | v0.4.0-confirmation       | Confirm.tsx: risk classification (SUBMIT_LIKE/NAVIGATE_EXTERNAL/PAYMENT/DELETE), blocking modal with approve/deny |
 | A-P5.1 Gateway             | ☐     | —                         | Fastify /v1/session, /v1/step, /v1/health, provider abstraction                           |
 | A-P5.2 Orchestrator        | ☐     | —                         | Step loop, budgets, abort, consecutive_failures, SW-restart persistence                   |
 | A-P5.3 Trace               | ☐     | —                         | Trace.tsx, progress object, loop/oscillation detector                                     |

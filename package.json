@@ -11,7 +11,8 @@
     "typecheck": "turbo run typecheck",
     "gen:schema": "turbo run gen:schema",
     "format": "prettier --write \"**/*.{ts,tsx,json,md,yaml,yml}\"",
-    "format:check": "prettier --check \"**/*.{ts,tsx,json,md,yaml,yml}\""
+    "format:check": "prettier --check \"**/*.{ts,tsx,json,md,yaml,yml}\"",
+    "verify:executor": "bash scripts/verify-executor.sh"
   },
   "engines": {
     "node": ">=20.11.0"

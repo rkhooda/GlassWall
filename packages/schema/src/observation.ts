@@ -128,6 +128,7 @@ export const SanitizedElementSchema = z.object({
   autocomplete: z.string().optional(),
   input_type: z.string().optional(),
 }).strict();
+export type SanitizedElement = z.infer<typeof SanitizedElementSchema>;
 
 export const SanitizedFrameInfoSchema = z.object({
   id: z.number(),

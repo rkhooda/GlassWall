@@ -1,10 +1,45 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { Confirm, type ConfirmationContext, showConfirmation } from './Confirm';
 
 // Simple side panel UI for task input and trace display
 const App: React.FC = () => {
   const [task, setTask] = useState('');
   const [trace, setTrace] = useState<Array<{step: number; message: string; timestamp: number}>>([]);
   const [isRunning, setIsRunning] = useState(false);
+  const [confirmationContext, setConfirmationContext] = useState<ConfirmationContext | null>(null);
+
+  // Listen for confirmation requests from background script
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data.type === 'extension:confirmation-request') {
+        setConfirmationContext(event.data.payload);
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
+
+  const handleApprove = () => {
+    if (confirmationContext) {
+      // Send approval back to background
+      window.postMessage({
+        type: 'extension:confirmation-response',
+        payload: { approved: true }
+      }, '*');
+      setConfirmationContext(null);
+    }
+  };
+
+  const handleDeny = () => {
+    if (confirmationContext) {
+      // Send denial back to background
+      window.postMessage({
+        type: 'extension:confirmation-response',
+        payload: { approved: false }
+      }, '*');
+      setConfirmationContext(null);
+    }
+  };
 
   useEffect(() => {
     // In a real implementation, we would:
@@ -105,6 +140,9 @@ const App: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Confirmation Modal */}
+      <Confirm context={confirmationContext} />
     </div>
   );
 };
