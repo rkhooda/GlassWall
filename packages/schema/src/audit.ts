@@ -1,6 +1,30 @@
 import { z } from 'zod';
 import { PiiType } from './policy';
 
+export const RedactionReasonSchema = z.object({
+  rect: z.tuple([z.number(), z.number(), z.number(), z.number()]),
+  reason: z.string(),
+  source: z.enum(['regex', 'ner', 'ocr', 'vision', 'deterministic']),
+  score: z.number().min(0).max(1),
+});
+export type RedactionReason = z.infer<typeof RedactionReasonSchema>;
+
+export const SanitizeResultSchema = z.object({
+  observation: z.unknown(), // SanitizedObservation - using unknown to avoid circular
+  redactions: z.array(RedactionReasonSchema),
+  audit: z.unknown(), // AuditPrivacyFields
+  timings: z.object({
+    rules: z.number(),
+    ner: z.number(),
+    ocr: z.number(),
+    vision: z.number(),
+    fuse: z.number(),
+    build: z.number(),
+  }),
+  degraded: z.array(z.string()),
+});
+export type SanitizeResult = z.infer<typeof SanitizeResultSchema>;
+
 export const DetectionSchema = z.object({
   type: z.enum(['regex', 'ner', 'ocr', 'vision', 'deterministic']),
   pii_type: z.enum([

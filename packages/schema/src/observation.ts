@@ -107,6 +107,7 @@ export const SanitizedTextNodeSchema = z.object({
   owner_element_id: z.string().nullable(),
   source: z.literal('dom'),
 }).strict();
+export type SanitizedTextNode = z.infer<typeof SanitizedTextNodeSchema>;
 
 export const SanitizedElementSchema = z.object({
   id: z.string(),
@@ -127,6 +128,8 @@ export const SanitizedElementSchema = z.object({
   unexplained: z.boolean().optional(),
   autocomplete: z.string().optional(),
   input_type: z.string().optional(),
+  available_actions: z.array(z.string()).optional(),
+  sensitivity_class: z.string().optional(),
 }).strict();
 export type SanitizedElement = z.infer<typeof SanitizedElementSchema>;
 
@@ -134,6 +137,19 @@ export const SanitizedFrameInfoSchema = z.object({
   id: z.number(),
   origin: z.enum(['same', 'cross']),
   rect: RectSchema,
+}).strict();
+
+export const HandleSchema = z.object({
+  handle: z.string(),
+  type: z.string(),
+  tier: z.number(),
+  occurrences: z.number(),
+  first_seen_step: z.number(),
+}).strict();
+
+export const BudgetSchema = z.object({
+  steps_left: z.number(),
+  ms_left: z.number(),
 }).strict();
 
 export const SanitizedObservationSchema = z
@@ -148,9 +164,13 @@ export const SanitizedObservationSchema = z
     frames: z.array(SanitizedFrameInfoSchema),
     truncated: z.boolean(),
     list_virtualized: z.boolean(),
+    handles: z.array(HandleSchema).optional(),
+    budget: BudgetSchema.optional(),
   })
   .strict();
 export type SanitizedObservation = z.infer<typeof SanitizedObservationSchema>;
+export type Handle = z.infer<typeof HandleSchema>;
+export type Budget = z.infer<typeof BudgetSchema>;
 
 export const CapturedFrameSchema = z.object({
   bitmap: z.unknown(),
