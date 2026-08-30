@@ -8,7 +8,7 @@
 | B2 Spike (P1-B) | ✅ | 2026-08-29 | **GO** — ORT-Web runs in offscreen doc (WebGPU + WASM), capability probe complete |
 | B3 Privacy core (P6-a/P6-b) | ✅ | 2026-08-29 | Recognizers + registry + tokenizer + vault + C7 resolve |
 | B4 Perception surface (P3-B/P8/P9) | ✅ | 2026-08-31 | Image pipeline + NER + OCR |
-| B5 Sanitize seam (P6-c) | ☐ | | Observation builder + `sanitize()` entry point (C4) |
+| B5 Sanitize seam (P6-c) | ✅ | 2026-08-31 | Observation builder + `sanitize()` entry point (C4) |
 | B6 Egress gate (P7) | ☐ | | `egressGate()` + canary harness + negative control ⭐ |
 | B7 NER+OCR (P8/P9) | ☐ | | Integrated, chunking, coordinate round-trip |
 | B8 Fusion (P11) | ☐ | | Fusion + explain-or-redact + policy engine ⭐ |
@@ -196,4 +196,45 @@ Copy this block for each completed task/session:
 **Next session notes:**
 - B5 Sanitize seam (P6-c): Observation builder + sanitize() entry point (C4)
 - B6 Egress gate (P7): egressGate() + canary harness + negative control ⭐
+- Need A to fix shoplite/govportal build errors (autocomplete → autoComplete, state types) for full `pnpm build` to pass
+
+### 2026-08-31 — p6c-sanitize-seam
+
+**Built:**
+- `packages/perception/src/spatial-index.ts` — uniform grid index for spatial joins (fusion), with insert, query, queryPoint, clear, stats
+- `packages/perception/src/observation-builder.ts` — allowlist projection producing `SanitizedObservation` with explicit field-by-field mapping (G1 structural guarantee); no spreads, no Object.assign, no key filtering
+- `packages/privacy/src/sanitize.ts` — C4 entry point `sanitize()` with pipeline: recognizers → perception sources (PerceptionSource interface) → fuse → policy → tokenize → build; each source individually failable with timeout; degraded[] populated on failure; sanitize() never throws, returns maximally redacted on exception
+- `packages/privacy/src/validator-hooks.ts` — C8 functions: `checkVaultTypeMatch()` (VAULT_TYPE_MISMATCH with UI context), `scanLiteralAgainstRegistry()` (raw, normalized, URL/base64/hex/HTML-entity encodings, 8-gram overlap)
+- `packages/privacy/src/audit.ts` — C9 `buildAuditPrivacyFields()`, `assertNoValuesInAudit()`, `createEgressChecks()`; no field capable of holding a value
+- `packages/privacy/src/egress-gate.ts` — C6 stub `egressGate()` with payload size check
+- `packages/privacy/src/index.ts` — updated public surface: only exported functions/types A needs; deep imports not supported
+- `packages/privacy/test/contract-conformance.spec.ts` — type-level conformance tests for C1, C2, C4, C5, C6, C7, C8, C9, PerceptionSource shape, Result type
+- `packages/privacy/vitest.config.ts` — path aliases for local package resolution
+- `packages/privacy/package.json` — added zod devDependency
+
+**Acceptance met:**
+- PLAN-B §6 P6-c: "Observation builder & `sanitize()` entry point (C4)" — `sanitize()` implemented with correct signature
+- PLAN-B §6 P6-c: "The builder is the structural guarantee (G1): the output type has no field capable of holding raw HTML, a `.value`, a cookie, or a raw OCR string" — `SanitizedObservation` built via explicit allowlist projection
+- PLAN-B §6 P6-c: "Emit `handles[]` as inventory of type plus cardinality, never value, and `value_state` per element" — handles array with type/cardinality only; `value_state` preserved
+- C4: `sanitize()` never throws, returns maximally redacted on failure with degraded[]
+- C6: `egressGate()` returns `Result<SafePayload, Violation>`; `SafePayload` is branded type
+- C7: `resolveForBinding()` returns `Result<Sensitive<string>, Violation>`; `Sensitive<T>` branded with `toString() = "[redacted]"`
+- C8: `checkVaultTypeMatch()` and `scanLiteralAgainstRegistry()` return `Result<void, Violation>` with sufficient UI context
+- C9: `AuditPrivacyFields` has no field capable of holding a value; `assertNoValuesInAudit()` enforces at runtime
+- PerceptionSource shape: `{ id, timeout_ms, run(ctx): Promise<Evidence[]> }` with individual failure handling
+- Contract conformance: 26 type-level tests pass
+
+**Deferred:**
+- Real perception sources (NER, OCR, vision) — register as zero sources for now, make rules-only path work end-to-end
+- Full egress gate with all 7 checks (P7) — stub only
+- Fusion engine with noisy-OR (P11) — spatial index ready, fusion not yet integrated
+
+**Scaffolding added:**
+- `packages/privacy/vitest.config.ts` — path aliases for testing
+- `packages/privacy/test/contract-conformance.spec.ts` — type-level contract tests
+
+**Next session notes:**
+- B6 Egress gate (P7): egressGate() + canary harness + negative control ⭐
+- B7 NER+OCR (P8/P9): integrate Transformers.js NER and tesseract.js OCR as PerceptionSources
+- B8 Fusion (P11): integrate spatial index + noisy-OR + explain-or-redact + policy profiles
 - Need A to fix shoplite/govportal build errors (autocomplete → autoComplete, state types) for full `pnpm build` to pass
