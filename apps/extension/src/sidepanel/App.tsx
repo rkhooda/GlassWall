@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Confirm, type ConfirmationContext } from './Confirm';
 import { Trace, type TraceEntry } from './Trace';
+import { ErrorBanner, getErrorInfo, type ErrorAction } from './ErrorState';
 
 interface SessionInfo {
   sessionId: string;
@@ -28,7 +29,17 @@ interface SessionInfoMessage {
   payload: SessionInfo;
 }
 
-type OrchestratorMessage = TraceEntryMessage | TraceCompleteMessage | SessionInfoMessage;
+interface SessionRecoveredMessage {
+  type: 'extension:session-recovered';
+  payload: { message: string; stepIndex: number };
+}
+
+interface ErrorMessage {
+  type: 'extension:error';
+  payload: { code: string; stepIndex?: number };
+}
+
+type OrchestratorMessage = TraceEntryMessage | TraceCompleteMessage | SessionInfoMessage | SessionRecoveredMessage | ErrorMessage;
 
 const App: React.FC = () => {
   const [task, setTask] = useState('');
@@ -36,6 +47,8 @@ const App: React.FC = () => {
   const [isRunning, setIsRunning] = useState(false);
   const [confirmationContext, setConfirmationContext] = useState<ConfirmationContext | null>(null);
   const [sessionInfo, setSessionInfo] = useState<SessionInfo | null>(null);
+  const [currentError, setCurrentError] = useState<string | null>(null);
+  const [recoveryMessage, setRecoveryMessage] = useState<string | null>(null);
 
   // Listen for messages from background script (orchestrator)
   useEffect(() => {
@@ -48,6 +61,11 @@ const App: React.FC = () => {
         setIsRunning(false);
       } else if (message.type === 'extension:session-info') {
         setSessionInfo(message.payload);
+      } else if (message.type === 'extension:session-recovered') {
+        setRecoveryMessage(message.payload.message);
+        setTimeout(() => setRecoveryMessage(null), 5000);
+      } else if (message.type === 'extension:error') {
+        setCurrentError(message.payload.code);
       }
     };
 
@@ -90,6 +108,30 @@ const App: React.FC = () => {
     }
   };
 
+  const handleErrorAction = (action: ErrorAction) => {
+    switch (action.action) {
+      case 'retry':
+        handleSubmit(new Event('submit') as any);
+        break;
+      case 'reobserve':
+        // Trigger re-observe by sending a message to background
+        window.postMessage({ type: 'extension:reobserve' }, '*');
+        break;
+      case 'abort':
+        handleAbort();
+        break;
+      case 'settings':
+        // Open settings (not implemented yet)
+        break;
+      case 'report':
+        // View audit log (not implemented yet)
+        break;
+      case 'dismiss':
+        setCurrentError(null);
+        break;
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!task.trim()) return;
@@ -97,6 +139,7 @@ const App: React.FC = () => {
     setIsRunning(true);
     setTraceEntries([]);
     setSessionInfo(null);
+    setCurrentError(null);
 
     // Send task to background script to start the orchestrator
     try {
@@ -164,6 +207,21 @@ const App: React.FC = () => {
             </button>
           </div>
         </form>
+
+        {/* Recovery Notification */}
+        {recoveryMessage && (
+          <div className="px-4 py-2 bg-green-50 border-b border-green-200 text-sm text-green-800 animate-slide-down">
+            <span className="font-medium">Session Recovered:</span> {recoveryMessage}
+          </div>
+        )}
+
+        {/* Error Banner */}
+        {currentError && (
+          <ErrorBanner
+            errorCode={currentError}
+            onAction={handleErrorAction}
+          />
+        )}
 
         {/* Trace */}
         <Trace
