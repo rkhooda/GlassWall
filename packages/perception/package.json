@@ -4,6 +4,24 @@
   "private": true,
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./geometry": {
+      "import": "./dist/geometry.js",
+      "types": "./dist/geometry.d.ts"
+    },
+    "./spatial-index": {
+      "import": "./dist/spatial-index.js",
+      "types": "./dist/spatial-index.d.ts"
+    },
+    "./observation-builder": {
+      "import": "./dist/observation-builder.js",
+      "types": "./dist/observation-builder.d.ts"
+    }
+  },
   "scripts": {
     "build": "tsc -b",
     "lint": "eslint src --ext .ts",
