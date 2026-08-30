@@ -2,12 +2,11 @@
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "dist",
-    "rootDir": "src",
+    "rootDir": ".",
     "composite": true,
     "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo"
   },
   "include": [
-    "src/**/*",
     "harness/**/*",
     "tasks/**/*",
     "leakage/**/*",

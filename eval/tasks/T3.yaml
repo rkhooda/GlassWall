@@ -1,0 +1,13 @@
+id: T3
+site: shoplite
+entry: /
+instruction: "Search for wireless earbuds under 3000 and add the top result to cart"
+seed: 1337
+max_steps: 12
+success:
+  - kind: cart_contains
+    expected_sku: "SKU-WIRELESS-EARBUDS"
+    cart_url: "/cart"
+expected_redactions:
+  - CURRENCY_AMOUNT
+forbidden_in_payload: []
