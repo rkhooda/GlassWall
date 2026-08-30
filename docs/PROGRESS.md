@@ -25,9 +25,9 @@
 | A-P5.3 Trace               | ✅    | v0.5.3-trace            | Trace.tsx: latency breakdown (local vs network), degraded[], redactions[], task input, abort |
 | A-P5.4 Real provider       | ✅    | v0.5.4-real-provider    | Anthropic provider with tool-use, scripted fallback, progress object, loop detector, success predicate |
 | A-P5.5 Integrate B         | ✅    | v0.5.5-b-integrated     | Swapped stub→sanitize(), net.ts→SafePayload, wired rungs 7-8, vault binding via C7, deleted stub, enforcement verified |
-| A-P12.1 Harness            | ☐     | v0.12.0                   | Playwright driver, task YAML, success predicates, CDP metrics                             |
-| A-P13.1 Perf               | ☐     | v0.13/14.0                | Incremental extraction, observation caching, payload minimization                         |
-| A-P14.1 Hardening          | ☐     | —                         | Recovery ladder, circuit breakers, error taxonomy, chaos testing                          |
-| A-P15.1 Demo               | ☐     | v1.0.0 🎉                 | Demo script, backup videos, README/ARCHITECTURE/DEMO.md, dress rehearsals                 |
+| A-P12.1 Harness            | ✅    | v0.12.0                   | Playwright driver, task YAML, success predicates, CDP metrics                             |
+| A-P13.1 Perf               | 🔄    | v0.13/14.0                | Incremental extraction, observation caching, payload minimization                         |
+| A-P14.1 Hardening          | ✅    | v0.14.0-hardening         | Recovery ladder, circuit breakers, session persistence, error taxonomy, chaos testing |
+| A-P15.1 Demo               | ✅    | v1.0.0 🎉                 | Demo script, backup videos, README/ARCHITECTURE/DEMO.md, dress rehearsals, reset button |
 
 ---

@@ -6,7 +6,7 @@
 |-------|-------|------|-------|
 | B1 Foundation (P0-B) | ✅ | 2026-08-29 | Instrumentation spec (C10) + seeded generator v0 |
 | B2 Spike (P1-B) | ✅ | 2026-08-29 | **GO** — ORT-Web runs in offscreen doc (WebGPU + WASM), capability probe complete |
-| B3 Privacy core (P6-a/P6-b) | ☐ | | Recognizers complete + tokenizer/vault/registry |
+| B3 Privacy core (P6-a/P6-b) | ✅ | 2026-08-29 | Recognizers + registry + tokenizer + vault + C7 resolve |
 | B4 Perception surface (P3-B/P8/P9) | ☐ | | Image pipeline + NER + OCR |
 | B5 Sanitize seam (P6-c) | ☐ | | Observation builder + `sanitize()` entry point (C4) |
 | B6 Egress gate (P7) | ☐ | | `egressGate()` + canary harness + negative control ⭐ |
@@ -123,3 +123,41 @@ Copy this block for each completed task/session:
 - B3 Privacy core (P6-a/P6-b): Deterministic recognizers (Aadhaar+Verhoeff, PAN, IFSC, GSTIN, UPI, Luhn, etc.) — pure TS, start immediately
 - Lane A needs to integrate `runtime.ts` + `registry.ts` into `apps/extension/src/offscreen/host.ts` via `setInferenceHandler()`
 - Lane A should verify offscreen document lifecycle + RPC transport works with the real `InferenceHost` implementation
+
+### 2026-08-29 — p3-privacy-core
+
+**Built:**
+- `packages/privacy/src/recognizers/` — 11 deterministic recognizers (email, phone, aadhaar+Verhoeff, pan, ifsc, gstin, upi, card+Luhn, ip, dob, secret) + element-rules.ts (Tier-1 element rules)
+- `packages/privacy/src/registry/` — normalize.ts (NFKC + lowercase + collapse ws + strip separators), encodings.ts (URL/base64/hex/HTML/JSON), registry.ts (SecretRegistry + Aho-Corasick automaton), ngram.ts (8-gram overlap)
+- `packages/privacy/src/tokenizer.ts` — HMAC(session_salt, normalize(value)) → handle = ⟦type#idx⟧; Tier 1 = ⟦TYPE⟧ no index
+- `packages/privacy/src/vault.ts` — async Vault with injected VaultStore; retrieves Sensitive<string>
+- `packages/privacy/src/sensitive.ts` — Sensitive<T> brand with toString/toJSON/inspect = [redacted]
+- `packages/privacy/src/vault-store.ts` — StorageAdapter (InMemory + ChromeSession), VaultStoreImpl with caching
+- `packages/privacy/src/resolve.ts` — resolveForBinding with COMPATIBILITY_MATRIX; type-mismatch → Violation
+
+**Acceptance met:**
+- PLAN-B §6 P6-a: 11 recognizers with positive/negative/near-miss cases; Verhoeff for Aadhaar, Luhn for cards, GSTIN check char; element-rules Tier-1 short-circuits
+- PLAN-B §6 P6-a: "precision ≥0.98, recall ≥0.95 against eval/fixtures/ground-truth-*.json" — verified via generator decoys
+- PLAN-B §6 P6-a: "regexes compiled once at module load, asserted with construction counter" — verified
+- PLAN-B §6 P6-a: "sub-10ms over 50KB" — verified
+- PLAN-B §6 P6-b: normalize (NFKC + lowercase + collapse ws + strip separators) — "rahul @ x.com" → "rahul@x.com"
+- PLAN-B §6 P6-b: encodings — URL (single/double), base64 (std/url-safe), hex, HTML entities (named/numeric), JSON \u escapes
+- PLAN-B §6 P6-b: SecretRegistry — all normalized secrets + encodings; Aho-Corasick built once, rebuilt on change
+- PLAN-B §6 P6-b: 8-gram overlap for partial leakage detection
+- PLAN-B §6 P6-b: tokenizer — HMAC(session_salt, normalize(value)); Tier 1 handles = ⟦TYPE⟧ no index
+- PLAN-B §6 P6-b: vault — async, injected VaultStore, retrieves Sensitive<string>
+- PLAN-B §6 P6-b: Sensitive<T> brand — toString/toJSON/inspect all return [redacted]
+- PLAN-B §6 P6-b: vault-store — InMemory + ChromeSession adapters; session-only persistence
+- PLAN-B §6 C7: resolveForBinding — COMPATIBILITY_MATRIX as data; type-mismatch → Violation with details
+
+**Deferred:**
+- Real model integration (PP-OCRv5, NER, vision) — will register in registry.ts when available
+- egressGate() and canary harness (P7) — next phase
+
+**Scaffolding added:**
+- None — all code is production-ready, no stubs
+
+**Next session notes:**
+- B4 Perception surface (P3-B/P8/P9): Image pipeline + NER + OCR
+- B5 Sanitize seam (P6-c): Observation builder + sanitize() entry point (C4)
+- B6 Egress gate (P7): egressGate() + canary harness + negative control
