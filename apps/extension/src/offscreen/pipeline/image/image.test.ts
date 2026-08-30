@@ -215,8 +215,10 @@ describe('redact.ts - Redaction', () => {
 
     const result = redactSync(mockCanvas as any, rects);
 
-    expect(mockFillRect).toHaveBeenCalledTimes(1);
-    expect(mockFillRect).toHaveBeenCalledWith(0, 0, 150, 150);
+    // First rect clamped to (0, 0, 200, 200), second rect clamped to (600, 400, 40, 80)
+    expect(mockFillRect).toHaveBeenCalledTimes(2);
+    expect(mockFillRect).toHaveBeenNthCalledWith(1, 0, 0, 200, 200);
+    expect(mockFillRect).toHaveBeenNthCalledWith(2, 600, 400, 40, 80);
   });
 
   it('skips zero-size rects', () => {
