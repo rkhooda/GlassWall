@@ -10,30 +10,33 @@ function mulberry32(seed: number) {
   };
 }
 
-function pick<T>(rng: () => number, arr: T[]): T {
-  return arr[Math.floor(rng() * arr.length)];
+function pick<T>(rng: () => number, arr: readonly T[]): T {
+  const idx = Math.floor(rng() * arr.length);
+  return arr[idx] as T;
 }
 
-function pickWeighted<T>(rng: () => number, items: T[], weights: number[]): T {
+function pickWeighted<T>(rng: () => number, items: readonly T[], weights: readonly number[]): T {
   const total = weights.reduce((a, b) => a + b, 0);
   let r = rng() * total;
   for (let i = 0; i < items.length; i++) {
-    r -= weights[i];
-    if (r <= 0) return items[i];
+    r -= weights[i] as number;
+    if (r <= 0) return items[i] as T;
   }
-  return items[items.length - 1];
+  return items[items.length - 1] as T;
 }
 
-function shuffle<T>(rng: () => number, arr: T[]): T[] {
-  const out = [...arr];
+function shuffle<T>(rng: () => number, arr: readonly T[]): T[] {
+  const out = [...arr] as T[];
   for (let i = out.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1));
-    [out[i], out[j]] = [out[j], out[i]];
+    const temp = out[i];
+    out[i] = out[j]!;
+    out[j] = temp!;
   }
   return out;
 }
 
-const D = [
+const D: readonly (readonly number[])[] = [
   [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
   [1, 2, 3, 4, 0, 6, 7, 8, 9, 5],
   [2, 3, 4, 0, 1, 7, 8, 9, 5, 6],
@@ -45,7 +48,7 @@ const D = [
   [8, 7, 6, 5, 9, 3, 2, 1, 0, 4],
   [9, 8, 7, 6, 5, 4, 3, 2, 1, 0],
 ];
-const P = [
+const P: readonly (readonly number[])[] = [
   [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
   [1, 5, 7, 6, 2, 8, 3, 0, 9, 4],
   [5, 8, 0, 3, 7, 9, 6, 1, 4, 2],
@@ -55,23 +58,23 @@ const P = [
   [2, 7, 9, 3, 8, 0, 6, 4, 1, 5],
   [7, 0, 4, 6, 9, 1, 3, 2, 5, 8],
 ];
-const INV = [0, 4, 3, 2, 1, 5, 6, 7, 8, 9];
+const INV: readonly number[] = [0, 4, 3, 2, 1, 5, 6, 7, 8, 9];
 
 function verhoeffCheckDigit(digits: number[]): number {
   let c = 0;
   for (let i = 0; i < digits.length; i++) {
-    const digit = digits[digits.length - 1 - i];
-    c = D[c][P[(i + 1) % 8][digit]];
+    const digit = digits[digits.length - 1 - i]!;
+    c = D[c]![P[(i + 1) % 8]![digit]!]!;
   }
-  return INV[c];
+  return INV[c]!;
 }
 
 function verifyVerhoeff(num: string): boolean {
   const digits = num.split('').map(Number);
   let c = 0;
   for (let i = 0; i < digits.length; i++) {
-    const digit = digits[digits.length - 1 - i];
-    c = D[c][P[i % 8][digit]];
+    const digit = digits[digits.length - 1 - i]!;
+    c = D[c]![P[i % 8]![digit]!]!;
   }
   return c === 0;
 }
@@ -80,7 +83,7 @@ function luhnCheckDigit(digits: number[]): number {
   let sum = 0;
   let double = true;
   for (let i = digits.length - 1; i >= 0; i--) {
-    let d = digits[i];
+    let d = digits[i]!;
     if (double) {
       d *= 2;
       if (d > 9) d -= 9;
@@ -96,7 +99,7 @@ function verifyLuhn(num: string): boolean {
   let sum = 0;
   let double = false;
   for (let i = digits.length - 1; i >= 0; i--) {
-    let d = digits[i];
+    let d = digits[i]!;
     if (double) {
       d *= 2;
       if (d > 9) d -= 9;
@@ -110,15 +113,15 @@ function verifyLuhn(num: string): boolean {
 function gstinCheckChar(gstin14: string): string {
   const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   const charToVal: Record<string, number> = {};
-  for (let i = 0; i < chars.length; i++) charToVal[chars[i]] = i;
+  for (let i = 0; i < chars.length; i++) charToVal[chars[i]!] = i;
   const weights = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
   let sum = 0;
   for (let i = 0; i < 14; i++) {
-    const val = charToVal[gstin14[i]];
-    sum += val * weights[i];
+    const val = charToVal[gstin14[i]!]!;
+    sum += val * weights[i]!;
   }
   const checkVal = (36 - (sum % 36)) % 36;
-  return chars[checkVal];
+  return chars[checkVal]!;
 }
 
 function verifyGstin(gstin: string): boolean {
@@ -126,42 +129,42 @@ function verifyGstin(gstin: string): boolean {
   return gstin[14] === gstinCheckChar(gstin.slice(0, 14));
 }
 
-const FIRST_NAMES = [
+const FIRST_NAMES: readonly string[] = [
   'Rahul', 'Priya', 'Arjun', 'Anjali', 'Vikram', 'Neha', 'Karan', 'Pooja',
   'Amit', 'Sunita', 'Rajesh', 'Kavita', 'Sanjay', 'Meera', 'Deepak', 'Shreya',
   'Manoj', 'Divya', 'Rohit', 'Swati', 'Nitin', 'Ankita', 'Suresh', 'Ritu',
   'Ajay', 'Preeti', 'Vivek', 'Nisha', 'Pankaj', 'Jyoti'
 ];
 
-const LAST_NAMES = [
+const LAST_NAMES: readonly string[] = [
   'Sharma', 'Patel', 'Singh', 'Kumar', 'Gupta', 'Agarwal', 'Verma', 'Jain',
   'Reddy', 'Nair', 'Iyer', 'Rao', 'Mehta', 'Joshi', 'Desai', 'Shah',
   'Chopra', 'Malhotra', 'Bhatia', 'Sethi', 'Kapoor', 'Khanna', 'Arora', 'Bansal',
   'Mittal', 'Goyal', 'Bansal', 'Agarwal', 'Sinha', 'Mishra'
 ];
 
-const STREETS = [
+const STREETS: readonly string[] = [
   'MG Road', 'Brigade Road', 'Residency Road', 'Church Street', 'Commercial Street',
   'Cunningham Road', 'Richmond Road', 'Lavelle Road', 'Vittal Mallya Road',
   'Koramangala', 'Indiranagar', 'Jayanagar', 'Whitefield', 'Electronic City',
   'Hebbal', 'Yelahanka', 'Marathahalli', 'BTM Layout', 'HSR Layout', 'Sarjapur Road'
 ];
 
-const CITIES = [
+const CITIES: readonly string[] = [
   'Bangalore', 'Mumbai', 'Delhi', 'Hyderabad', 'Chennai', 'Kolkata', 'Pune', 'Ahmedabad',
   'Jaipur', 'Lucknow', 'Kanpur', 'Nagpur', 'Indore', 'Bhopal', 'Visakhapatnam', 'Patna'
 ];
 
-const STATES = [
+const STATES: readonly string[] = [
   'KA', 'MH', 'DL', 'TG', 'TN', 'WB', 'MH', 'GJ', 'RJ', 'UP', 'UP', 'MH', 'MP', 'MP', 'AP', 'BR'
 ];
 
-const PINS = [
+const PINS: readonly string[] = [
   '560001', '400001', '110001', '500001', '600001', '700001', '411001', '380001',
   '302001', '226001', '208001', '440001', '452001', '462001', '530001', '800001'
 ];
 
-const BANKS = [
+const BANKS: readonly { code: string; name: string }[] = [
   { code: 'SBIN', name: 'State Bank of India' },
   { code: 'HDFC', name: 'HDFC Bank' },
   { code: 'ICIC', name: 'ICICI Bank' },
@@ -172,17 +175,17 @@ const BANKS = [
   { code: 'RATN', name: 'RBL Bank' },
 ];
 
-const UPI_HANDLES = [
+const UPI_HANDLES: readonly string[] = [
   'okhdfcbank', 'oksbi', 'okicici', 'okaxis', 'okkotak', 'okyesbank',
   'paytm', 'phonepe', 'gpay', 'amazonpay', 'mobikwik', 'freecharge'
 ];
 
 const CARD_PREFIXES = {
-  visa: ['4'],
-  mastercard: ['51', '52', '53', '54', '55'],
-  amex: ['34', '37'],
-  rupay: ['60', '65'],
-};
+  visa: ['4'] as const,
+  mastercard: ['51', '52', '53', '54', '55'] as const,
+  amex: ['34', '37'] as const,
+  rupay: ['60', '65'] as const,
+} as const;
 
 function generateIndianPhone(rng: () => number): { national: string; e164: string } {
   const firstDigit = pick(rng, [6, 7, 8, 9]);
@@ -232,7 +235,7 @@ function generateUpi(rng: () => number): string {
 
 function generateCard(rng: () => number): string {
   const type = pickWeighted(rng, ['visa', 'mastercard', 'rupay', 'amex'], [0.5, 0.3, 0.15, 0.05]);
-  const prefixes = CARD_PREFIXES[type as keyof typeof CARD_PREFIXES];
+  const prefixes = CARD_PREFIXES[type as keyof typeof CARD_PREFIXES]!;
   const prefix = pick(rng, prefixes);
   const length = type === 'amex' ? 15 : 16;
   const remaining = length - prefix.length - 1;
@@ -255,9 +258,9 @@ function generateAddress(rng: () => number): { street: string; city: string; sta
   const idx = Math.floor(rng() * CITIES.length);
   return {
     street: `${Math.floor(rng() * 999) + 1} ${street}`,
-    city: CITIES[idx],
-    state: STATES[idx],
-    pin: PINS[idx],
+    city: CITIES[idx]!,
+    state: STATES[idx]!,
+    pin: PINS[idx]!,
   };
 }
 
@@ -281,7 +284,7 @@ function generateMrn(rng: () => number): string {
 }
 
 function generateClinicalParagraph(rng: () => number, name: string, address: string): string {
-  const templates = [
+  const templates: readonly string[] = [
     `Patient ${name} presented with acute abdominal pain. Resides at ${address}. History of hypertension.`,
     `${name}, a 45-year-old male, reports chest discomfort. Address on file: ${address}. No known allergies.`,
     `Follow-up for ${name}. Previous admission for diabetes management. Current address: ${address}.`,
@@ -374,7 +377,7 @@ function generateDecoysInternal(rng: () => number): PersonaValue[] {
   let cardDecoy: string;
   do {
     const type = pickWeighted(rng, ['visa', 'mastercard', 'rupay', 'amex'], [0.5, 0.3, 0.15, 0.05]);
-    const prefixes = CARD_PREFIXES[type as keyof typeof CARD_PREFIXES];
+    const prefixes = CARD_PREFIXES[type as keyof typeof CARD_PREFIXES]!;
     const prefix = pick(rng, prefixes);
     const length = type === 'amex' ? 15 : 16;
     const remaining = length - prefix.length - 1;
