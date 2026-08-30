@@ -63,3 +63,7 @@ export const upiRecognizer: Recognizer = {
     return spans;
   },
 };
+
+export function recognizeUpi(text: string): Span[] {
+  return upiRecognizer.detect(text);
+}

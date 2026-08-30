@@ -105,3 +105,7 @@ export const phoneRecognizer: Recognizer = {
     return spans;
   },
 };
+
+export function recognizePhone(text: string): Span[] {
+  return phoneRecognizer.detect(text);
+}

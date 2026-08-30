@@ -49,3 +49,7 @@ export const ifscRecognizer: Recognizer = {
     return spans;
   },
 };
+
+export function recognizeIfsc(text: string): Span[] {
+  return ifscRecognizer.detect(text);
+}

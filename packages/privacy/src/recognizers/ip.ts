@@ -96,3 +96,7 @@ export const ipRecognizer: Recognizer = {
     return spans;
   },
 };
+
+export function recognizeIp(text: string): Span[] {
+  return ipRecognizer.detect(text);
+}

@@ -114,3 +114,7 @@ export const dobRecognizer: Recognizer = {
     return spans;
   },
 };
+
+export function recognizeDob(text: string): Span[] {
+  return dobRecognizer.detect(text);
+}

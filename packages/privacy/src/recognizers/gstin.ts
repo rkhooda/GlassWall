@@ -42,3 +42,7 @@ export const gstinRecognizer: Recognizer = {
     return spans;
   },
 };
+
+export function recognizeGstin(text: string): Span[] {
+  return gstinRecognizer.detect(text);
+}

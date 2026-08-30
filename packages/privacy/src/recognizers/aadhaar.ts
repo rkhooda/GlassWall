@@ -42,3 +42,7 @@ export const aadhaarRecognizer: Recognizer = {
     return spans;
   },
 };
+
+export function recognizeAadhaar(text: string): Span[] {
+  return aadhaarRecognizer.detect(text);
+}

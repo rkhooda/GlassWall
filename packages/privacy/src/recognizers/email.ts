@@ -27,3 +27,7 @@ export const emailRecognizer: Recognizer = {
     return spans;
   },
 };
+
+export function recognizeEmail(text: string): Span[] {
+  return emailRecognizer.detect(text);
+}

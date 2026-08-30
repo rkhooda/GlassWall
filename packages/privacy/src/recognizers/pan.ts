@@ -41,3 +41,7 @@ export const panRecognizer: Recognizer = {
     return spans;
   },
 };
+
+export function recognizePan(text: string): Span[] {
+  return panRecognizer.detect(text);
+}

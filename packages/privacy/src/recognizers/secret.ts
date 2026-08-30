@@ -93,3 +93,7 @@ export const secretRecognizer: Recognizer = {
     return spans;
   },
 };
+
+export function recognizeSecret(text: string): Span[] {
+  return secretRecognizer.detect(text);
+}

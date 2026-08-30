@@ -64,3 +64,7 @@ export const cardRecognizer: Recognizer = {
     return spans;
   },
 };
+
+export function recognizeCard(text: string): Span[] {
+  return cardRecognizer.detect(text);
+}

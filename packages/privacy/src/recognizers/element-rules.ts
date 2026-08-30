@@ -172,3 +172,7 @@ export const elementRulesRecognizer: Recognizer = {
     return spans;
   },
 };
+
+export function recognizeElementRules(text: string): Span[] {
+  return elementRulesRecognizer.detect(text);
+}
