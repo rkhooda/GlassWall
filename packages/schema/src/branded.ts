@@ -32,6 +32,25 @@ export const SensitiveSchema = <T,>(
 // Utility type to extract the inner type from Sensitive<T>
 export type SensitiveValue<T> = T extends Sensitive<infer U> ? U : never;
 
+// Brand for RedactedImage - represents an image that has been redacted and is safe to transmit
+// This is the ONLY type that can carry image bytes out of the offscreen document
+export type RedactedImage = {
+  readonly __redactedImageBrand: '__redactedImageBrand';
+  readonly data: Uint8Array;
+  readonly width: number;
+  readonly height: number;
+  readonly format: 'png' | 'jpeg' | 'webp' | 'rgba';
+};
+
+// Zod schema for RedactedImage
+export const RedactedImageSchema = z.object({
+  __redactedImageBrand: z.literal('__redactedImageBrand' as const),
+  data: z.instanceof(Uint8Array),
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
+  format: z.enum(['png', 'jpeg', 'webp', 'rgba']),
+});
+
 // Result<T, E> - discriminated union for fallible operations (C6, C7, C8)
 export type Result<T, E> =
   | { ok: true; value: T }

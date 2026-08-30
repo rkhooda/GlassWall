@@ -122,6 +122,7 @@ export const ActionResultSchema = z
         'EFFECT_NOT_OBSERVED',
         'VAULT_TYPE_MISMATCH',
         'LITERAL_CONTAINS_SECRET',
+        'EGRESS_GATE_VIOLATION',
         'AGENT_ERROR',
         'ABORTED',
         'UNKNOWN_TARGET',
