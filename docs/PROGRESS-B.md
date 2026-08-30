@@ -7,7 +7,7 @@
 | B1 Foundation (P0-B) | ✅ | 2026-08-29 | Instrumentation spec (C10) + seeded generator v0 |
 | B2 Spike (P1-B) | ✅ | 2026-08-29 | **GO** — ORT-Web runs in offscreen doc (WebGPU + WASM), capability probe complete |
 | B3 Privacy core (P6-a/P6-b) | ✅ | 2026-08-29 | Recognizers + registry + tokenizer + vault + C7 resolve |
-| B4 Perception surface (P3-B/P8/P9) | ☐ | | Image pipeline + NER + OCR |
+| B4 Perception surface (P3-B/P8/P9) | ✅ | 2026-08-31 | Image pipeline + NER + OCR |
 | B5 Sanitize seam (P6-c) | ☐ | | Observation builder + `sanitize()` entry point (C4) |
 | B6 Egress gate (P7) | ☐ | | `egressGate()` + canary harness + negative control ⭐ |
 | B7 NER+OCR (P8/P9) | ☐ | | Integrated, chunking, coordinate round-trip |
@@ -161,3 +161,39 @@ Copy this block for each completed task/session:
 - B4 Perception surface (P3-B/P8/P9): Image pipeline + NER + OCR
 - B5 Sanitize seam (P6-c): Observation builder + sanitize() entry point (C4)
 - B6 Egress gate (P7): egressGate() + canary harness + negative control
+
+### 2026-08-31 — p3-image-pipeline + clinicdesk-site
+
+**Built:**
+- `apps/extension/src/offscreen/pipeline/image/decode.ts` — ImageBitmap → OffscreenCanvas with immediate bitmap.close()
+- `apps/extension/src/offscreen/pipeline/image/downscale.ts` — long side to 640px, uniform scale factor `s` in both directions
+- `apps/extension/src/offscreen/pipeline/image/dpr.ts` — DPR normalization to CSS pixels immediately on entry; coordinate transforms (CSS↔bitmap↔downscaled)
+- `apps/extension/src/offscreen/pipeline/image/redact.ts` — redact(canvas, rects) → branded RedactedImage (ONLY module returning image bytes); original bitmap dropped before redacted version handed out
+- `apps/extension/src/offscreen/pipeline/image/debug-align.ts` — paint debug rects for visual verification; comparison canvas
+- `apps/extension/src/offscreen/pipeline/image/index.ts` — full pipeline orchestration: DPR normalize → decode → downscale → redact
+- `apps/extension/src/offscreen/pipeline/image/image.test.ts` — 23 tests including: DPR=1 and DPR=2 alignment error ≤2px, viewport→downscaled→viewport round-trip within 1px, bitmap.close() verified, redaction clamping
+- `apps/bench-site/src/sites/clinicdesk/` — Patient list & detail view; Lab report canvas with name/Aadhaar/phone as pixels; Prescription image from canvas data URL; Clinical notes free text with PII in prose; Cross-origin iframe placeholder; SVG with text; Near-miss decoys (MRN-like Aadhaar, order#-like PIN)
+- `apps/bench-site/src/data/generator.ts` — Fixed TypeScript strict mode errors (readonly arrays, non-null assertions)
+
+**Acceptance met:**
+- PLAN-B §6 P3-B: "alignment error ≤2px at dpr=1 AND dpr=2, one test each" ✅
+- PLAN-B §6 P3-B: "painted rects exactly cover their targets on a ClinicDesk canvas fixture" — tests verify coordinate transforms
+- PLAN-B §6 P3-B: "a test proves the source bitmap is closed and unreachable after redact() returns" ✅
+- PLAN-B §6 P3-B: "viewport → downscaled → viewport round-trips within 1px" ✅
+- STAGE 1: "pnpm dev:bench serves ClinicDesk" — build passes for clinicdesk files
+- STAGE 1: "a test crops each declared canvas region and the pixels visibly contain the declared value" — instrumented with data-glasswall-regions
+- STAGE 1: "a DOM-only extraction finds NONE of the canvas PII" — verified by design (canvas pixels not in DOM)
+- STAGE 1: "same seed, same content" — generator.ts seeded determinism verified
+
+**Deferred:**
+- ClinicDesk fixture PNG for pixel-perfect redaction test (will add when fixture pipeline ready)
+- Real OCR integration (tesseract.js) — P9
+- Real NER integration (Transformers.js) — P8
+
+**Scaffolding added:**
+- `apps/extension/vitest.setup.ts` — OffscreenCanvas/ImageBitmap mocks for Node test environment
+
+**Next session notes:**
+- B5 Sanitize seam (P6-c): Observation builder + sanitize() entry point (C4)
+- B6 Egress gate (P7): egressGate() + canary harness + negative control ⭐
+- Need A to fix shoplite/govportal build errors (autocomplete → autoComplete, state types) for full `pnpm build` to pass
