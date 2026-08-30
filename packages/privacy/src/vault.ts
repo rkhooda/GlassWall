@@ -8,6 +8,7 @@ export interface VaultEntry {
 }
 
 export interface VaultStore {
+  init(): Promise<void>;
   get(handle: string): Promise<VaultEntry | undefined>;
   set(handle: string, entry: VaultEntry): Promise<void>;
   delete(handle: string): Promise<boolean>;

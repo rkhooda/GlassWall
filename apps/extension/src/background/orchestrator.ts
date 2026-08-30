@@ -5,12 +5,16 @@ import type { RawObservation, SanitizedObservation, CapturedFrame } from '@glass
 import type { Action, ActionEnvelope, ActionResult, Target } from '@glasswall/schema/action';
 import type { PolicyConfig } from '@glasswall/schema/policy';
 import type { SanitizeResult, RedactionReason, AuditPrivacyFields } from '@glasswall/schema/audit';
-import type { SafePayload, Violation, SecretRegistry, Result } from '@glasswall/schema/branded';
+import type { SafePayload, Violation, SecretRegistry, Result, Sensitive } from '@glasswall/schema/branded';
 import { send } from './net';
-import { sanitize, egressGate, checkVaultTypeMatch, scanLiteralAgainstRegistry } from '@glasswall/privacy';
+import { sanitize, egressGate, checkVaultTypeMatch, scanLiteralAgainstRegistry, resolveForBinding, createChromeSessionVaultStore, type VaultStore } from '@glasswall/privacy';
+import { recordRecoveryAttempt, shouldAttemptRecovery, clearRecoveryHistory } from './recovery';
+import { recordFailure, recordSuccess, isAvailable, getDegradedSubsystems } from './circuit-breaker';
+import { autoPersist, checkAndRecover } from './persist';
 
 // Session state (persisted to chrome.storage.session for SW restart recovery)
-interface SessionState {
+
+export interface SessionState {
   sessionId: string;
   task: string;
   policy: PolicyConfig;
@@ -21,6 +25,8 @@ interface SessionState {
   aborted: boolean;
   // Secret registry for vault handles (C6, C7, C8)
   secretRegistry: SecretRegistry;
+  // Vault store for resolving handles
+  vaultStore: VaultStore;
   // Working memory (local, never sent)
   workingMemory: {
     observationHistory: RawObservation[];
@@ -96,6 +102,9 @@ function sanitizeSessionForUI(session: SessionState) {
 export async function initialize(task: string, policyProfile: 'STRICT' | 'BALANCED' | 'PERMISSIVE' = 'STRICT', siteAllowlist: string[] = []): Promise<void> {
   const policy = getPolicyPreset(policyProfile);
   
+  const vaultStore = createChromeSessionVaultStore();
+  await vaultStore.init();
+  
   currentSession = {
     sessionId: crypto.randomUUID(),
     task,
@@ -106,6 +115,7 @@ export async function initialize(task: string, policyProfile: 'STRICT' | 'BALANC
     consecutiveFailures: 0,
     aborted: false,
     secretRegistry: new Map(),
+    vaultStore,
     workingMemory: {
       observationHistory: [],
       domSnapshots: new Map(),
@@ -147,11 +157,30 @@ function getPolicyPreset(profile: 'STRICT' | 'BALANCED' | 'PERMISSIVE'): PolicyC
 async function runLoop(): Promise<void> {
   if (!currentSession) return;
 
+  // Check for session recovery on startup
+  const recovery = await checkAndRecover();
+  if (recovery.recovered && recovery.session) {
+    currentSession = recovery.session;
+    console.log('[Orchestrator] Session recovered:', recovery.message);
+    // Notify UI of recovery
+    chrome.runtime.sendMessage({
+      type: 'extension:session-recovered',
+      payload: { message: recovery.message, stepIndex: currentSession.stepIndex },
+    }).catch(() => {});
+  }
+
   while (!shouldTerminate()) {
     const stepTimings: Partial<StepTimings> = {};
     stepTimings.perceptionStart = Date.now();
 
     try {
+      // Check circuit breakers for perception subsystem
+      if (!isAvailable('vision') || !isAvailable('ocr') || !isAvailable('ner')) {
+        const degraded = getDegradedSubsystems();
+        console.warn('[Orchestrator] Degraded subsystems:', degraded);
+        // Continue with degraded perception (explain-or-redact handles this)
+      }
+
       const observation = await observe();
       if (!observation) break;
       
@@ -161,6 +190,9 @@ async function runLoop(): Promise<void> {
       if (currentSession.workingMemory.observationHistory.length > 10) {
         currentSession.workingMemory.observationHistory.shift();
       }
+
+      // Persist observation for recovery
+      await autoPersist(currentSession);
 
       stepTimings.sanitizeStart = Date.now();
       const sanitizeResult = await sanitize({
@@ -172,6 +204,25 @@ async function runLoop(): Promise<void> {
       });
       stepTimings.sanitizeEnd = Date.now();
 
+      // Track sanitization subsystem health
+      if (sanitizeResult.degraded?.length) {
+        for (const d of sanitizeResult.degraded) {
+          if (d.includes('vision')) recordFailure('vision');
+          else if (d.includes('ocr')) recordFailure('ocr');
+          else if (d.includes('ner')) recordFailure('ner');
+          else if (d.includes('deterministic')) recordFailure('deterministic');
+          else if (d.includes('fusion')) recordFailure('fusion');
+          else if (d.includes('policy')) recordFailure('policy');
+        }
+      } else {
+        recordSuccess('vision');
+        recordSuccess('ocr');
+        recordSuccess('ner');
+        recordSuccess('deterministic');
+        recordSuccess('fusion');
+        recordSuccess('policy');
+      }
+
       const sanitizedObs = sanitizeResult.observation as SanitizedObservation;
       updateProgress(sanitizedObs);
 
@@ -180,16 +231,18 @@ async function runLoop(): Promise<void> {
       if (!gateResult.ok) {
         // Gate violation - fail closed per C6
         console.error('Egress gate violation:', gateResult.error);
+        recordFailure('egress');
         currentSession.consecutiveFailures++;
         await recordStepResult({
           ok: false,
           effect_observed: false,
-          error_code: 'AGENT_ERROR',
+          error_code: 'EGRESS_GATE_VIOLATION',
           error_message: `Egress gate violation: ${gateResult.error.code} - ${gateResult.error.message}`,
         }, stepTimings);
-        await persistSession();
+        await autoPersist(currentSession);
         continue;
       }
+      recordSuccess('egress');
       const safePayload = gateResult.value;
       stepTimings.gateEnd = Date.now();
 
@@ -225,6 +278,57 @@ async function runLoop(): Promise<void> {
       const verifyResult = await verify(actionEnvelope, executeResult);
       stepTimings.verifyEnd = Date.now();
 
+      // Handle execution failures with recovery ladder
+      if (!executeResult.ok) {
+        const recoveryDecision = shouldAttemptRecovery(
+          currentSession.stepIndex,
+          actionEnvelope.action.type,
+          executeResult.error_code
+        );
+
+        if (recoveryDecision.shouldRecover && recoveryDecision.recoveryAction) {
+          console.log('[Orchestrator] Attempting recovery:', recoveryDecision.reason);
+          recordRecoveryAttempt(currentSession.stepIndex, actionEnvelope.action.type, executeResult.error_code);
+          
+          // Execute recovery action
+          const recoveryEnvelope: ActionEnvelope = {
+            ...actionEnvelope,
+            action: recoveryDecision.recoveryAction,
+          };
+          
+          const recoveryExecuteResult = await execute(recoveryEnvelope);
+          const recoveryVerifyResult = await verify(recoveryEnvelope, recoveryExecuteResult);
+          
+          if (recoveryExecuteResult.ok && recoveryVerifyResult.verified) {
+            console.log('[Orchestrator] Recovery succeeded');
+            recordSuccess('executor');
+            // Re-try original action
+            const retryExecuteResult = await execute(actionEnvelope);
+            const retryVerifyResult = await verify(actionEnvelope, retryExecuteResult);
+            
+            await recordStepResult(retryExecuteResult, stepTimings, retryVerifyResult, sanitizeResult);
+            
+            if (retryExecuteResult.ok) {
+              currentSession.consecutiveFailures = 0;
+              currentSession.stepIndex++;
+              await autoPersist(currentSession);
+              continue;
+            }
+          }
+        }
+
+        // Recovery failed or not attempted
+        recordFailure('executor');
+        if (executeResult.error_code) {
+          chrome.runtime.sendMessage({
+            type: 'extension:error',
+            payload: { code: executeResult.error_code, stepIndex: currentSession.stepIndex },
+          }).catch(() => {});
+        }
+      } else {
+        recordSuccess('executor');
+      }
+
       await recordStepResult(executeResult, stepTimings, verifyResult, sanitizeResult);
 
       if (actionEnvelope.action.type === 'DONE') {
@@ -236,6 +340,7 @@ async function runLoop(): Promise<void> {
 
     } catch (error) {
       console.error('Step failed:', error);
+      recordFailure('executor');
       currentSession.consecutiveFailures++;
       await recordStepResult({
         ok: false,
@@ -243,13 +348,19 @@ async function runLoop(): Promise<void> {
         error_code: 'AGENT_ERROR',
         error_message: error instanceof Error ? error.message : 'Unknown error',
       }, stepTimings);
+
+      chrome.runtime.sendMessage({
+        type: 'extension:error',
+        payload: { code: 'AGENT_ERROR', stepIndex: currentSession.stepIndex },
+      }).catch(() => {});
     }
 
-    await persistSession();
+    await autoPersist(currentSession);
     await new Promise(r => setTimeout(r, 50));
   }
 
   notifyTraceComplete();
+  clearRecoveryHistory();
 }
 
 function shouldTerminate(): boolean {
@@ -359,6 +470,14 @@ async function handleValidationFailure(validationResult: { ok: boolean; error_co
     error_code: validationResult.error_code ?? 'AGENT_ERROR',
     error_message: validationResult.error_message,
   }, timings);
+
+  // Notify side panel of error
+  if (validationResult.error_code) {
+    chrome.runtime.sendMessage({
+      type: 'extension:error',
+      payload: { code: validationResult.error_code, stepIndex: currentSession!.stepIndex },
+    }).catch(() => {});
+  }
 }
 
 async function requestConfirmation(envelope: ActionEnvelope, observation: SanitizedObservation): Promise<boolean> {
@@ -403,9 +522,6 @@ async function requestConfirmation(envelope: ActionEnvelope, observation: Saniti
   });
 }
 
-import { resolveForBinding } from '@glasswall/privacy';
-import type { Sensitive } from '@glasswall/schema/branded';
-
 async function execute(envelope: ActionEnvelope): Promise<ActionResult> {
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
   const tab = tabs[0];
@@ -422,12 +538,12 @@ async function execute(envelope: ActionEnvelope): Promise<ActionResult> {
     // Find target element from the latest sanitized observation (has sensitivity_class)
     const latestObs = currentSession!.workingMemory.observationHistory[currentSession!.workingMemory.observationHistory.length - 1];
     const targetElement = latestObs?.elements.find(e => e.id === targetId);
-    if (targetElement) {
-      const bindingResult = resolveForBinding(handle, {
+    if (targetElement && currentSession!.vaultStore) {
+      const bindingResult = await resolveForBinding(handle, {
         element_id: targetElement.id,
         sensitivity_class: (targetElement as any).sensitivity_class || 'none',
         accepts: (targetElement as any).sensitivity_class ? [(targetElement as any).sensitivity_class] : [],
-      });
+      }, currentSession!.vaultStore);
       
       if (!bindingResult.ok) {
         return { ok: false, effect_observed: false, error_code: 'VAULT_TYPE_MISMATCH', error_message: bindingResult.error.message };

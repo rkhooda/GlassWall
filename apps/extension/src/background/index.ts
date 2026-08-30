@@ -3,8 +3,9 @@
 
 import { bus } from '../shared/bus';
 import '../shared/types-chrome';
-import { initialize, restoreSession } from './orchestrator';
+import { initialize } from './orchestrator';
 import { ensureOffscreenDocument, captureScreenshot } from './capture';
+import { checkAndRecover } from './persist';
 import type { RawObservation, CapturedFrame } from '@glasswall/schema/observation';
 
 // Service worker startup
@@ -129,16 +130,15 @@ chrome.runtime.onInstalled.addListener(() => {
   console.log('GLASSWALL service worker installed');
 });
 
-chrome.runtime.onStartup.addListener(() => {
+chrome.runtime.onStartup.addListener(async () => {
   console.log('GLASSWALL service worker started up');
-  ensureOffscreenDocument().catch(console.error);
+  await ensureOffscreenDocument().catch(console.error);
   
-  // Try to restore session
-  restoreSession().then(session => {
-    if (session) {
-      console.log('Restored session:', session.sessionId);
-    }
-  });
+  // Try to recover session
+  const recovery = await checkAndRecover();
+  if (recovery.recovered) {
+    console.log('Session recovered:', recovery.message);
+  }
 });
 
 chrome.runtime.onSuspend.addListener(() => {
