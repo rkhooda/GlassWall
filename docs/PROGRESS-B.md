@@ -10,7 +10,7 @@
 | B4 Perception surface (P3-B/P8/P9) | ✅ | 2026-08-31 | Image pipeline + NER + OCR |
 | B5 Sanitize seam (P6-c) | ✅ | 2026-08-31 | Observation builder + `sanitize()` entry point (C4) |
 | B6 Egress gate (P7) | ✅ | 2026-08-31 | `egressGate()` 7 checks + 40 tests ✅; canary harness (`eval/leakage/`) ✅; `verify:boundary.sh` ✅; `.github/workflows/privacy.yml` ✅; root scripts ✅ |
-| B7 NER+OCR (P8/P9) | ⚠️ | 2026-09-01 | Code + tests complete and fail-closed. **Model weights and tesseract assets are not vendored**, so the accuracy/latency criteria are unmeasured (suites skip). Not wired into the step loop — A must pass `perceptionSources`. |
+| B7 NER+OCR (P8/P9) | ⚠️ | 2026-09-01 | Code + tests complete and fail-closed. Assets vendored via `ml/fetch-models.sh`. **NER measured: F1 0.958, precision 1.00, PERSON_NAME recall 1.00 ✅ — STREET_ADDRESS recall 0.84 ❌ (target 0.90) and model 109MB ❌ (target 30MB).** Latency + EP parity are browser-only, still unmeasured. OCR accuracy needs ClinicDesk fixture crops. Not wired into the step loop — A must pass `perceptionSources`. |
 | B8 Fusion (P11) | ☐ | | Fusion + explain-or-redact + policy engine ⭐ |
 | B9 Eval+Inspector (P12-B) | ☐ | | Ablations A1/A6/A7 + Inspector.tsx + Handles.tsx |
 | B10 Perf/chaos/docs (P13-B/P14-B/P15-B) | ☐ | | Warmup, chaos (leakage=0 degraded), SECURITY/PRIVACY/MODEL_CARD/EVALUATION |
@@ -349,3 +349,54 @@ Copy this block for each completed task/session:
 
 **Scaffolding added:**
 - None. The two gated suites are real tests, not stubs — they run the moment the assets land.
+
+### 2026-09-01 — b7 follow-up: actually measuring it
+
+Vendored the assets (`ml/fetch-models.sh`) and ran the gated suites. Three findings, in order of
+how much they mattered.
+
+**1. The NER path was returning nothing at all, and every unit test passed.**
+Transformers.js v3 does not implement `aggregation_strategy` and returns per-wordpiece labels with
+**no character offsets**. `runChunk` filtered on `item.start == null`, so it discarded 100% of
+predictions. The unit tests never caught it because they inject a fake model — which is the right
+way to test the orchestration, but it means the real adapter had no coverage until the weights
+arrived. Fixed by `spansFromTokens()`: group by BIO tags plus `##` continuations, then locate each
+reconstructed entity in the source text. This is the single strongest argument for running the
+gated suites for real rather than shipping on green unit tests.
+
+**2. Measured NER, 25 generator seeds / 50 gold spans:**
+
+| metric | measured | criterion | |
+|---|---|---|---|
+| span F1 | **0.958** | ≥0.85 | ✅ |
+| precision | **1.00** | — | |
+| recall, PERSON_NAME | **1.00** | ≥0.90 | ✅ |
+| recall, STREET_ADDRESS | **0.84** | ≥0.90 | ❌ |
+| model size | **109MB** | ≤30MB | ❌ |
+
+The STREET_ADDRESS misses are not random: all 4 are bare Bengaluru localities with no road/street
+token — `750 BTM Layout`, `631 Hebbal`, `85 BTM Layout`, `670 Hebbal` — for which the model predicts
+**no location at all**. Anything containing "Road" or "Street" is found reliably. Recorded as
+`it.fails` rather than lowered, so it flips back to a normal assertion the moment recall improves.
+
+The size criterion cannot be met by this model under any quantization: int8/uint8 108.5MB, q4f16
+93.7MB (the smallest published), bnb4 139.2MB, q4 144.5MB, fp16 215.8MB, fp32 431.2MB. Meeting 30MB
+needs a smaller encoder, which is a model-selection decision, not a packaging one.
+
+**3. A prediction I had written down was wrong.** I had recorded "Indian names are close to absent
+from CoNLL-2003, so recall is expected well below the newswire figure" as a known gap. Measured
+recall on the generator's Indian name pool is **1.00**. The manifest now says so, and warns against
+repeating the claim in `MODEL_CARD.md` as though it had been measured. The real Indian-data gap is
+in **locality names**, not personal names — which is only visible because it was measured.
+
+**Also fixed:** `.gitignore` ignored all of `apps/extension/public/`, labelled "Extension build".
+It is not build output — `offscreen.html` and `sandbox.html` live there and are referenced by
+`capture.ts`. A fresh clone had no offscreen document. The rule now ignores only the three vendored
+asset directories; the HTML and the tiny spike model are tracked.
+
+**Still unmeasured, and why:**
+- NER latency (≤250ms WebGPU / ≤700ms WASM) and **EP parity** — node's transformers.js exposes only
+  the `cpu` device, so neither browser EP can be instantiated. Must be measured in the extension.
+- OCR character accuracy and latency — needs fixture crops from the ClinicDesk canvas, which the
+  criterion itself specifies. The harness reads `eval/fixtures/ocr/fixtures.json` and runs the
+  moment those exist.
