@@ -38,8 +38,12 @@ coverage/
 apps/extension/dist/
 apps/bench-site/dist/
 
-# Extension build
-apps/extension/public/
+# Vendored model + OCR assets (~200MB), fetched by `bash ml/fetch-models.sh`.
+# NOT the whole of public/ — offscreen.html and sandbox.html live there and are
+# source the extension cannot run without.
+apps/extension/public/models/ner-base/
+apps/extension/public/ort/
+apps/extension/public/tesseract/
 
 # Local config
 .env
