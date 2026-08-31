@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { egressGate } from './egress-gate';
-import { SecretRegistry } from './registry/registry';
+import type { SecretRegistry } from '@glasswall/schema/branded';
+import { normalize } from './registry/normalize';
 import { PolicyConfig } from '@glasswall/schema/policy';
 import { SanitizedObservation, Handle } from '@glasswall/schema/observation';
 import { createTokenizer } from './tokenizer';
@@ -69,11 +70,19 @@ function createValidObservation(handles: Handle[] = [], overrides: Partial<Sanit
   };
 }
 
+/** Builds the C6 contract registry: a Map of handle -> secret metadata. */
 function createRegistryWithSecrets(secrets: Array<{ value: string; type: string; tier: number }>): SecretRegistry {
-  const registry = new SecretRegistry();
-  for (const secret of secrets) {
-    registry.add(secret.value, secret.type, secret.tier);
-  }
+  const registry: SecretRegistry = new Map();
+  secrets.forEach((secret, i) => {
+    const handle = `\u27E6${secret.type}#${i}\u27E7`;
+    registry.set(handle, {
+      handle,
+      pii_type: secret.type,
+      tier: secret.tier,
+      created_at: Date.now(),
+      normalized_value: normalize(secret.value),
+    });
+  });
   return registry;
 }
 
@@ -459,10 +468,13 @@ describe('egressGate - check 7: Destination Pin', () => {
 describe('egressGate - performance', () => {
   it('p95 under 15ms for 400-element payload against 200-entry registry', () => {
     const policy = createTestPolicy();
-    const registry = new SecretRegistry();
-    for (let i = 0; i < 200; i++) {
-      registry.add(`secret-value-${i}-${'x'.repeat(20)}`, 'API_KEY', 2);
-    }
+    const registry = createRegistryWithSecrets(
+      Array.from({ length: 200 }, (_, i) => ({
+        value: `secret-value-${i}-${'x'.repeat(20)}`,
+        type: 'API_KEY',
+        tier: 2,
+      }))
+    );
 
     const elements = Array.from({ length: 400 }, (_, i) => ({
       id: `e${i}`,

@@ -1,7 +1,17 @@
 // C6 CONTRACT: egressGate() - B's function, A's single call site
 // Pure, synchronous, fail-closed. Seven checks in order.
 
-import { SafePayload, Violation, Result, SecretRegistry, PolicyConfig } from '@glasswall/schema/branded';
+import { SafePayload, Violation, Result, SecretRegistry } from '@glasswall/schema/branded';
+import type { PolicyConfig } from '@glasswall/schema/policy';
+
+/**
+ * Deployment limits the frozen PolicyConfig does not carry. Both optional, so any
+ * PolicyConfig satisfies this and the schema stays untouched.
+ */
+export type GatePolicy = PolicyConfig & {
+  max_payload_bytes?: number;
+  gateway_origin?: string;
+};
 import { SanitizedObservationSchema } from '@glasswall/schema/observation';
 import { normalize } from './registry/normalize';
 import { generateEncodings } from './registry/encodings';
@@ -55,11 +65,12 @@ function extractStrings(obj: unknown, path: string = ''): Array<{ value: string;
 function checkSchemaConformance(payload: unknown): Violation | null {
   const result = SanitizedObservationSchema.safeParse(payload);
   if (!result.success) {
-    console.debug('Schema validation failed:', JSON.stringify(result.error.issues, null, 2));
     const firstError = result.error.issues[0];
     return {
       code: 'SCHEMA_CONFORMANCE',
-      message: `Schema validation failed at ${firstError.path.join('.')}: ${firstError.message}`,
+      message: firstError
+        ? `Schema validation failed at ${firstError.path.join('.')}: ${firstError.message}`
+        : 'Schema validation failed',
       details: { issues: result.error.issues },
     };
   }
@@ -90,7 +101,6 @@ function checkTypeBrand(payload: unknown): Violation | null {
       if (hasHandle) continue;
     }
 
-    console.debug('TypeBrand rejecting:', { path, value: value.slice(0, 50), isHandleLike: isHandleLike(value) });
     return {
       code: 'TYPE_BRAND',
       message: `Unbranded string at ${path}: strings must be Sanitized<string> (handles or redacted placeholders)`,
@@ -101,48 +111,42 @@ function checkTypeBrand(payload: unknown): Violation | null {
 }
 
 function checkRegistryScan(payload: unknown, registry: SecretRegistry): Violation | null {
-  const payloadStr = JSON.stringify(payload);
-  const normalizedPayload = normalize(payloadStr);
+  const normalizedPayload = normalize(JSON.stringify(payload));
 
-  console.debug('Registry scan - normalized payload:', normalizedPayload.slice(0, 500));
-
-  const automaton = registry.getAutomaton();
-  const matches = automaton.search(normalizedPayload);
-  if (matches.length > 0) {
-    console.debug('Registry scan - automaton matches:', matches);
-    return {
-      code: 'REGISTRY_SCAN',
-      message: `Secret found in payload (normalized): ${matches[0].pattern}`,
-      details: { pattern: matches[0].pattern, position: matches[0].start },
-    };
+  // Violation messages and details name the PII type, never the matched value —
+  // a gate that logs the secret it caught has leaked it.
+  const patterns: string[] = [];
+  const byPattern = new Map<string, string>();
+  for (const entry of registry.values()) {
+    if (entry.normalized_value.length < MIN_SECRET_LENGTH) continue;
+    for (const form of [entry.normalized_value, ...generateEncodings(entry.normalized_value)]) {
+      patterns.push(form);
+      byPattern.set(form, entry.pii_type);
+    }
   }
 
-  for (const entry of registry.getAll()) {
-    if (entry.normalized.length < MIN_SECRET_LENGTH) continue;
-
-    console.debug('Registry scan - checking entry:', entry.type, 'encodings:', entry.encodings.slice(0, 3));
-
-    for (const encoding of entry.encodings) {
-      if (normalizedPayload.includes(encoding)) {
-        console.debug('Registry scan - encoding match:', encoding);
-        return {
-          code: 'REGISTRY_SCAN',
-          message: `Secret found in payload (encoded): ${entry.type}`,
-          details: { type: entry.type, encoding: encoding.slice(0, 50) },
-        };
-      }
-    }
-
-    if (entry.normalized.length >= NGRAM_SIZE && hasNgramOverlap(normalizedPayload, [entry.normalized], NGRAM_SIZE)) {
+  if (patterns.length > 0) {
+    const match = new AhoCorasick(patterns).search(normalizedPayload)[0];
+    if (match) {
       return {
         code: 'REGISTRY_SCAN',
-        message: `Partial secret overlap (8-gram): ${entry.type}`,
-        details: { type: entry.type, ngram_size: NGRAM_SIZE },
+        message: `Registry secret found in payload: ${byPattern.get(match.pattern) ?? 'UNKNOWN'}`,
+        details: { pii_type: byPattern.get(match.pattern) ?? 'UNKNOWN' },
       };
     }
   }
 
-  console.debug('Registry scan - no matches found');
+  for (const entry of registry.values()) {
+    if (entry.normalized_value.length < NGRAM_SIZE) continue;
+    if (hasNgramOverlap(normalizedPayload, [entry.normalized_value], NGRAM_SIZE)) {
+      return {
+        code: 'REGISTRY_SCAN',
+        message: `Partial secret overlap (8-gram): ${entry.pii_type}`,
+        details: { pii_type: entry.pii_type, ngram_size: NGRAM_SIZE },
+      };
+    }
+  }
+
   return null;
 }
 
@@ -178,7 +182,7 @@ function checkEntropyHeuristic(payload: unknown): Violation | null {
   return null;
 }
 
-function checkSizeBudget(payload: unknown, policy: PolicyConfig): Violation | null {
+function checkSizeBudget(payload: unknown, policy: GatePolicy): Violation | null {
   const payloadStr = JSON.stringify(payload);
   const maxBytes = policy.max_payload_bytes ?? 250 * 1024;
   if (payloadStr.length > maxBytes) {
@@ -191,11 +195,11 @@ function checkSizeBudget(payload: unknown, policy: PolicyConfig): Violation | nu
   return null;
 }
 
-function checkRateLimit(policy: PolicyConfig): Violation | null {
+function checkRateLimit(_policy: GatePolicy): Violation | null {
   return null;
 }
 
-function checkDestinationPin(payload: unknown, policy: PolicyConfig): Violation | null {
+function checkDestinationPin(payload: unknown, policy: GatePolicy): Violation | null {
   const gatewayOrigin = policy.gateway_origin;
   if (!gatewayOrigin) {
     return {
@@ -205,8 +209,8 @@ function checkDestinationPin(payload: unknown, policy: PolicyConfig): Violation 
     };
   }
 
-  const payloadObj = payload as Record<string, unknown>;
-  const destination = payloadObj.page?.url_template as string | undefined;
+  const page = (payload as { page?: { url_template?: string } }).page;
+  const destination = page?.url_template;
   if (!destination || !destination.includes('://')) {
     return null;
   }
@@ -234,56 +238,42 @@ function checkDestinationPin(payload: unknown, policy: PolicyConfig): Violation 
 export function egressGate(
   payload: unknown,
   registry: SecretRegistry,
-  policy: PolicyConfig
+  policy: GatePolicy
 ): Result<SafePayload, Violation> {
   const schemaCheck = checkSchemaConformance(payload);
   if (schemaCheck) {
-    console.debug('Check 1 (Schema) failed:', schemaCheck.code);
     return { ok: false, error: schemaCheck };
   }
-  console.debug('Check 1 (Schema) passed');
 
   const brandCheck = checkTypeBrand(payload);
   if (brandCheck) {
-    console.debug('Check 2 (TypeBrand) failed:', brandCheck.code);
     return { ok: false, error: brandCheck };
   }
-  console.debug('Check 2 (TypeBrand) passed');
 
   const registryCheck = checkRegistryScan(payload, registry);
   if (registryCheck) {
-    console.debug('Check 3 (Registry) failed:', registryCheck.code);
     return { ok: false, error: registryCheck };
   }
-  console.debug('Check 3 (Registry) passed');
 
   const entropyCheck = checkEntropyHeuristic(payload);
   if (entropyCheck) {
-    console.debug('Check 4 (Entropy) failed:', entropyCheck.code);
     return { ok: false, error: entropyCheck };
   }
-  console.debug('Check 4 (Entropy) passed');
 
   const sizeCheck = checkSizeBudget(payload, policy);
   if (sizeCheck) {
-    console.debug('Check 5 (Size) failed:', sizeCheck.code);
     return { ok: false, error: sizeCheck };
   }
-  console.debug('Check 5 (Size) passed');
 
   const rateCheck = checkRateLimit(policy);
   if (rateCheck) {
-    console.debug('Check 6 (Rate) failed:', rateCheck.code);
     return { ok: false, error: rateCheck };
   }
-  console.debug('Check 6 (Rate) passed');
 
   const destCheck = checkDestinationPin(payload, policy);
   if (destCheck) {
-    console.debug('Check 7 (Destination) failed:', destCheck.code);
     return { ok: false, error: destCheck };
   }
-  console.debug('Check 7 (Destination) passed');
 
   const safePayload = { __safePayloadBrand: '__safePayloadBrand' as const };
   return { ok: true, value: safePayload };

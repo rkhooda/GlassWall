@@ -2,7 +2,7 @@ import { SanitizedObservation } from '@glasswall/schema/observation';
 import { PiiType } from '@glasswall/schema/policy';
 import { Violation, Result, ok, err, SecretRegistry } from '@glasswall/schema/branded';
 import { normalize } from './registry/normalize';
-import { encodeAllForms } from './registry/encodings';
+import { generateEncodings } from './registry/encodings';
 
 export interface Action {
   type: string;
@@ -69,11 +69,11 @@ export function scanLiteralAgainstRegistry(
   registry: SecretRegistry
 ): Result<void, Violation> {
   const normalizedText = normalize(text);
-  const encodedForms = encodeAllForms(normalizedText);
+  const encodedForms = generateEncodings(normalizedText);
 
   for (const entry of registry.values()) {
     const secretNormalized = entry.normalized_value;
-    const secretEncoded = encodeAllForms(secretNormalized);
+    const secretEncoded = generateEncodings(secretNormalized);
 
     for (const form of secretEncoded) {
       if (normalizedText.includes(form) || text.includes(form)) {
