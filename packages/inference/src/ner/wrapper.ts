@@ -1,6 +1,6 @@
 import { env, pipeline, type TokenClassificationPipeline } from '@huggingface/transformers';
 import { getAssetUrl } from '../registry';
-import { chunkedNer, type Span } from './chunk';
+import { chunkedNer, spansFromTokens, type Span, type TokenPrediction } from './chunk';
 
 /**
  * Transformers.js defaults to fetching weights AND the ORT wasm runtime from a CDN.
@@ -44,8 +44,11 @@ const NER_MODEL_DIR = 'ner-base';
 let nerPipeline: TokenClassificationPipeline | null = null;
 let loadedEp: string | null = null;
 
+/** 'cpu' exists for the node-side accuracy harness; the extension uses webgpu/wasm. */
+export type NerDevice = 'webgpu' | 'wasm' | 'cpu';
+
 export async function loadNerModel(
-  device: 'webgpu' | 'wasm' = 'wasm'
+  device: NerDevice = 'wasm'
 ): Promise<{ ms: number; ep: string }> {
   if (nerPipeline && loadedEp === device) return { ms: 0, ep: loadedEp };
   if (nerPipeline) disposeNer();
@@ -59,28 +62,12 @@ export async function loadNerModel(
   return { ms: performance.now() - start, ep: device };
 }
 
-/** One chunk through the model. Aggregation stitches wordpieces back into entities. */
+/** One chunk through the model. Offsets are recovered here because the library
+ *  returns wordpiece labels with no character positions. */
 async function runChunk(text: string): Promise<Span[]> {
-  const raw = await nerPipeline!(text, { aggregation_strategy: 'simple' } as never);
-  const items = (Array.isArray(raw) ? raw.flat() : [raw]) as {
-    entity?: string;
-    entity_group?: string;
-    score: number;
-    start?: number | null;
-    end?: number | null;
-  }[];
-
-  const spans: Span[] = [];
-  for (const item of items) {
-    if (item.start == null || item.end == null) continue;
-    spans.push({
-      start: item.start,
-      end: item.end,
-      type: (item.entity_group ?? item.entity ?? 'MISC').replace(/^[BI]-/, ''),
-      confidence: item.score,
-    });
-  }
-  return spans;
+  const raw = await nerPipeline!(text);
+  const tokens = (Array.isArray(raw) ? raw.flat() : [raw]) as TokenPrediction[];
+  return spansFromTokens(text, tokens);
 }
 
 /** Chunked, boundary-merged, confidence-thresholded NER over one text blob. */

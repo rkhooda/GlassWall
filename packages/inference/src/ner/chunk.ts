@@ -140,3 +140,77 @@ export function mapSpansToRanges(
   }
   return out;
 }
+
+/** One wordpiece prediction, the shape transformers.js actually returns. */
+export interface TokenPrediction {
+  entity: string;
+  score: number;
+  word: string;
+}
+
+/**
+ * Turn per-wordpiece predictions into character spans.
+ *
+ * Transformers.js does not implement `aggregation_strategy` and returns no
+ * character offsets, so both the grouping and the offsets are done here:
+ * BIO tags plus `##` continuations give the entity boundaries, and the
+ * reconstructed surface form is located in the source text.
+ */
+export function spansFromTokens(text: string, tokens: TokenPrediction[]): Span[] {
+  const groups: Array<{ type: string; pieces: string[]; scores: number[] }> = [];
+
+  for (const token of tokens) {
+    const type = token.entity.replace(/^[BI]-/, '');
+    const current = groups[groups.length - 1];
+    const continues =
+      current !== undefined &&
+      current.type === type &&
+      (token.word.startsWith('##') || token.entity.startsWith('I-'));
+
+    if (continues) {
+      current.pieces.push(token.word);
+      current.scores.push(token.score);
+    } else {
+      groups.push({ type, pieces: [token.word], scores: [token.score] });
+    }
+  }
+
+  const spans: Span[] = [];
+  let cursor = 0;
+
+  for (const group of groups) {
+    const found = locate(text, group.pieces, cursor);
+    if (!found) continue;
+    spans.push({
+      start: found.start,
+      end: found.end,
+      type: group.type,
+      confidence: group.scores.reduce((a, b) => a + b, 0) / group.scores.length,
+    });
+    cursor = found.end;
+  }
+
+  return spans;
+}
+
+/**
+ * Find the wordpieces in the source text from `from` onward. Pieces are matched
+ * with flexible whitespace rather than by rebuilding a string, because the
+ * detokenized form does not always reproduce the original spacing.
+ */
+function locate(text: string, pieces: string[], from: number): { start: number; end: number } | null {
+  const pattern = pieces
+    .map((piece, i) => {
+      const literal = escapeRegExp(piece.replace(/^##/, ''));
+      const gap = i === 0 || piece.startsWith('##') ? '' : '\\s*';
+      return gap + literal;
+    })
+    .join('');
+
+  const match = new RegExp(pattern, 'i').exec(text.slice(from));
+  return match ? { start: from + match.index, end: from + match.index + match[0].length } : null;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
