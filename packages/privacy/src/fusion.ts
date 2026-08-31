@@ -101,7 +101,7 @@ export function fuse(input: {
   for (const anchor of anchors.values()) {
     const evidence = index.query(toRect(anchor.rect)).map(item => item.data as Detection);
 
-    const terms: Array<{ term: number; kind: EvidenceKind }> = evidence.map(d => ({
+    const terms: { term: number; kind: EvidenceKind }[] = evidence.map(d => ({
       term: weights[d.type] * d.confidence,
       kind: d.type,
     }));
@@ -118,11 +118,15 @@ export function fuse(input: {
 
     const sensitivity = noisyOr(terms.map(t => t.term));
     const strongest = terms.reduce((a, b) => (b.term > a.term ? b : a));
-    const tier = evidence.length > 0 ? Math.min(...evidence.map(d => tierForType(d.pii_type))) : undefined;
+
+    // Only the tier-1 escalation crosses over from the value channel: a region
+    // holding a secret goes to the vault whatever its score. Every other tier
+    // floor belongs to the detected value, not to the area of screen it sits in.
+    const holdsSecret = evidence.some(d => tierForType(d.pii_type) === 1 && weights[d.type] > 0);
 
     const decision = decide(profile, {
       sensitivity,
-      tier,
+      tier: holdsSecret ? 1 : undefined,
       cause: describe(evidence, anchor.unexplained, sensitivity),
     });
 

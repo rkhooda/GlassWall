@@ -127,6 +127,13 @@ export interface Decision {
  *
  * Comparisons are `>=`, so a score sitting exactly on a threshold takes the
  * stricter side. Ties break toward redaction.
+ *
+ * `tier` is the floor for a *known value*: a detected EMAIL is tokenized however
+ * unremarkable its score. A fused *region* has no known value — it has a score —
+ * so the region path leaves `tier` unset except to escalate a tier-1 secret, and
+ * a region nothing vouches against passes. Applying a value floor to a region
+ * would make every region redact regardless of S, which is the same as having no
+ * fusion at all.
  */
 export function decide(
   profile: Profile,
@@ -140,7 +147,9 @@ export function decide(
   if (sensitivity >= thresholds.mask) return say('MASK', 'mask', cause);
   if (sensitivity >= thresholds.tokenize) return say('TOKENIZE', 'tokenize', cause);
 
-  const tierKey = `T${tier ?? 3}` as keyof typeof tiers;
+  if (tier === undefined) return say('PASS', 'below_tokenize', cause);
+
+  const tierKey = `T${tier}` as keyof typeof tiers;
   const fallback = tiers[tierKey] ?? 'PASS';
   // ANNOTATE is not a payload transformation — the content passes, carrying a note.
   const action: Transformation = fallback === 'ANNOTATE' ? 'PASS' : fallback;

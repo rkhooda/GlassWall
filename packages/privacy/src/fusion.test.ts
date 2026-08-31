@@ -146,15 +146,18 @@ describe('fuse — performance', () => {
       reason: 'opaque <canvas>, contents not readable from the DOM',
     }));
 
+    // 10 warm-up iterations, then p95 over 100. p95 over a handful of samples is
+    // the maximum in disguise, and the maximum here measures the GC, not the code.
+    for (let i = 0; i < 10; i++) fuse({ detections, unexplained, profile: BALANCED });
+
     const samples: number[] = [];
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 100; i++) {
       const t0 = performance.now();
       fuse({ detections, unexplained, profile: BALANCED });
       samples.push(performance.now() - t0);
     }
     samples.sort((a, b) => a - b);
-    const p95 = samples[Math.floor(samples.length * 0.95)]!;
 
-    expect(p95).toBeLessThan(20);
+    expect(samples[Math.floor(samples.length * 0.95)]!).toBeLessThan(20);
   });
 });

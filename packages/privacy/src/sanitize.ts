@@ -167,11 +167,17 @@ export async function sanitize(input: {
   step: number;
   session: { session_id: string; policy_profile: 'STRICT' | 'BALANCED' | 'PERMISSIVE' };
   perceptionSources?: PerceptionSource[];
+  /**
+   * A profile parsed from `config/policies/*.json` rather than the embedded default.
+   * This is how the ablation harness sweeps source weights and thresholds without
+   * a rebuild; the extension leaves it unset and gets `PROFILES[policy_profile]`.
+   */
+  profile?: Profile;
 }): Promise<SanitizeResult> {
   const startTime = Date.now();
   const { raw, frame, task, step, session, perceptionSources = [] } = input;
   const policyProfile = session.policy_profile;
-  const profile: Profile = PROFILES[policyProfile];
+  const profile: Profile = input.profile ?? PROFILES[policyProfile];
   const policy = profile.policy;
 
   const degraded: string[] = [];
@@ -286,14 +292,12 @@ export async function sanitize(input: {
       ...explainOrRedact({ candidates, explained, minCoverage: profile.fusion.min_coverage }),
       ...sourceUnexplained,
     ];
-    for (const region of unexplained) {
-      allRedactions.push({ rect: region.rect, reason: region.reason, source: 'deterministic', score: 1 });
-    }
-
     const fusedRegions = fuse({ detections: allDetections, unexplained, profile });
     timings.fuse = Date.now() - fuseStart;
 
-    for (const region of fusedRegions) {
+    // Only actual redactions land in the redaction list. A region that passes is
+    // a decision, not a redaction, and the inspector must not claim otherwise.
+    for (const region of fusedRegions.filter(r => !PASSES_THROUGH.has(r.action))) {
       allRedactions.push({
         rect: region.rect,
         reason: region.reason,
@@ -303,7 +307,7 @@ export async function sanitize(input: {
     }
 
     const buildStart = Date.now();
-    const redactingRegions = fusedRegions.filter(r => PASSES_THROUGH.has(r.action) === false);
+    const redactingRegions = fusedRegions.filter(r => !PASSES_THROUGH.has(r.action));
     const tokenizedElements = raw.elements.map(el => {
       // An element is sensitive if a *fused* region says so. Fusion's S is never below
       // any single source's contribution, so this can only redact more than the

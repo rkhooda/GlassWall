@@ -25,14 +25,14 @@ describe('policy profiles on disk', () => {
   });
 
   it('rejects a profile with an out-of-range weight rather than running it', () => {
-    const broken = JSON.parse(JSON.stringify(PROFILES.BALANCED));
+    const broken = structuredClone(PROFILES.BALANCED);
     broken.fusion.source_weights.vision = 1.7;
     expect(() => parseProfile(broken)).toThrow();
   });
 
   it('rejects an unknown key rather than silently ignoring it', () => {
-    const broken = JSON.parse(JSON.stringify(PROFILES.BALANCED));
-    broken.fusion.unexplained_prior = 0.9; // right idea, wrong object
+    const broken: Record<string, unknown> = structuredClone(PROFILES.BALANCED);
+    (broken.fusion as Record<string, unknown>).unexplained_prior = 0.9; // right idea, wrong object
     expect(() => parseProfile(broken)).toThrow();
   });
 
