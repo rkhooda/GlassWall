@@ -1,8 +1,11 @@
-import { Recognizer, Span, getTier } from './types';
+import { getTier } from './types';
+import type { Recognizer, Span } from './types';
 import { incrementConstructionCount } from './types';
 
 const INDIAN_PHONE_REGEX = /\b[6-9]\d{9}\b/g;
-const E164_INDIAN_REGEX = /\+91\s?[6-9]\d{9}\b/g;
+// Separators can fall anywhere inside the number: the bench-site generator emits
+// `+91 99194 14773`, which a single optional space after the country code misses.
+const E164_INDIAN_REGEX = /\+91[\s-]?[6-9](?:[\s-]?\d){9}(?!\d)/g;
 const E164_GENERIC_REGEX = /\+\d{1,3}\s?\d{6,14}\b/g;
 
 incrementConstructionCount();
@@ -24,7 +27,10 @@ export const phoneRecognizer: Recognizer = {
     let match: RegExpExecArray | null;
 
     while ((match = E164_INDIAN_REGEX.exec(text)) !== null) {
-      const value = match[0].replace(/\s+/g, '');
+      // The surface form, not a normalised one. `value` is what gets substituted out
+      // of the text and stored for the egress gate; a canonicalised string would match
+      // neither. Canonicalisation belongs in the registry, which already does it.
+      const value = match[0];
       const start = match.index;
       const end = start + match[0].length;
 
@@ -79,7 +85,7 @@ export const phoneRecognizer: Recognizer = {
         continue;
       }
 
-      const value = fullMatch.replace(/\s+/g, '');
+      const value = fullMatch;
       const start = match.index;
       const end = start + fullMatch.length;
 

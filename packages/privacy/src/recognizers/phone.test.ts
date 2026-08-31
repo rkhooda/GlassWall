@@ -50,3 +50,21 @@ describe('phoneRecognizer', () => {
     expect(spans.length).toBe(0);
   });
 });
+describe('phoneRecognizer — separators inside the number', () => {
+  // Found by the P11 ablation: the bench-site generator's own E.164 format leaked.
+  const grouped = ['+91 99194 14773', '+91-99194-14773', '+91 991 941 4773'];
+
+  for (const tc of grouped) {
+    it(`detects grouped E.164: ${tc}`, () => {
+      const spans = phoneRecognizer.detect(`contact: ${tc}`);
+      expect(spans.some(s => s.rule_id === 'phone-e164-indian-v1')).toBe(true);
+    });
+  }
+
+  it('keeps the surface form so the text substitution can find it', () => {
+    const text = 'contact: +91 99194 14773';
+    const span = phoneRecognizer.detect(text).find(s => s.rule_id === 'phone-e164-indian-v1')!;
+    expect(text).toContain(span.value);
+    expect(span.value).toBe('+91 99194 14773');
+  });
+});
