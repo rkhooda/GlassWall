@@ -10,7 +10,7 @@
 | B4 Perception surface (P3-B/P8/P9) | ✅ | 2026-08-31 | Image pipeline + NER + OCR |
 | B5 Sanitize seam (P6-c) | ✅ | 2026-08-31 | Observation builder + `sanitize()` entry point (C4) |
 | B6 Egress gate (P7) | ✅ | 2026-08-31 | `egressGate()` 7 checks + 40 tests ✅; canary harness (`eval/leakage/`) ✅; `verify:boundary.sh` ✅; `.github/workflows/privacy.yml` ✅; root scripts ✅ |
-| B7 NER+OCR (P8/P9) | ☐ | | Integrated, chunking, coordinate round-trip |
+| B7 NER+OCR (P8/P9) | ⚠️ | 2026-09-01 | Code + tests complete and fail-closed. **Model weights and tesseract assets are not vendored**, so the accuracy/latency criteria are unmeasured (suites skip). Not wired into the step loop — A must pass `perceptionSources`. |
 | B8 Fusion (P11) | ☐ | | Fusion + explain-or-redact + policy engine ⭐ |
 | B9 Eval+Inspector (P12-B) | ☐ | | Ablations A1/A6/A7 + Inspector.tsx + Handles.tsx |
 | B10 Perf/chaos/docs (P13-B/P14-B/P15-B) | ☐ | | Warmup, chaos (leakage=0 degraded), SECURITY/PRIVACY/MODEL_CARD/EVALUATION |
@@ -21,7 +21,11 @@
 
 | Date | What I Need | Why | Blocks What |
 |------|-------------|-----|-------------|
-| | | | |
+| 2026-09-01 | `manifest.json`: add `'wasm-unsafe-eval'` to `extension_pages` CSP | ORT-Web and the tesseract core are both WASM; MV3 blocks compilation without it. No `connect-src` change wanted. | NER + OCR in a real browser |
+| 2026-09-01 | `orchestrator.ts:198`: pass `perceptionSources` (and a real `frame`) into `sanitize()` | Sources are built and exported from `offscreen/pipeline/index.ts` but never invoked; `frame: null` makes OCR mask instead of read. | P8, P9, the D6 skip-rate claim |
+| 2026-09-01 | `packages/schema`: drop `emitDeclarationOnly` | `dist/` has no JS, so runtime zod exports do not resolve outside a bundler. Worked around via source resolution in the extension. | Any non-bundled consumer of `@glasswall/schema` |
+| 2026-09-01 | `packages/schema/src/policy.ts`: widen `PiiType` (proposal) | Recognizers detect AADHAAR/PAN/IFSC/GSTIN/UPI/MRN; the enum cannot name them, so the audit says `PERSONAL`. | Per-type leakage reporting, inspector labels |
+| 2026-09-01 | `bench-site` shoplite/govportal build errors (`autocomplete` → `autoComplete`, `order` possibly undefined) | `pnpm build` fails at the repo level. | Repo-wide green build |
 
 ---
 
@@ -294,3 +298,54 @@ Copy this block for each completed task/session:
 - B7 NER+OCR (P8/P9): integrate Transformers.js NER and tesseract.js OCR as PerceptionSources
 - B8 Fusion (P11): integrate spatial index + noisy-OR + explain-or-redact + policy profiles
 - Need A to fix shoplite/govportal build errors (autocomplete → autoComplete, state types) for full `pnpm build` to pass
+### 2026-09-01 — b7-ner-ocr (P8/P9)
+
+**Built:**
+- `packages/inference/src/ner/chunk.ts` — pure span logic: `chunkText` (512 tokens, 64 overlap, offsets exact by construction), `mergeSpans` (cross-boundary join), `chunkedNer` (model injected, so orchestration is testable offline), `joinTextNodes`/`mapSpansToRanges` (text and offsets produced together so they cannot drift)
+- `packages/inference/src/ner/wrapper.ts` — transformers.js lockdown at import time: `allowRemoteModels=false`, `allowLocalModels=true`, `localModelPath`/`wasmPaths` from `chrome.runtime.getURL`, `useBrowserCache=false`
+- `packages/inference/src/ner/types.ts` — label → coarse PII mapping; never maps to a Tier 1 type
+- `packages/inference/src/ocr/crop-policy.ts` — unexplained-region detection, budget enforced inside `selectCrops` (6 crops, 512px), `cropGeometry`/`boxToViewport` for the coordinate round trip, `ocrSkipReason`
+- `packages/inference/src/ocr/wrapper.ts` — tesseract with vendored `workerPath`/`corePath`/`langPath`, `workerBlobURL:false`, `cacheMethod:'none'`, per-batch deadline reporting `timedOut` crops
+- `apps/extension/src/offscreen/pipeline/ner.ts` / `ocr.ts` — the two `PerceptionSource` implementations
+- `apps/extension/src/offscreen/pipeline/index.ts` — `perceptionSources` list for A to pass into `sanitize()`
+- `eval/metrics/detection.ts` — span F1 (IoU-matched), per-type recall, CER / character accuracy
+- `MODEL_MANIFEST.json` — models, licences, sources, install paths, and honest metric status (`target` vs `measured`)
+
+**Contract changes (mine, `packages/privacy/src/sanitize.ts`):**
+- `PerceptionSource.run` now returns `SourceOutput { evidence, degraded?, unexplained? }` instead of `Evidence[]`. Without it a source had no way to say "I failed, mask these regions" — the old code faked it by writing every text node into the registry.
+- `PerceptionContext` gains `policyProfile` so a source can threshold by profile.
+- `sanitize()` turns `unexplained` regions (from sources and from fusion) into MASK redactions. They were computed and then dropped.
+
+**Acceptance met:**
+- Chunking with 64-token overlap, span merging across boundaries ✅ (`chunk boundary` tests, incl. a hard split at `overlapTokens: 0`)
+- Fixed-input regression: same text → same spans ✅
+- Span → text-node mapping with rects, clipped across node edges ✅
+- No CDN: every asset URL comes from `chrome.runtime.getURL`; both offline tests assert the load fails with **zero** requests to an `http(s)` host ✅
+- Load failure → `degraded: ['ner_unavailable']` and strictly more redaction ✅ (asserted by comparison, not by inspection)
+- OCR budget: 20-region page issues exactly 6 crops, other 14 masked as `crop_budget_exceeded` ✅
+- Crop ≤512px longest side ✅; coordinate round trip within 3px ✅
+- Timeout path leaves the region unexplained and masked ✅
+- Skip instrumented: `ocr_skipped_reason:no_unexplained_crops` + `getOcrStats().skipRate` ✅
+- Raw OCR/NER text never reaches `SanitizedObservation` ✅ (`no-raw-leak.test.ts` runs the real `sanitize()`)
+
+**Acceptance NOT met — needs vendored assets:**
+- NER F1 ≥0.85, recall ≥0.90 PERSON_NAME / STREET_ADDRESS; ≤250ms p50 WebGPU, ≤700ms WASM; model ≤30MB; **EP parity WebGPU vs WASM**
+- OCR character accuracy ≥0.90; ≤500ms/≤1200ms p50 for 3 crops
+- The suites exist (`ner.model.test.ts`, `ocr.model.test.ts`) and skip loudly until the files in `MODEL_MANIFEST.json.install` are placed. No number has been invented — every unmeasured metric in the manifest is marked `status: "target"`.
+
+**Repairs found along the way (pre-existing, my lane):**
+- `packages/privacy` had not compiled since P6-c (38 errors). Fixed: duplicated schema in `audit.ts`, wrong export names in `index.ts`, shadow reimplementations of `recognizeAll`/`createTokenizer` in `sanitize.ts`, `SecretRegistry` class vs C6 Map confusion.
+- **Leak:** `sanitize()` emitted text nodes verbatim — it "replaced" each detected handle with itself. Found by the new no-leak test. Now every detected value is substituted with its handle, longest first.
+- **Leak:** `egressGate` logged the normalized payload and the matched secret via `console.debug`, and named the matched pattern in the `Violation` message. Removed; violations now name the PII type only.
+- `assertNoValuesInAudit` put the suspected raw value in its error message. Removed.
+- Tokenizer used node's `createHmac`, breaking the browser bundle. The digest was only ever a Map key, never part of a handle, so it is gone rather than replaced.
+- Egress gate perf: rebuilt the Aho-Corasick automaton and the payload n-gram set on every call (~47ms against a 15ms budget). Both now built once. p95 green and stable across runs.
+
+**Deferred:**
+- Vendoring the weights and tesseract assets (paths and files listed in `MODEL_MANIFEST.json`)
+- OCR text feeding the recognizers and NER (chaining belongs with P11 fusion)
+- WebGPU EP for NER is implemented but unexercised — no weights
+- `packages/inference` still has 9 pre-existing lint errors in P1-B files (`capability.ts`, `runtime.ts`), untouched here
+
+**Scaffolding added:**
+- None. The two gated suites are real tests, not stubs — they run the moment the assets land.
