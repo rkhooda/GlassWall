@@ -13,10 +13,10 @@ import { chunkedNer, type Span } from './chunk';
 export const MODEL_BASE_URL = getAssetUrl('models/');
 export const ORT_WASM_BASE_URL = getAssetUrl('ort/');
 
-export function lockdownTransformersEnv(): void {
+export function lockdownTransformersEnv(modelBaseUrl: string = MODEL_BASE_URL): void {
   env.allowRemoteModels = false;
   env.allowLocalModels = true;
-  env.localModelPath = MODEL_BASE_URL;
+  env.localModelPath = modelBaseUrl;
   env.useBrowserCache = false;
   const wasmBackend = env.backends?.onnx?.wasm;
   if (wasmBackend) wasmBackend.wasmPaths = ORT_WASM_BASE_URL;
@@ -47,7 +47,8 @@ let loadedEp: string | null = null;
 export async function loadNerModel(
   device: 'webgpu' | 'wasm' = 'wasm'
 ): Promise<{ ms: number; ep: string }> {
-  if (nerPipeline) return { ms: 0, ep: loadedEp! };
+  if (nerPipeline && loadedEp === device) return { ms: 0, ep: loadedEp };
+  if (nerPipeline) disposeNer();
 
   const start = performance.now();
   nerPipeline = await createPipeline('token-classification', NER_MODEL_DIR, {
