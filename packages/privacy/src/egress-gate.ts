@@ -110,11 +110,23 @@ function checkTypeBrand(payload: unknown): Violation | null {
   return null;
 }
 
-function checkRegistryScan(payload: unknown, registry: SecretRegistry): Violation | null {
-  const normalizedPayload = normalize(JSON.stringify(payload));
+/**
+ * The automaton over a registry's secrets and their encodings. Built once per
+ * registry and reused: rebuilding ~1000 patterns on every send costs ~45ms and
+ * the gate has a 15ms budget. The registry is append-only within a session, so
+ * its size is a sound cache key.
+ */
+interface ScanIndex {
+  size: number;
+  automaton: AhoCorasick;
+  byPattern: Map<string, string>;
+}
+const scanIndexes = new WeakMap<SecretRegistry, ScanIndex>();
 
-  // Violation messages and details name the PII type, never the matched value —
-  // a gate that logs the secret it caught has leaked it.
+function scanIndexFor(registry: SecretRegistry): ScanIndex {
+  const cached = scanIndexes.get(registry);
+  if (cached && cached.size === registry.size) return cached;
+
   const patterns: string[] = [];
   const byPattern = new Map<string, string>();
   for (const entry of registry.values()) {
@@ -125,15 +137,25 @@ function checkRegistryScan(payload: unknown, registry: SecretRegistry): Violatio
     }
   }
 
-  if (patterns.length > 0) {
-    const match = new AhoCorasick(patterns).search(normalizedPayload)[0];
-    if (match) {
-      return {
-        code: 'REGISTRY_SCAN',
-        message: `Registry secret found in payload: ${byPattern.get(match.pattern) ?? 'UNKNOWN'}`,
-        details: { pii_type: byPattern.get(match.pattern) ?? 'UNKNOWN' },
-      };
-    }
+  const index: ScanIndex = { size: registry.size, automaton: new AhoCorasick(patterns), byPattern };
+  scanIndexes.set(registry, index);
+  return index;
+}
+
+function checkRegistryScan(payload: unknown, registry: SecretRegistry): Violation | null {
+  const normalizedPayload = normalize(JSON.stringify(payload));
+
+  // Violation messages and details name the PII type, never the matched value —
+  // a gate that logs the secret it caught has leaked it.
+  const { automaton, byPattern } = scanIndexFor(registry);
+  const match = automaton.search(normalizedPayload)[0];
+  if (match) {
+    const piiType = byPattern.get(match.pattern) ?? 'UNKNOWN';
+    return {
+      code: 'REGISTRY_SCAN',
+      message: `Registry secret found in payload: ${piiType}`,
+      details: { pii_type: piiType },
+    };
   }
 
   for (const entry of registry.values()) {
