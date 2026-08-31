@@ -20,6 +20,9 @@ import { SafePayload, Violation, SecretRegistry, Result, ok, err } from '@glassw
 import { recognizeAll } from './recognizers';
 import { createTokenizer, getHandleForValue, tokenizeAndRegister, type Tokenizer } from './tokenizer';
 import { buildSanitizedObservation, deriveAvailableActions, classifySensitivityFromRules } from '@glasswall/perception/observation-builder';
+import { PROFILES, decide, tierForType, type Profile, type Transformation } from './policy';
+import { fuse, type FusedRegion } from './fusion';
+import { explainOrRedact, partitionByExplanation } from './coverage';
 
 export interface PerceptionSource {
   id: string;
@@ -64,17 +67,6 @@ export interface Evidence {
    */
   textSpan?: string;
   elementId?: string;
-}
-
-export interface FusionResult {
-  regions: Array<{
-    rect: [number, number, number, number];
-    sensitivity: number;
-    evidence: Detection[];
-    action: 'PASS' | 'GENERALIZE' | 'TOKENIZE' | 'MASK' | 'DROP' | 'VAULT_ONLY';
-    source: string;
-  }>;
-  unexplainedRegions: Array<{ rect: [number, number, number, number]; reason: string }>;
 }
 
 /** Below this length a "value" is noise; replacing it would shred unrelated text. */
@@ -179,7 +171,8 @@ export async function sanitize(input: {
   const startTime = Date.now();
   const { raw, frame, task, step, session, perceptionSources = [] } = input;
   const policyProfile = session.policy_profile;
-  const policy = getPolicyConfig(policyProfile);
+  const profile: Profile = PROFILES[policyProfile];
+  const policy = profile.policy;
 
   const degraded: string[] = [];
   const timings: Timings = { rules: 0, ner: 0, ocr: 0, vision: 0, fuse: 0, build: 0 };
@@ -188,6 +181,8 @@ export async function sanitize(input: {
   const allRedactions: RedactionReason[] = [];
   /** value -> handle, for rewriting detected text in place. Values stay local. */
   const substitutions: Array<{ value: string; handle: string }> = [];
+  /** Regions a perception source reported it could not read. */
+  const sourceUnexplained: Array<{ rect: [number, number, number, number]; reason: string }> = [];
 
   const registry: SecretRegistry = new Map();
   const tokenizer = createTokenizer(session.session_id);
@@ -204,15 +199,21 @@ export async function sanitize(input: {
       allDetections.push({
         type: 'regex',
         pii_type: piiType,
-        confidence: 1.0,
+        confidence: result.confidence,
         rect: result.rect,
         text_span: handle,
         source_id: 'recognizers',
       });
+      const decision = decide(profile, {
+        sensitivity: result.confidence,
+        piiType,
+        tier: result.tier,
+        cause: `${piiType} matched by recognizer`,
+      });
       allPolicyDecisions.push({
         pii_type: piiType,
-        action: result.tier === 1 ? 'VAULT_ONLY' : 'TOKENIZE',
-        threshold_matched: 'tier1' as const,
+        action: decision.action,
+        threshold_matched: decision.threshold_matched,
       });
     }
 
@@ -240,12 +241,14 @@ export async function sanitize(input: {
 
       const output = result.value;
       degraded.push(...(output.degraded ?? []));
+      // A source that could not read a region does not get to make it look clean:
+      // its own unexplained list joins the coverage candidates and takes the prior.
       for (const region of output.unexplained ?? []) {
-        allRedactions.push({ rect: region.rect, reason: region.reason, source: redactionSource(source.id), score: 1 });
+        sourceUnexplained.push({ rect: region.rect, reason: `${source.id}: ${region.reason}` });
       }
 
       for (const evidence of output.evidence) {
-        const handle = tokenizeAndRegister(tokenizer, registry, evidence.textSpan ?? '', evidence.piiType, getTierForType(evidence.piiType));
+        const handle = tokenizeAndRegister(tokenizer, registry, evidence.textSpan ?? '', evidence.piiType, tierForType(evidence.piiType));
         if (evidence.textSpan) substitutions.push({ value: evidence.textSpan, handle });
         allDetections.push({
           type: evidence.type,
@@ -255,38 +258,62 @@ export async function sanitize(input: {
           text_span: handle,
           source_id: source.id,
         });
+        const decision = decide(profile, {
+          sensitivity: evidence.confidence,
+          piiType: evidence.piiType,
+          tier: tierForType(evidence.piiType),
+          cause: `${evidence.piiType} from ${source.id}`,
+        });
         allPolicyDecisions.push({
           pii_type: evidence.piiType,
-          action: getPolicyAction(policy, evidence.piiType, evidence.confidence),
-          threshold_matched: matchedThreshold(policy, evidence.piiType, evidence.confidence),
+          action: decision.action,
+          threshold_matched: decision.threshold_matched,
         });
       }
     }
 
     const fuseStart = Date.now();
-    const fusionResult = fuseEvidence(raw, allDetections, policy);
+
+    // Explain-or-redact first: anything the DOM cannot account for becomes another
+    // piece of evidence, so it goes through the same noisy-OR as every detector.
+    const sensitiveIds = new Set(
+      raw.elements
+        .filter(el => allDetections.some(d => d.rect && rectsOverlap(d.rect, el.rect)))
+        .map(el => el.id)
+    );
+    const { candidates, explained } = partitionByExplanation(raw, sensitiveIds);
+    const unexplained = [
+      ...explainOrRedact({ candidates, explained, minCoverage: profile.fusion.min_coverage }),
+      ...sourceUnexplained,
+    ];
+    for (const region of unexplained) {
+      allRedactions.push({ rect: region.rect, reason: region.reason, source: 'deterministic', score: 1 });
+    }
+
+    const fusedRegions = fuse({ detections: allDetections, unexplained, profile });
     timings.fuse = Date.now() - fuseStart;
 
-    for (const region of fusionResult.regions) {
+    for (const region of fusedRegions) {
       allRedactions.push({
         rect: region.rect,
-        reason: region.action,
-        source: redactionSource(region.source),
+        reason: region.reason,
+        source: region.source,
         score: Math.min(1, region.sensitivity),
       });
     }
 
-    // Anything the DOM could not account for is masked, not passed. This is the
-    // clause that turns "we might have missed something" into "we withheld it".
-    for (const region of fusionResult.unexplainedRegions) {
-      allRedactions.push({ rect: region.rect, reason: region.reason, source: 'deterministic', score: 1 });
-    }
-
     const buildStart = Date.now();
+    const redactingRegions = fusedRegions.filter(r => PASSES_THROUGH.has(r.action) === false);
     const tokenizedElements = raw.elements.map(el => {
-      const elementDetections = allDetections.filter(d => d.rect && rectsOverlap(d.rect!, el.rect));
-      const sensitivityClass = elementDetections.length > 0
-        ? elementDetections.reduce((max, d) => d.confidence > max.confidence ? d : max).pii_type
+      // An element is sensitive if a *fused* region says so. Fusion's S is never below
+      // any single source's contribution, so this can only redact more than the
+      // per-detection view it replaced, never less.
+      const covering = redactingRegions.filter(r => rectsOverlap(r.rect, el.rect));
+      const elementDetections = covering.flatMap(r => r.evidence);
+      const sensitivityClass = covering.length > 0
+        ? (elementDetections.length > 0
+            ? elementDetections.reduce((max, d) => (d.confidence > max.confidence ? d : max)).pii_type
+            : 'PERSONAL')
         : classifySensitivityFromRules(el, policy);
       const tokenizedLabel = sensitivityClass && sensitivityClass !== 'NONE'
         ? getHandleForValue(tokenizer, registry, el.label_raw, sensitivityClass) || '[REDACTED]'
@@ -354,133 +381,11 @@ export async function sanitize(input: {
   }
 }
 
-function getPolicyConfig(profile: 'STRICT' | 'BALANCED' | 'PERMISSIVE'): PolicyConfig {
-  switch (profile) {
-    case 'STRICT':
-      return {
-        name: 'STRICT',
-        unexplained_prior: 0.8,
-        screenshot: { enabled: false },
-        thresholds: { tokenize: 0.35, mask: 0.5, drop: 0.8 },
-        tiers: { T1: 'VAULT_ONLY', T2: 'TOKENIZE', T3: 'TOKENIZE', T4: 'ANNOTATE', T5: 'TOKENIZE' },
-        url: { query: 'DROP', fragment: 'DROP', path: 'TEMPLATE' },
-        text_block_max_chars: 400,
-        fail_mode: 'CLOSED',
-        high_risk_actions: ['SUBMIT_LIKE', 'NAVIGATE_EXTERNAL', 'PAYMENT', 'DELETE'],
-        require_confirmation: ['PAYMENT', 'DELETE', 'NAVIGATE_EXTERNAL'],
-        max_elements: 400,
-      };
-    case 'BALANCED':
-      return {
-        name: 'BALANCED',
-        unexplained_prior: 0.4,
-        screenshot: { enabled: true },
-        thresholds: { tokenize: 0.35, mask: 0.5, drop: 0.8 },
-        tiers: { T1: 'VAULT_ONLY', T2: 'TOKENIZE', T3: 'GENERALIZE', T4: 'ANNOTATE', T5: 'TOKENIZE' },
-        url: { query: 'DROP', fragment: 'DROP', path: 'TEMPLATE' },
-        text_block_max_chars: 400,
-        fail_mode: 'CLOSED',
-        high_risk_actions: ['SUBMIT_LIKE', 'NAVIGATE_EXTERNAL', 'PAYMENT', 'DELETE'],
-        require_confirmation: ['PAYMENT', 'DELETE', 'NAVIGATE_EXTERNAL'],
-        max_elements: 400,
-      };
-    case 'PERMISSIVE':
-      return {
-        name: 'PERMISSIVE',
-        unexplained_prior: 0.1,
-        screenshot: { enabled: true },
-        thresholds: { tokenize: 0.6, mask: 0.8, drop: 0.95 },
-        tiers: { T1: 'VAULT_ONLY', T2: 'TOKENIZE', T3: 'PASS', T4: 'ANNOTATE', T5: 'TOKENIZE' },
-        url: { query: 'DROP', fragment: 'DROP', path: 'TEMPLATE' },
-        text_block_max_chars: 400,
-        fail_mode: 'CLOSED',
-        high_risk_actions: ['SUBMIT_LIKE', 'NAVIGATE_EXTERNAL', 'PAYMENT', 'DELETE'],
-        require_confirmation: ['PAYMENT', 'DELETE', 'NAVIGATE_EXTERNAL'],
-        max_elements: 400,
-      };
-  }
-}
-
-function getTierForType(piiType: PiiType): number {
-  if (piiType === 'PASSWORD' || piiType === 'CREDIT_CARD' || piiType === 'SSN') return 1;
-  if (piiType === 'EMAIL' || piiType === 'PHONE' || piiType === 'ADDRESS' || piiType === 'NAME') return 2;
-  return 3;
-}
-
-function getPolicyAction(policy: PolicyConfig, piiType: PiiType, confidence: number): 'PASS' | 'GENERALIZE' | 'TOKENIZE' | 'MASK' | 'DROP' | 'VAULT_ONLY' {
-  const tier = getTierForType(piiType);
-  const tierKey = `T${tier}` as keyof typeof policy.tiers;
-  const tierPolicy = policy.tiers[tierKey];
-
-  if (tierPolicy === 'VAULT_ONLY') return 'VAULT_ONLY';
-  if (confidence >= policy.thresholds.drop) return 'DROP';
-  if (confidence >= policy.thresholds.mask) return 'MASK';
-  if (confidence >= policy.thresholds.tokenize) return 'TOKENIZE';
-  return tierPolicy as 'PASS' | 'GENERALIZE' | 'TOKENIZE' | 'MASK' | 'DROP' | 'VAULT_ONLY';
-}
-
-function fuseEvidence(raw: RawObservation, detections: Detection[], policy: PolicyConfig): FusionResult {
-  const regions: FusionResult['regions'] = [];
-  const unexplainedRegions: FusionResult['unexplainedRegions'] = [];
-
-  const explainedRects = raw.elements
-    .filter(el => !el.unexplained && el.visible)
-    .map(el => el.rect);
-
-  for (const detection of detections) {
-    if (detection.rect) {
-      const sensitivity = detection.confidence;
-      const action = getPolicyAction(policy, detection.pii_type, detection.confidence);
-      regions.push({
-        rect: detection.rect,
-        sensitivity,
-        evidence: [detection],
-        action,
-        source: detection.source_id,
-      });
-    }
-  }
-
-  for (const element of raw.elements) {
-    if (element.unexplained) {
-      unexplainedRegions.push({
-        rect: element.rect,
-        reason: 'cross_origin_iframe',
-      });
-    }
-  }
-
-  if (raw.frames.some(f => f.origin === 'cross')) {
-    for (const frame of raw.frames) {
-      if (frame.origin === 'cross') {
-        unexplainedRegions.push({
-          rect: frame.rect,
-          reason: 'cross_origin_iframe',
-        });
-      }
-    }
-  }
-
-  return { regions, unexplainedRegions };
-}
+/** A transformation that leaves the content in the payload. */
+const PASSES_THROUGH = new Set<Transformation>(['PASS']);
 
 function rectsOverlap(a: [number, number, number, number], b: [number, number, number, number]): boolean {
   return a[0] < b[0] + b[2] && a[0] + a[2] > b[0] && a[1] < b[1] + b[3] && a[1] + a[3] > b[1];
-}
-
-/** Which policy threshold the confidence crossed. A label, never a measurement —
- *  audit fields must not be able to carry anything value-shaped. */
-function matchedThreshold(policy: PolicyConfig, piiType: PiiType, confidence: number): string {
-  if (getTierForType(piiType) === 1) return 'tier1';
-  if (confidence >= policy.thresholds.drop) return 'drop';
-  if (confidence >= policy.thresholds.mask) return 'mask';
-  if (confidence >= policy.thresholds.tokenize) return 'tokenize';
-  return 'below_tokenize';
-}
-
-/** Redaction `source` is a fixed enum; anything else is attributed to the DOM pass. */
-function redactionSource(sourceId: string): RedactionReason['source'] {
-  return sourceId === 'ner' || sourceId === 'ocr' || sourceId === 'vision' ? sourceId : 'deterministic';
 }
 
 /**

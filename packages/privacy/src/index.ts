@@ -89,6 +89,32 @@ export {
 
 export { egressGate, type GatePolicy } from './egress-gate';
 
+export {
+  PROFILES,
+  STRICT,
+  BALANCED,
+  PERMISSIVE,
+  ProfileSchema,
+  FusionConfigSchema,
+  parseProfile,
+  decide,
+  tierForType,
+  type Profile,
+  type FusionConfig,
+  type Decision,
+  type Transformation,
+  type EvidenceKind,
+} from './policy';
+
+export { fuse, noisyOr, type FusedRegion, type Rect4, type UnexplainedInput } from './fusion';
+
+export {
+  explainOrRedact,
+  coverageFraction,
+  partitionByExplanation,
+  type CoverageResult,
+} from './coverage';
+
 export type {
   RawObservation,
   CapturedFrame,
