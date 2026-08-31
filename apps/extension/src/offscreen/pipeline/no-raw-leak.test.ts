@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { assertNoValuesInAudit, sanitize } from '@glasswall/privacy';
+import { assertNoValuesInAudit, sanitize, type AuditPrivacyFields } from '@glasswall/privacy';
 import type { CapturedFrame, RawObservation } from '@glasswall/schema/observation';
 
 const initOcrWorker = vi.fn().mockResolvedValue(undefined);
@@ -84,7 +84,7 @@ describe('raw perception output never reaches the payload', () => {
     expect(payload).not.toContain('4321 8765 2109');
     expect(payload).not.toContain(NER_SECRET);
 
-    expect(() => assertNoValuesInAudit(result.audit)).not.toThrow();
+    expect(() => assertNoValuesInAudit(result.audit as AuditPrivacyFields)).not.toThrow();
     expect(JSON.stringify(result.audit)).not.toContain(OCR_SECRET);
     expect(JSON.stringify(result.audit)).not.toContain(NER_SECRET);
   });

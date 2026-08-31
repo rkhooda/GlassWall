@@ -128,7 +128,9 @@ async function renderCrops(
   frame: CapturedFrame
 ): Promise<Array<{ image: ImageData; geometry: CropGeometry }>> {
   const page = new OffscreenCanvas(frame.viewport_w, frame.viewport_h);
-  page.getContext('2d')!.drawImage(frame.bitmap, 0, 0, frame.viewport_w, frame.viewport_h);
+  // CapturedFrame.bitmap is `unknown` in the frozen schema; at runtime it is an ImageBitmap.
+  const bitmap = frame.bitmap as CanvasImageSource;
+  page.getContext('2d')!.drawImage(bitmap, 0, 0, frame.viewport_w, frame.viewport_h);
 
   return regions.map(region => {
     const geometry = cropGeometry(region.rect, frame.viewport_w, frame.viewport_h);
