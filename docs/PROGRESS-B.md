@@ -400,3 +400,136 @@ asset directories; the HTML and the tiny spike model are tracked.
 - OCR character accuracy and latency — needs fixture crops from the ClinicDesk canvas, which the
   criterion itself specifies. The harness reads `eval/fixtures/ocr/fixtures.json` and runs the
   moment those exist.
+
+---
+
+## P11 — Fusion, explain-or-redact, policy engine · 2026-09-01
+
+**Branch:** `feat/b-p11-fusion`
+
+### The evidence model
+
+| source | emits | rect provenance | `w_i` | `c_i` |
+|---|---|---|---|---|
+| `regex` | checksum- and pattern-matched spans over DOM text and element attributes | DOM layout, exact | **1.0** | per-rule: 0.99 Aadhaar/Verhoeff, 0.98 card/Luhn, 0.95 autocomplete, 0.7–0.9 heuristics |
+| `ner` | PERSON_NAME / STREET_ADDRESS spans in free text | text-node rect, exact | **0.9** | model score, 0.9 nominal |
+| `ocr` | text recovered from crops, fed to the recognizers | OCR box, ±3px | **0.8** | recognizer confidence on recovered text |
+| `vision` | coarse region boxes | detector box, coarse | **0.5** | detector objectness |
+| `deterministic` | regions the DOM cannot account for | DOM gaps, exact | **1.0** | `policy.unexplained_prior` (0.8 / 0.4 / 0.1) |
+
+Why those weights:
+
+- **regex 1.0** — a Verhoeff-valid Aadhaar is not an opinion. The variation between a
+  checksum and a bare pattern lives in `c_i`, where it belongs, not in `w_i`.
+- **ner 0.9** — measured span F1 0.958, precision 1.00 on the generator held-out set
+  (commit `7a3e56e`). It is right when it fires and does not always fire
+  (STREET_ADDRESS recall 0.84). Below 1.0 because it is a model, not arithmetic.
+- **ocr 0.8** — recognition error compounds: one misread digit breaks a checksum, and
+  the box round-trips only to ±3px, so the spatial join is looser too.
+- **vision 0.5** — no trained detector exists (P10 is a stretch) and this is the
+  adversarial case. A low weight bounds its contribution; noisy-OR guarantees the
+  contribution can only point toward redaction.
+- **deterministic 1.0** — so the term entering the product is exactly the profile's
+  stated prior, with no second constant to reason about.
+
+Weights are config, not code (`config/policies/*.json`), because an ablation is
+literally "set one `w_i` to 0" and the harness must do that without a rebuild.
+
+**Geometry:** `areaUnion(rects)` from `packages/perception/src/geometry.ts`, composed
+with `intersect()` and `area()`. Coverage of a region is
+`areaUnion(explained.map(e => intersect(region, e)).filter(Boolean)) / area(region)`.
+No new A-owned function was needed, so no `REQUESTS-TO-A.md` entry for geometry.
+
+### Measured — the ablation the evaluation rests on
+
+10 generator seeds, BALANCED and STRICT, full table in `eval/reports/p11-ablation.md`.
+
+| config | source(s) | PII recall | σ |
+|---|---|---|---|
+| A1 | DOM only (regex) | 0.600 | 0.000 |
+| A2 | NER only | 0.133 | 0.000 |
+| A3 | OCR only | 0.133 | 0.000 |
+| A4 | vision only | 0.000 | 0.000 |
+| A5 | explain-or-redact only | 0.267 | 0.000 |
+| A6 | fusion, no coverage | 0.867 | 0.000 |
+| **A7** | **fusion + explain-or-redact** | **1.000** | 0.000 |
+| A8 | A7 with vision disabled | 1.000 | 0.000 |
+| A9 | A6 with vision disabled | 0.867 | 0.000 |
+
+- **Fusion beats every single source**: 1.000 vs 0.600 for the best of them ✅
+- **A7 > A6 and A8 > A9**: explain-or-redact is what closes the last channel, and it
+  closes it identically with the vision model switched off ✅
+- **A8 = A7**: removing vision costs nothing, because coverage — not a detector —
+  is what accounts for the pixel channel ✅
+
+The scene splits PII across four channels on purpose. `canvas_opaque` holds an MRN
+and a postal code rendered to pixels: there is no MRN recognizer, no free-text
+postal-code recognizer, and no model trained on either, so every detection-based
+configuration scores 0 there and only coverage reaches it. That is the honest
+demonstration — not that fusion is cleverer, but that each source is structurally
+blind to a channel it has no access to.
+
+**Other acceptance:**
+- Fusion ≤20ms for 400 elements + 100 regions: **median 0.66ms, p95 0.93ms** over 100
+  iterations after warm-up ✅
+- Profile switching with no rebuild: every ablation row is the same build with a
+  different `source_weights` object; `policy.test.ts` asserts the JSON on disk
+  deep-equals the profiles the extension bundle embeds ✅
+- Monotonicity property test: 500 random term vectors, adding any term never lowers
+  `S` ✅ Plus a compromised-vision test asserting the same at the `fuse()` level
+- Synthetic-evidence tests: one weak source lands at S=0.20 (`below_tokenize`); three
+  weak sources reach S=0.652 and MASK, which none of them reaches alone ✅
+- Coverage test with a known-unexplained canvas region ✅
+- Policy snapshot, same input under three profiles, three outputs ✅
+- Every redaction carries a human-readable reason:
+  `"MASK: opaque <canvas>, contents unreadable from the DOM, no DOM owner (S=0.40)"` ✅
+
+### Acceptance NOT met, stated rather than lowered
+
+- **Leakage is not 0.** Across all 10 seeds, in *every* configuration including A8,
+  the same residual leaks: bare Bengaluru localities typed `STREET_ADDRESS` by the
+  generator (`846 HSR Layout`, `638 Hebbal`). This is the P8 NER gap measured on
+  2026-09-01, in DOM free text the extractor legitimately accounted for — not a
+  fusion defect, and no configuration in the sweep moves it. Pinned by type in
+  `fusion.test.ts`, so a *new* kind of leak fails the suite rather than hiding
+  inside a tolerance. It closes when NER address recall does, not before.
+- **STRICT and BALANCED score identical recall.** They differ in *transformation*
+  (DROP vs TOKENIZE on an unexplained region), which a binary recall metric cannot
+  see. STRICT was not weakened to make a curve appear; the curve needs the utility
+  metric in P12-B.
+
+### Two real bugs the ablation found
+
+1. **The E.164 phone the generator emits was never detected.** `E164_INDIAN_REGEX`
+   allowed one optional space after `+91` and then demanded ten contiguous digits;
+   the generator emits `+91 99194 14773`. Every seed leaked its own phone number.
+   Fixed to allow separators anywhere inside the number.
+2. **The phone recognizer stripped whitespace out of `value`.** `sanitize()`
+   substitutes detected values out of the text by string match, and the registry
+   stores the value for the egress gate — a canonicalised string matches neither.
+   `value` is now the surface form; canonicalisation stays in the registry, which
+   already does it. This is why the ablation was worth building before P12-B: unit
+   tests compared whitespace-stripped and could not see it.
+
+Also corrected during wiring: `decide()` was applying tier floors to *fused regions*.
+A tier floor is a statement about a known value ("a detected EMAIL is tokenized"), not
+about an area of screen. Applied to regions it made every region redact regardless of
+`S`, which is indistinguishable from having no fusion at all — the first ablation run
+returned identical numbers for all nine configurations, which is how it surfaced.
+Regions now decide on `S` alone, with tier-1 the single escalation that crosses over.
+
+### Known debt, not touched here
+
+- `eval/leakage/**` does not typecheck: `inject.ts` still reads `persona.email`,
+  `persona.phone`, `persona.aadhaar` etc., but the generator moved to a `values[]`
+  array. Pre-existing (13 tsc errors on `main`), P7 territory, out of scope for P11.
+- `@glasswall/eval` is not a pnpm workspace member, so none of this runs in CI.
+  Logged in `docs/REQUESTS-TO-A.md`.
+- `pnpm build` is red on `main` in `apps/bench-site/src/sites/shoplite/**` (A's).
+  Also logged.
+
+### Scaffolding added
+
+None. `visionSource` in `eval/ablations/sources.ts` is a stub, and labelled one — it
+stands in for a detector P10 may never build, and the ablation's point is that A8
+proves the system does not need it.
