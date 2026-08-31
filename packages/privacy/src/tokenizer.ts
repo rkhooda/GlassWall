@@ -1,6 +1,5 @@
 import type { SecretRegistry } from '@glasswall/schema/branded';
 import { normalize } from './registry/normalize';
-import { createHmac } from 'crypto';
 
 export interface TokenizerConfig {
   sessionSalt: string;
@@ -24,18 +23,16 @@ export class Tokenizer {
   }
 
   tokenize(value: string, type: string, tier: number): string {
-    const normalized = normalize(value);
-    const hmac = createHmac('sha256', this.config.sessionSalt);
-    hmac.update(normalized);
-    const hash = hmac.digest('hex');
+    // The emitted handle is a per-session sequence number, so this map is only a
+    // dictionary for "have I seen this value before". It never leaves the instance
+    // and is never serialised, which is why a plain key is enough — and why the
+    // node-only createHmac it used to call bought nothing but a broken browser build.
+    const key = `${this.config.sessionSalt}\u0000${normalize(value)}`;
 
-    const existing = this.handleCounter.get(hash);
-    let idx: number;
-    if (existing !== undefined) {
-      idx = existing;
-    } else {
+    let idx = this.handleCounter.get(key);
+    if (idx === undefined) {
       idx = this.handleCounter.size + 1;
-      this.handleCounter.set(hash, idx);
+      this.handleCounter.set(key, idx);
     }
 
     if (tier === 1) {
@@ -44,8 +41,10 @@ export class Tokenizer {
     return `${HANDLE_PREFIX}${type}#${idx}${HANDLE_SUFFIX}`;
   }
 
-  getHandleCounter(): Map<string, number> {
-    return new Map(this.handleCounter);
+  /** How many distinct values this session has tokenized. Counts only — the keys
+   *  are values and must never be handed out. */
+  distinctValues(): number {
+    return this.handleCounter.size;
   }
 
   reset(): void {
