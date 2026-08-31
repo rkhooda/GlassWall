@@ -514,17 +514,23 @@ describe('egressGate - performance', () => {
     // the life of the registry. Steady state is what the 15ms budget describes.
     egressGate(obs, registry, policy);
 
+    // CPU time, not wall clock. Vitest runs test files in parallel workers, and a
+    // descheduled worker inflates wall clock ~10x while the gate's own cost is
+    // unchanged — that made this assertion fail 5 runs in 6 for reasons that had
+    // nothing to do with the gate. process.cpuUsage() has microsecond resolution
+    // and measures only this process, so it survives a busy machine.
     const iterations = 100;
     const times: number[] = [];
 
     for (let i = 0; i < iterations; i++) {
-      const start = performance.now();
+      const start = process.cpuUsage();
       egressGate(obs, registry, policy);
-      times.push(performance.now() - start);
+      const spent = process.cpuUsage(start);
+      times.push((spent.user + spent.system) / 1000);
     }
 
     times.sort((a, b) => a - b);
-    const p95 = times[Math.floor(iterations * 0.95)];
+    const p95 = times[Math.floor(iterations * 0.95)]!;
     expect(p95).toBeLessThan(15);
   });
 });
