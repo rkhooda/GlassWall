@@ -53,10 +53,6 @@ function isBrowserEnvironment(): boolean {
   return typeof window !== 'undefined' && typeof chrome !== 'undefined' && !!chrome?.runtime?.getURL;
 }
 
-function isNodeEnvironment(): boolean {
-  return typeof process !== 'undefined' && !!process.versions?.node;
-}
-
 export function createModelRegistry(): ModelRegistry {
   const models = new Map<string, ModelManifestEntry>();
 
@@ -67,20 +63,7 @@ export function createModelRegistry(): ModelRegistry {
   return {
     getModelPath(modelId: string): string | undefined {
       const entry = models.get(modelId);
-      if (!entry) return undefined;
-
-      if (isBrowserEnvironment()) {
-        return chrome!.runtime.getURL(entry.path);
-      }
-
-      if (isNodeEnvironment()) {
-        const { resolve } = require('path');
-        const { fileURLToPath } = require('url');
-        const __dirname = resolve(fileURLToPath(import.meta.url), '..');
-        return resolve(__dirname, '..', '..', '..', 'ml', 'models', entry.path);
-      }
-
-      return entry.path;
+      return entry ? getAssetUrl(entry.path) : undefined;
     },
 
     getModelManifest(modelId: string): ModelManifestEntry | undefined {

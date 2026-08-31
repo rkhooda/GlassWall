@@ -62,13 +62,13 @@ export async function loadNerModel(
 /** One chunk through the model. Aggregation stitches wordpieces back into entities. */
 async function runChunk(text: string): Promise<Span[]> {
   const raw = await nerPipeline!(text, { aggregation_strategy: 'simple' } as never);
-  const items = (Array.isArray(raw) ? raw.flat() : [raw]) as Array<{
+  const items = (Array.isArray(raw) ? raw.flat() : [raw]) as {
     entity?: string;
     entity_group?: string;
     score: number;
     start?: number | null;
     end?: number | null;
-  }>;
+  }[];
 
   const spans: Span[] = [];
   for (const item of items) {

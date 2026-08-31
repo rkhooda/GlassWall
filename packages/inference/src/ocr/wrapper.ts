@@ -40,7 +40,7 @@ export interface OcrRegion {
 
 let worker: Worker | null = null;
 
-export async function initOcrWorker(lang: string = 'eng'): Promise<void> {
+export async function initOcrWorker(lang = 'eng'): Promise<void> {
   if (worker) return;
 
   worker = await createWorker(lang, OEM.LSTM_ONLY, tesseractPaths());
@@ -63,7 +63,7 @@ export async function terminateOcrWorker(): Promise<void> {
  * a timeout must never make a region look clean.
  */
 export async function runOcrOnCrops(
-  crops: Array<{ image: ImageData; geometry: CropGeometry }>,
+  crops: { image: ImageData; geometry: CropGeometry }[],
   deadlineMs: number
 ): Promise<{ regions: OcrRegion[]; timedOut: CropGeometry[]; ms: number }> {
   if (!worker) throw new Error('ocr worker not initialised');
@@ -72,8 +72,7 @@ export async function runOcrOnCrops(
   const regions: OcrRegion[] = [];
   const timedOut: CropGeometry[] = [];
 
-  for (let i = 0; i < crops.length; i++) {
-    const { image, geometry } = crops[i]!;
+  for (const { image, geometry } of crops) {
     const remaining = deadlineMs - (Date.now() - start);
     if (remaining <= 0) {
       timedOut.push(geometry);

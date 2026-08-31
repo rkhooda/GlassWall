@@ -29,7 +29,7 @@ export function chunkText(
   maxTokens: number = MAX_TOKENS,
   overlapTokens: number = OVERLAP_TOKENS
 ): TextChunk[] {
-  const words: Array<[number, number]> = [];
+  const words: [number, number][] = [];
   for (const m of text.matchAll(/\S+/g)) {
     words.push([m.index, m.index + m[0].length]);
   }
@@ -106,8 +106,8 @@ export interface TextRange {
  * way span->node mapping silently drifts.
  */
 export function joinTextNodes(
-  nodes: Array<{ id: string; text: string; rect: [number, number, number, number] }>,
-  separator: string = ' '
+  nodes: { id: string; text: string; rect: [number, number, number, number] }[],
+  separator = ' '
 ): { text: string; ranges: TextRange[] } {
   const ranges: TextRange[] = [];
   let text = '';
@@ -125,8 +125,8 @@ export function joinTextNodes(
 export function mapSpansToRanges(
   spans: Span[],
   ranges: TextRange[]
-): Array<{ id: string; rect: [number, number, number, number]; spans: Span[] }> {
-  const out: Array<{ id: string; rect: [number, number, number, number]; spans: Span[] }> = [];
+): { id: string; rect: [number, number, number, number]; spans: Span[] }[] {
+  const out: { id: string; rect: [number, number, number, number]; spans: Span[] }[] = [];
 
   for (const range of ranges) {
     const local: Span[] = [];

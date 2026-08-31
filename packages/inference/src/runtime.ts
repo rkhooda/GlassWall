@@ -1,5 +1,5 @@
 import { InferenceSession, Tensor } from 'onnxruntime-web';
-import { CapabilitySnapshot } from './capability';
+import type { CapabilitySnapshot } from './capability';
 
 export type ExecutionProvider = 'webgpu' | 'wasm';
 
@@ -192,7 +192,7 @@ class ORTRuntime {
     const ep = this.getPreferredEP(preferredEP);
     const cacheKey = this.getCacheKey(modelId, ep);
 
-    let entry = this.cache.get(cacheKey);
+    const entry = this.cache.get(cacheKey);
     if (!entry) {
       throw new Error(`Model ${modelId} not loaded for EP ${ep}. Call load() first.`);
     }
@@ -212,7 +212,7 @@ class ORTRuntime {
     const ep = this.getPreferredEP(preferredEP);
     const cacheKey = this.getCacheKey(modelId, ep);
 
-    let entry = this.cache.get(cacheKey);
+    const entry = this.cache.get(cacheKey);
     if (!entry) {
       throw new Error(`Model ${modelId} not loaded for EP ${ep}. Call load() first.`);
     }
@@ -276,7 +276,7 @@ class ORTRuntime {
     }
   }
 
-  getCacheStats(): { size: number; entries: Array<{ modelId: string; ep: ExecutionProvider; ageMs: number }> } {
+  getCacheStats(): { size: number; entries: { modelId: string; ep: ExecutionProvider; ageMs: number }[] } {
     const now = Date.now();
     return {
       size: this.cache.size,

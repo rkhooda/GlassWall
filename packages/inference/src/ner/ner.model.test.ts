@@ -19,7 +19,7 @@ const HAVE_WEIGHTS = existsSync(resolve(MODEL_DIR, 'config.json'));
 
 // A held-out sample. The full set comes from the seeded generator
 // (apps/bench-site/src/data/generator.ts) via exportGroundTruth().
-const CASES: Array<{ text: string; gold: LabelledSpan[] }> = [
+const CASES: { text: string; gold: LabelledSpan[] }[] = [
   {
     text: 'Priya Raghunathan was seen at the clinic on 14 March and lives at 42 Residency Road, Bengaluru.',
     gold: [
