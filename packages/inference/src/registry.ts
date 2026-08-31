@@ -2,6 +2,7 @@ export interface ModelManifestEntry {
   modelId: string;
   name: string;
   description: string;
+  /** Path relative to the extension's bundled assets. Never a remote URL. */
   path: string;
   inputShapes: Record<string, number[]>;
   outputNames: string[];
@@ -31,7 +32,22 @@ const BUILTIN_MODELS: ModelManifestEntry[] = [
     outputNames: ['output'],
     tags: ['test', 'spike', 'mlp'],
   },
+  {
+    // Transformers.js model directory (config.json + tokenizer.json + onnx/), not a single file.
+    modelId: 'ner-base',
+    name: 'Xenova/bert-base-NER (quantized)',
+    description: 'Off-the-shelf ONNX token classification for PER/LOC/ORG/MISC. No training.',
+    path: 'models/ner-base',
+    inputShapes: { input_ids: [1, 512], attention_mask: [1, 512] },
+    outputNames: ['logits'],
+    tags: ['ner', 'pii', 'token-classification'],
+  },
 ];
+
+/** Bundled asset URL. The only sanctioned way to address a model file — never a CDN. */
+export function getAssetUrl(relPath: string): string {
+  return isBrowserEnvironment() ? chrome!.runtime.getURL(relPath) : relPath;
+}
 
 function isBrowserEnvironment(): boolean {
   return typeof window !== 'undefined' && typeof chrome !== 'undefined' && !!chrome?.runtime?.getURL;
