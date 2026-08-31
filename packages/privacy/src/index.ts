@@ -19,7 +19,7 @@ import type {
   Timings,
 } from '@glasswall/schema/audit';
 import type { PolicyConfig, PiiType } from '@glasswall/schema/policy';
-import type { SafePayload, Violation, SecretRegistry, Sensitive, Result } from '@glasswall/schema/branded';
+import type { SafePayload, Violation, Result } from '@glasswall/schema/branded';
 
 export {
   recognizeAll,
@@ -39,9 +39,9 @@ export {
 
 export {
   normalize,
-  encodeAllForms,
+  generateEncodings,
   SecretRegistry,
-  type SecretRegistryEntry,
+  type SecretEntry,
 } from './registry';
 
 export {
@@ -51,16 +51,28 @@ export {
   type Tokenizer,
 } from './tokenizer';
 
-export { Vault, type VaultStore, type StorageAdapter } from './vault';
+export { Vault, createVault, type VaultStore, type VaultEntry } from './vault';
 export { type Sensitive, createSensitive } from './sensitive';
-export { VaultStoreImpl, InMemoryVaultStore, ChromeSessionVaultStore } from './vault-store';
+export {
+  VaultStoreImpl,
+  createChromeSessionVaultStore,
+  createInMemoryVaultStore,
+  createVaultStore,
+  type StorageAdapter,
+} from './vault-store';
 export {
   resolveForBinding,
   extractPiiTypeFromHandle,
   type BindingTarget,
 } from './resolve';
 
-export { sanitize, type PerceptionSource, type PerceptionContext, type Evidence } from './sanitize';
+export {
+  sanitize,
+  type PerceptionSource,
+  type PerceptionContext,
+  type SourceOutput,
+  type Evidence,
+} from './sanitize';
 
 export {
   checkVaultTypeMatch,
@@ -75,7 +87,7 @@ export {
   type AuditPrivacyInput,
 } from './audit';
 
-export { egressGate } from './egress-gate';
+export { egressGate, type GatePolicy } from './egress-gate';
 
 export type {
   RawObservation,
@@ -94,7 +106,5 @@ export type {
   PiiType,
   SafePayload,
   Violation,
-  SecretRegistry,
-  Sensitive,
   Result,
 };

@@ -7,9 +7,14 @@
     "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo",
     "noEmit": false,
     "declaration": true,
-    "emitDeclarationOnly": false
+    "emitDeclarationOnly": false,
+    "baseUrl": ".",
+    "paths": {
+      "@glasswall/schema/*": ["../schema/dist/*"],
+      "@glasswall/perception/*": ["../perception/dist/*"]
+    }
   },
-  "references": [{ "path": "../schema" }],
+  "references": [{ "path": "../schema" }, { "path": "../perception" }],
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "**/*.test.ts"]
 }

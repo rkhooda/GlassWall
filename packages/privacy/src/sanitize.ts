@@ -18,17 +18,28 @@ import { PolicyConfig, PiiType } from '@glasswall/schema/policy';
 import { SafePayload, Violation, SecretRegistry, Result, ok, err } from '@glasswall/schema/branded';
 
 import { recognizeAll } from './recognizers';
-import { SecretRegistry as SecretRegistryImpl } from './registry/registry';
-import { normalize } from './registry/normalize';
-import { encodeAllForms } from './registry/encodings';
-import { tokenizeAndRegister, getHandleForValue, type Tokenizer } from './tokenizer';
-import { Vault } from './vault';
+import { createTokenizer, getHandleForValue, tokenizeAndRegister, type Tokenizer } from './tokenizer';
 import { buildSanitizedObservation, deriveAvailableActions, classifySensitivityFromRules } from '@glasswall/perception/observation-builder';
 
 export interface PerceptionSource {
   id: string;
   timeout_ms: number;
-  run(ctx: PerceptionContext): Promise<Evidence[]>;
+  run(ctx: PerceptionContext): Promise<SourceOutput>;
+}
+
+/**
+ * What one perception source reports back.
+ *
+ * `unexplained` is the fail-closed channel: a source that could not read a region —
+ * because its model would not load, it ran out of time, or the crop budget excluded
+ * the region — names that region here and it is masked. A source may never make a
+ * region look clean by failing on it.
+ */
+export interface SourceOutput {
+  evidence: Evidence[];
+  /** Degradation reasons surfaced to the trace UI, e.g. 'ner_unavailable'. */
+  degraded?: string[];
+  unexplained?: Array<{ rect: [number, number, number, number]; reason: string }>;
 }
 
 export interface PerceptionContext {
@@ -44,6 +55,11 @@ export interface Evidence {
   piiType: PiiType;
   confidence: number;
   rect?: [number, number, number, number];
+  /**
+   * The raw matched text. `sanitize` tokenizes it into the session registry and
+   * keeps only the handle, so the value lands where the egress gate can catch it
+   * and never in a detection record. Sources must not pre-tokenize.
+   */
   textSpan?: string;
   elementId?: string;
 }
@@ -52,7 +68,7 @@ export interface FusionResult {
   regions: Array<{
     rect: [number, number, number, number];
     sensitivity: number;
-    evidence: Evidence[];
+    evidence: Detection[];
     action: 'PASS' | 'GENERALIZE' | 'TOKENIZE' | 'MASK' | 'DROP' | 'VAULT_ONLY';
     source: string;
   }>;
@@ -166,7 +182,7 @@ export async function sanitize(input: {
   const allPolicyDecisions: PolicyDecision[] = [];
   const allRedactions: RedactionReason[] = [];
 
-  const registry = new SecretRegistryImpl();
+  const registry: SecretRegistry = new Map();
   const tokenizer = createTokenizer(session.session_id);
 
   try {
@@ -175,17 +191,18 @@ export async function sanitize(input: {
     timings.rules = Date.now() - rulesStart;
 
     for (const result of recognizerResults) {
-      const handle = tokenizeAndRegister(tokenizer, registry, result.value, result.piiType, result.tier);
+      const piiType = toPiiType(result.piiType);
+      const handle = tokenizeAndRegister(tokenizer, registry, result.value, piiType, result.tier);
       allDetections.push({
         type: 'regex',
-        pii_type: result.piiType,
+        pii_type: piiType,
         confidence: 1.0,
         rect: result.rect,
         text_span: handle,
         source_id: 'recognizers',
       });
       allPolicyDecisions.push({
-        pii_type: result.piiType,
+        pii_type: piiType,
         action: result.tier === 1 ? 'VAULT_ONLY' : 'TOKENIZE',
         threshold_matched: 'tier1' as const,
       });
@@ -213,7 +230,13 @@ export async function sanitize(input: {
           break;
       }
 
-      for (const evidence of result.value) {
+      const output = result.value;
+      degraded.push(...(output.degraded ?? []));
+      for (const region of output.unexplained ?? []) {
+        allRedactions.push({ rect: region.rect, reason: region.reason, source: redactionSource(source.id), score: 1 });
+      }
+
+      for (const evidence of output.evidence) {
         const handle = tokenizeAndRegister(tokenizer, registry, evidence.textSpan || '', evidence.piiType, getTierForType(evidence.piiType));
         allDetections.push({
           type: evidence.type,
@@ -239,9 +262,15 @@ export async function sanitize(input: {
       allRedactions.push({
         rect: region.rect,
         reason: region.action,
-        source: region.source,
-        score: region.sensitivity,
+        source: redactionSource(region.source),
+        score: Math.min(1, region.sensitivity),
       });
+    }
+
+    // Anything the DOM could not account for is masked, not passed. This is the
+    // clause that turns "we might have missed something" into "we withheld it".
+    for (const region of fusionResult.unexplainedRegions) {
+      allRedactions.push({ rect: region.rect, reason: region.reason, source: 'deterministic', score: 1 });
     }
 
     const buildStart = Date.now();
@@ -251,10 +280,10 @@ export async function sanitize(input: {
         ? elementDetections.reduce((max, d) => d.confidence > max.confidence ? d : max).pii_type
         : classifySensitivityFromRules(el, policy);
       const tokenizedLabel = sensitivityClass && sensitivityClass !== 'NONE'
-        ? getHandleForValue(tokenizer, el.label_raw, sensitivityClass) || '[REDACTED]'
+        ? getHandleForValue(tokenizer, registry, el.label_raw, sensitivityClass) || '[REDACTED]'
         : el.label_raw;
       const tokenizedPlaceholder = el.placeholder_raw && sensitivityClass && sensitivityClass !== 'NONE'
-        ? getHandleForValue(tokenizer, el.placeholder_raw, sensitivityClass) || '[REDACTED]'
+        ? getHandleForValue(tokenizer, registry, el.placeholder_raw, sensitivityClass) || '[REDACTED]'
         : el.placeholder_raw;
 
       return {
@@ -277,8 +306,8 @@ export async function sanitize(input: {
       return { rawTextNode: tn, tokenizedText };
     });
 
-    const handles = Array.from(registry.entries()).map(([handle, entry]) => ({
-      handle,
+    const handles = Array.from(registry.values()).map(entry => ({
+      handle: entry.handle,
       type: entry.pii_type,
       tier: entry.tier,
       occurrences: 1,
@@ -427,51 +456,38 @@ function rectsOverlap(a: [number, number, number, number], b: [number, number, n
   return a[0] < b[0] + b[2] && a[0] + a[2] > b[0] && a[1] < b[1] + b[3] && a[1] + a[3] > b[1];
 }
 
-function createTokenizer(sessionSalt: string): Tokenizer {
-  return {
-    sessionSalt,
-    tokenize(value: string, piiType: PiiType, tier: number): string {
-      const normalized = normalize(value);
-      const handleId = simpleHash(sessionSalt + normalized).toString(16).slice(0, 8);
-      return tier === 1 ? `⟦${piiType}⟧` : `⟦${piiType}#${handleId}⟧`;
-    },
-  };
+/** Redaction `source` is a fixed enum; anything else is attributed to the DOM pass. */
+function redactionSource(sourceId: string): RedactionReason['source'] {
+  return sourceId === 'ner' || sourceId === 'ocr' || sourceId === 'vision' ? sourceId : 'deterministic';
 }
 
-function simpleHash(str: string): number {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash |= 0;
-  }
-  return Math.abs(hash);
-}
+/**
+ * The recognizers detect India-specific types (AADHAAR, PAN, IFSC, GSTIN, UPI, MRN)
+ * that the frozen schema PiiType enum does not name. They are folded into the
+ * nearest schema class here rather than widened inline — see docs/REQUESTS-TO-A.md
+ * for the proposed contract change that would let them keep their own identity.
+ */
+const RECOGNIZER_TO_PII: Record<string, PiiType> = {
+  EMAIL: 'EMAIL',
+  PHONE: 'PHONE',
+  PASSWORD: 'PASSWORD',
+  SECRET: 'API_KEY',
+  API_KEY: 'API_KEY',
+  TOKEN: 'TOKEN',
+  CARD: 'CREDIT_CARD',
+  CREDIT_CARD: 'CREDIT_CARD',
+  IFSC: 'FINANCIAL',
+  GSTIN: 'FINANCIAL',
+  UPI: 'FINANCIAL',
+  PERSON_NAME: 'NAME',
+  NAME: 'NAME',
+  STREET_ADDRESS: 'ADDRESS',
+  ADDRESS: 'ADDRESS',
+  MRN: 'HEALTH',
+  SSN: 'SSN',
+  USERNAME: 'USERNAME',
+};
 
-function recognizeAll(raw: RawObservation, frame: CapturedFrame | null): Array<{ value: string; piiType: PiiType; tier: number; rect?: [number, number, number, number] }> {
-  const results: Array<{ value: string; piiType: PiiType; tier: number; rect?: [number, number, number, number] }> = [];
-
-  for (const element of raw.elements) {
-    if (element.type === 'password' || element.autocomplete?.includes('cc-') || element.autocomplete?.includes('password')) {
-      results.push({ value: '[PASSWORD]', piiType: 'PASSWORD', tier: 1, rect: element.rect });
-    }
-    if (element.type === 'email' || element.autocomplete?.includes('email')) {
-      results.push({ value: element.label_raw, piiType: 'EMAIL', tier: 2, rect: element.rect });
-    }
-    if (element.type === 'tel' || element.autocomplete?.includes('tel')) {
-      results.push({ value: element.label_raw, piiType: 'PHONE', tier: 2, rect: element.rect });
-    }
-  }
-
-  for (const textNode of raw.text_nodes) {
-    const text = textNode.text;
-    if (text.includes('@') && text.includes('.')) {
-      results.push({ value: text, piiType: 'EMAIL', tier: 2, rect: textNode.rect });
-    }
-    if (/\d{10,}/.test(text.replace(/\D/g, ''))) {
-      results.push({ value: text, piiType: 'PHONE', tier: 2, rect: textNode.rect });
-    }
-  }
-
-  return results;
+function toPiiType(recognizerType: string): PiiType {
+  return RECOGNIZER_TO_PII[recognizerType.toUpperCase()] ?? 'PERSONAL';
 }
