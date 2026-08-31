@@ -15,7 +15,7 @@ export type GatePolicy = PolicyConfig & {
 import { SanitizedObservationSchema } from '@glasswall/schema/observation';
 import { normalize } from './registry/normalize';
 import { generateEncodings } from './registry/encodings';
-import { generateNgrams, hasNgramOverlap } from './registry/ngram';
+import { generateNgrams } from './registry/ngram';
 import { AhoCorasick } from './registry/registry';
 
 const MIN_SECRET_LENGTH = 6;
@@ -158,9 +158,12 @@ function checkRegistryScan(payload: unknown, registry: SecretRegistry): Violatio
     };
   }
 
+  // Build the payload's n-gram set once. Calling hasNgramOverlap per entry rebuilt
+  // it 200 times and cost ~25ms against a 15ms budget.
+  const payloadNgrams = new Set(generateNgrams(normalizedPayload, NGRAM_SIZE));
   for (const entry of registry.values()) {
     if (entry.normalized_value.length < NGRAM_SIZE) continue;
-    if (hasNgramOverlap(normalizedPayload, [entry.normalized_value], NGRAM_SIZE)) {
+    if (generateNgrams(entry.normalized_value, NGRAM_SIZE).some(gram => payloadNgrams.has(gram))) {
       return {
         code: 'REGISTRY_SCAN',
         message: `Partial secret overlap (8-gram): ${entry.pii_type}`,

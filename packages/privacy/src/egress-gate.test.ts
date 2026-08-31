@@ -510,6 +510,10 @@ describe('egressGate - performance', () => {
       budget: { steps_left: 19, ms_left: 5 * 60 * 1000 },
     };
 
+    // Warm up: the first call builds the registry automaton, which is cached for
+    // the life of the registry. Steady state is what the 15ms budget describes.
+    egressGate(obs, registry, policy);
+
     const iterations = 100;
     const times: number[] = [];
 
