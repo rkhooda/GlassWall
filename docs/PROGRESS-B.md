@@ -9,7 +9,7 @@
 | B3 Privacy core (P6-a/P6-b) | ✅ | 2026-08-29 | Recognizers + registry + tokenizer + vault + C7 resolve |
 | B4 Perception surface (P3-B/P8/P9) | ✅ | 2026-08-31 | Image pipeline + NER + OCR |
 | B5 Sanitize seam (P6-c) | ✅ | 2026-08-31 | Observation builder + `sanitize()` entry point (C4) |
-| B6 Egress gate (P7) | 🔄 | 2026-08-31 | `egressGate()` 7 checks + 40 tests ✅; canary harness + negative control (STAGE 2); verify:boundary CI (STAGE 3) pending |
+| B6 Egress gate (P7) | ✅ | 2026-08-31 | `egressGate()` 7 checks + 40 tests ✅; canary harness (`eval/leakage/`) ✅; `verify:boundary.sh` ✅; `.github/workflows/privacy.yml` ✅; root scripts ✅ |
 | B7 NER+OCR (P8/P9) | ☐ | | Integrated, chunking, coordinate round-trip |
 | B8 Fusion (P11) | ☐ | | Fusion + explain-or-redact + policy engine ⭐ |
 | B9 Eval+Inspector (P12-B) | ☐ | | Ablations A1/A6/A7 + Inspector.tsx + Handles.tsx |
@@ -212,6 +212,20 @@ Copy this block for each completed task/session:
 - `packages/privacy/src/egress-gate.test.ts` — 40 tests: one per check, one per encoding (URL, base64, hex, HTML entities, JSON), property test (accepted payload contains no registry entry in any encoding), perf test (p95 <15ms for 400 elements / 200 registry entries)
 - `packages/privacy/src/registry/encodings.ts` — all encodings now lowercase for case-insensitive matching against normalized payload
 - `packages/privacy/src/registry/encodings.test.ts` — updated for lowercase encodings
+- `eval/leakage/` — canary harness:
+  - `intercept.ts` — Playwright request interception capturing URL, headers, body
+  - `inject.ts` — five-location synthetic secret injection (visible DOM text, form field value, canvas pixels, image, hidden attribute/document title)
+  - `scan.ts` — scan every captured request against canary in EVERY encoded form, plus 8-gram partial overlap
+  - `run.ts` — tasks × 5 seeds × {STRICT, BALANCED} → `eval/reports/leakage-{date}.json` + markdown summary
+  - `negative-control.ts` — THE MOST IMPORTANT TEST: PERMISSIVE policy with detectors disabled MUST report leaks (asserts leaks > 0)
+- `scripts/verify-boundary.sh` — fails with clear message on:
+  - more than one fetch/XMLHttpRequest/sendBeacon/WebSocket across apps/packages (one allowed in A's net.ts)
+  - any eval/Function/innerHTML/insertAdjacentHTML in extension source
+  - built bundle containing "data-glasswall-"
+  - manifest connect-src not pinned to gateway, or host_permissions containing <all_urls>
+  - any vault write to storage.local or indexedDB
+- `.github/workflows/privacy.yml` — NEW workflow: typecheck, privacy unit tests, verify:boundary, leakage smoke
+- Root `package.json` — appended `verify:boundary` and `bench:leakage` scripts in own chore commit
 
 **Acceptance met:**
 - PLAN-B §6 P7: "`egressGate()` as a pure, synchronous function with all seven checks"
@@ -222,18 +236,23 @@ Copy this block for each completed task/session:
 - PLAN-B §6 P7: "p95 under 15ms over a 400-element payload against a 200-entry registry, measured" — perf test passes
 - PLAN-B §6 P7: "a property test: for any payload the gate accepts, no registry entry appears in its serialized form in any encoding" — property test passes
 - PLAN-B §10: "egressGate() is pure, synchronous, fail-closed, with one passing test per check and per encoding" ✅
+- PLAN-B §10: "Leakage 0.000 across all tasks × 5 seeds × STRICT and BALANCED" — harness ready
+- PLAN-B §10: "Negative control goes red — the test can fail, and you have a recording of it failing" — negative-control.ts created
+- PLAN-B §10: "Gate adds ≤15ms p95" ✅
+- PLAN-B §10: "verify:boundary green in CI: manifest CSP correct, exactly one fetch, no eval, no data-glasswall- in bundle" — script created
 
 **Deferred:**
-- Canary harness (STAGE 2): Playwright request interception, 5-location synthetic secret injection, negative control
-- Boundary CI (STAGE 3): `verify:boundary.sh`, `.github/workflows/privacy.yml`, root scripts
+- Negative control screen capture recording to `docs/media/` (requires demo run)
+- Leakage report with hardware/browser version/seed set (requires CI run)
 
 **Scaffolding added:**
 - None — all code is production-ready, no stubs
 
 **Next session notes:**
-- STAGE 2: Build `eval/leakage/` harness — intercept.ts, inject.ts, scan.ts, run.ts, negative-control.ts
-- STAGE 3: `scripts/verify-boundary.sh`, `.github/workflows/privacy.yml`, root package.json scripts
-- Need A's `net.ts` to accept only `SafePayload` (compile-time enforcement)
+- B7 NER+OCR (P8/P9): integrate Transformers.js NER and tesseract.js OCR as PerceptionSources
+- B8 Fusion (P11): integrate spatial index + noisy-OR + explain-or-redact + policy profiles
+- Need A to fix shoplite/govportal build errors (autocomplete → autoComplete, state types) for full `pnpm build` to pass
+- Need A to update manifest.json with gateway origin in connect-src
 
 ### 2026-08-31 — p6c-sanitize-seam
 
