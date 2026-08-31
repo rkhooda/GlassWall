@@ -47,6 +47,8 @@ export interface PerceptionContext {
   frame: CapturedFrame | null;
   registry: SecretRegistry;
   tokenizer: Tokenizer;
+  /** Sources threshold their own confidence against the active profile. */
+  policyProfile: PolicyConfig['name'];
 }
 
 export interface Evidence {
@@ -74,6 +76,9 @@ export interface FusionResult {
   }>;
   unexplainedRegions: Array<{ rect: [number, number, number, number]; reason: string }>;
 }
+
+/** Below this length a "value" is noise; replacing it would shred unrelated text. */
+const MIN_SUBSTITUTION_LENGTH = 3;
 
 function createEmptySanitizeResult(raw: RawObservation, policyProfile: PolicyConfig['name']): SanitizeResult {
   const budget: Budget = { steps_left: 20, ms_left: 5 * 60 * 1000 };
@@ -181,6 +186,8 @@ export async function sanitize(input: {
   const allDetections: Detection[] = [];
   const allPolicyDecisions: PolicyDecision[] = [];
   const allRedactions: RedactionReason[] = [];
+  /** value -> handle, for rewriting detected text in place. Values stay local. */
+  const substitutions: Array<{ value: string; handle: string }> = [];
 
   const registry: SecretRegistry = new Map();
   const tokenizer = createTokenizer(session.session_id);
@@ -193,6 +200,7 @@ export async function sanitize(input: {
     for (const result of recognizerResults) {
       const piiType = toPiiType(result.piiType);
       const handle = tokenizeAndRegister(tokenizer, registry, result.value, piiType, result.tier);
+      substitutions.push({ value: result.value, handle });
       allDetections.push({
         type: 'regex',
         pii_type: piiType,
@@ -210,7 +218,7 @@ export async function sanitize(input: {
 
     for (const source of perceptionSources) {
       const sourceStart = Date.now();
-      const ctx: PerceptionContext = { raw, frame, registry, tokenizer };
+      const ctx: PerceptionContext = { raw, frame, registry, tokenizer, policyProfile };
       const result = await runWithTimeout(source.run(ctx), source.timeout_ms, source.id);
 
       if (!result.ok) {
@@ -237,7 +245,8 @@ export async function sanitize(input: {
       }
 
       for (const evidence of output.evidence) {
-        const handle = tokenizeAndRegister(tokenizer, registry, evidence.textSpan || '', evidence.piiType, getTierForType(evidence.piiType));
+        const handle = tokenizeAndRegister(tokenizer, registry, evidence.textSpan ?? '', evidence.piiType, getTierForType(evidence.piiType));
+        if (evidence.textSpan) substitutions.push({ value: evidence.textSpan, handle });
         allDetections.push({
           type: evidence.type,
           pii_type: evidence.piiType,
@@ -249,7 +258,7 @@ export async function sanitize(input: {
         allPolicyDecisions.push({
           pii_type: evidence.piiType,
           action: getPolicyAction(policy, evidence.piiType, evidence.confidence),
-          threshold_matched: `${evidence.type}_${evidence.confidence.toFixed(2)}`,
+          threshold_matched: matchedThreshold(policy, evidence.piiType, evidence.confidence),
         });
       }
     }
@@ -295,13 +304,16 @@ export async function sanitize(input: {
       };
     });
 
+    // Rewrite every detected value in the text with its handle. Longest first, so a
+    // value contained inside another is not half-replaced.
+    const ordered = [...substitutions]
+      .filter(sub => sub.value.length >= MIN_SUBSTITUTION_LENGTH)
+      .sort((a, b) => b.value.length - a.value.length);
+
     const tokenizedTextNodes = raw.text_nodes.map(tn => {
-      const textDetections = allDetections.filter(d => d.text_span && tn.text.includes(d.text_span.replace(/⟦|⟧/g, '')));
       let tokenizedText = tn.text;
-      for (const detection of textDetections) {
-        if (detection.text_span) {
-          tokenizedText = tokenizedText.replace(detection.text_span, detection.text_span);
-        }
+      for (const { value, handle } of ordered) {
+        if (tokenizedText.includes(value)) tokenizedText = tokenizedText.split(value).join(handle);
       }
       return { rawTextNode: tn, tokenizedText };
     });
@@ -454,6 +466,16 @@ function fuseEvidence(raw: RawObservation, detections: Detection[], policy: Poli
 
 function rectsOverlap(a: [number, number, number, number], b: [number, number, number, number]): boolean {
   return a[0] < b[0] + b[2] && a[0] + a[2] > b[0] && a[1] < b[1] + b[3] && a[1] + a[3] > b[1];
+}
+
+/** Which policy threshold the confidence crossed. A label, never a measurement —
+ *  audit fields must not be able to carry anything value-shaped. */
+function matchedThreshold(policy: PolicyConfig, piiType: PiiType, confidence: number): string {
+  if (getTierForType(piiType) === 1) return 'tier1';
+  if (confidence >= policy.thresholds.drop) return 'drop';
+  if (confidence >= policy.thresholds.mask) return 'mask';
+  if (confidence >= policy.thresholds.tokenize) return 'tokenize';
+  return 'below_tokenize';
 }
 
 /** Redaction `source` is a fixed enum; anything else is attributed to the DOM pass. */
