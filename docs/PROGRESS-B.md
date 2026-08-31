@@ -11,7 +11,7 @@
 | B5 Sanitize seam (P6-c) | ✅ | 2026-08-31 | Observation builder + `sanitize()` entry point (C4) |
 | B6 Egress gate (P7) | ✅ | 2026-08-31 | `egressGate()` 7 checks + 40 tests ✅; canary harness (`eval/leakage/`) ✅; `verify:boundary.sh` ✅; `.github/workflows/privacy.yml` ✅; root scripts ✅ |
 | B7 NER+OCR (P8/P9) | ⚠️ | 2026-09-01 | Code + tests complete and fail-closed. Assets vendored via `ml/fetch-models.sh`. **NER measured: F1 0.958, precision 1.00, PERSON_NAME recall 1.00 ✅ — STREET_ADDRESS recall 0.84 ❌ (target 0.90) and model 109MB ❌ (target 30MB).** Latency + EP parity are browser-only, still unmeasured. OCR accuracy needs ClinicDesk fixture crops. Not wired into the step loop — A must pass `perceptionSources`. |
-| B8 Fusion (P11) | ☐ | | Fusion + explain-or-redact + policy engine ⭐ |
+| B8 Fusion (P11) | ⚠️ | 2026-09-01 | Fusion (noisy-OR) + explain-or-redact + JSON policy profiles. **Ablation measured: fusion 1.000 PII recall vs 0.600 best single source ✅**; ≤20ms budget met at p95 0.93ms ✅; profile switching needs no rebuild ✅. **Leakage is not 0** — the P8 bare-locality STREET_ADDRESS gap leaks in every configuration, including with vision disabled. Pinned by type, not lowered. |
 | B9 Eval+Inspector (P12-B) | ☐ | | Ablations A1/A6/A7 + Inspector.tsx + Handles.tsx |
 | B10 Perf/chaos/docs (P13-B/P14-B/P15-B) | ☐ | | Warmup, chaos (leakage=0 degraded), SECURITY/PRIVACY/MODEL_CARD/EVALUATION |
 
@@ -25,7 +25,8 @@
 | 2026-09-01 | `orchestrator.ts:198`: pass `perceptionSources` (and a real `frame`) into `sanitize()` | Sources are built and exported from `offscreen/pipeline/index.ts` but never invoked; `frame: null` makes OCR mask instead of read. | P8, P9, the D6 skip-rate claim |
 | 2026-09-01 | `packages/schema`: drop `emitDeclarationOnly` | `dist/` has no JS, so runtime zod exports do not resolve outside a bundler. Worked around via source resolution in the extension. | Any non-bundled consumer of `@glasswall/schema` |
 | 2026-09-01 | `packages/schema/src/policy.ts`: widen `PiiType` (proposal) | Recognizers detect AADHAAR/PAN/IFSC/GSTIN/UPI/MRN; the enum cannot name them, so the audit says `PERSONAL`. | Per-type leakage reporting, inspector labels |
-| 2026-09-01 | `bench-site` shoplite/govportal build errors (`autocomplete` → `autoComplete`, `order` possibly undefined) | `pnpm build` fails at the repo level. | Repo-wide green build |
+| 2026-09-01 | `bench-site` shoplite/govportal build errors (`autocomplete` → `autoComplete`, `order` possibly undefined) | `pnpm build` fails at the repo level. The `autocomplete` typo also means those inputs carry no autocomplete attribute at runtime, so `element-rules.ts` under-detects on ShopLite by accident. | Repo-wide green build; honest ShopLite detection numbers |
+| 2026-09-01 | `pnpm-workspace.yaml`: `eval/*` → `eval` | `@glasswall/eval` is not a workspace member, so `turbo run test` never runs `eval/`. The P11 ablation and the P8 detection metrics pass locally and are invisible to CI. | CI enforcing any number measured in `eval/` |
 
 ---
 
