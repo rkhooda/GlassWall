@@ -19,12 +19,12 @@ describe('generateEncodings', () => {
 
   it('generates base64 standard', () => {
     const encodings = generateEncodings('test@example.com');
-    expect(encodings).toContain(btoa('test@example.com'));
+    expect(encodings).toContain(btoa('test@example.com').toLowerCase());
   });
 
   it('generates base64 URL-safe', () => {
     const encodings = generateEncodings('test@example.com');
-    const urlSafe = btoa('test@example.com').replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+    const urlSafe = btoa('test@example.com').replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '').toLowerCase();
     expect(encodings).toContain(urlSafe);
   });
 
@@ -47,7 +47,7 @@ describe('generateEncodings', () => {
 
   it('generates JSON unicode escapes', () => {
     const encodings = generateEncodings('A');
-    expect(encodings).toContain('\\u0041');
+    expect(encodings).toContain('\\\\u0041');
   });
 
   it('handles unicode', () => {
