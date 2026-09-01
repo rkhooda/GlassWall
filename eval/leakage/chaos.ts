@@ -72,6 +72,7 @@ function brokenSource(healthy: PerceptionSource, mode: FailureMode): PerceptionS
     run: async () => {
       if (mode === 'throw') throw new Error(`${id} exploded`);
       // Never resolves. runWithTimeout is the only thing that ends this.
+      // eslint-disable-next-line @typescript-eslint/no-empty-function -- never settling is the point
       if (mode === 'timeout') return new Promise<never>(() => {});
       // Loaded, ran, saw nothing, said nothing. Indistinguishable from a clean page.
       return { evidence: [] };
@@ -178,7 +179,7 @@ export function formatChaosTable(results: ChaosResult[]): string {
 // --- report ----------------------------------------------------------------
 
 export function renderChaosReport(
-  byProfile: Array<{ profile: string; results: ChaosResult[] }>,
+  byProfile: { profile: string; results: ChaosResult[] }[],
   env: { hardware: string; os: string; runtime: string; commit: string; generatedAt: string }
 ): string {
   const sections = byProfile
