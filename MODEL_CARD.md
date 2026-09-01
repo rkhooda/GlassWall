@@ -136,7 +136,7 @@ leaks 0. The model is not the safest thing in the pipeline — its absence is.
 
 | metric | value | target | |
 |---|---|---|---|
-| coordinate round-trip error | **3 px** | ≤3 px | ✅ — pure geometry, measured without the engine (`ocr.test.ts`) |
+| crop coordinate round-trip error | **≤3 px** | ≤3 px | ✅ — pure geometry, measured without the engine (`ocr.test.ts`). Distinct from the redaction *alignment* criterion (≤2 px at dpr=1 and dpr=2), which is met separately in `image.test.ts:271`. |
 | character accuracy | — | ≥0.90 | **not measured** |
 | p50 latency, 3 crops | — | ≤1200 ms | **not measured** |
 

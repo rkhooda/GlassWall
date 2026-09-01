@@ -180,7 +180,8 @@ Both fixed; see `eval/reports/chaos.md` and [`SECURITY.md`](./SECURITY.md).
 | NER recall, `STREET_ADDRESS` | **0.840** | ≥0.90 | ❌ | " |
 | NER model size | **108.9 MB** | ≤30 MB | ❌ | file size |
 | Recognizer near-miss false-positive rate | **0.0%** | 0 | ✅ | `detection.test.ts`, 10 seeds of decoys |
-| OCR coordinate round-trip error | **3 px** | ≤3 px | ✅ | `ocr.test.ts` |
+| Redaction alignment error, dpr=1 and dpr=2 | **≤2 px** | ≤2 px | ✅ | `image.test.ts:271` |
+| OCR crop coordinate round-trip error | **≤3 px** | ≤3 px | ✅ | `ocr.test.ts` |
 | OCR character accuracy | **not measured** | ≥0.90 | — | needs browser fixtures |
 | NER latency, WebGPU / WASM | **not measured** | ≤250 / ≤700 ms | — | browser-only; node exposes `cpu` only |
 | WebGPU vs WASM output parity | **not measured** | equal | — | " |
@@ -234,7 +235,6 @@ Collected in one place so nobody has to find them scattered.
 | NER `STREET_ADDRESS` recall ≥0.90 | **0.84** | The model predicts no entity at all for *BTM Layout*-shaped inputs. A different encoder, not a different quantization — measured. |
 | NER model ≤30 MB | **108.9 MB** | Every published weight format of this encoder is over budget. Measured sweep in `MODEL_CARD.md`. |
 | Gate adds ≤15 ms p95 | **not measured** | The gate is pure and synchronous; it has never been timed in isolation. |
-| Alignment ≤2 px at dpr=1 and dpr=2 | **3 px** round-trip | Measured as pure geometry without the engine. |
 | OCR character accuracy ≥0.90 | **not measured** | Browser worker; the fixture crops do not exist. |
 | `verify:boundary` green | **2 of 8 checks fail** | Check 4: `connect-src` not pinned (A's `manifest.json`). Check 8: the extractor reads `.value` to derive `value_state` (A's `walk.ts:580,591`) — discarded immediately, but it breaks the grep-provable Layer 1 invariant. Both logged in `docs/REQUESTS-TO-A.md`. |
 | Egress gate: 7 checks | **6 implemented** | `checkRateLimit()` is a stub returning `null`. Resource control, not disclosure control — G2 is unaffected — but the gate is advertised as seven. |
