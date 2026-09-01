@@ -42,24 +42,33 @@ export interface NerResult {
 const NER_MODEL_DIR = 'ner-base';
 
 let nerPipeline: TokenClassificationPipeline | null = null;
-let loadedEp: string | null = null;
+let loadedKey: string | null = null;
 
 /** 'cpu' exists for the node-side accuracy harness; the extension uses webgpu/wasm. */
 export type NerDevice = 'webgpu' | 'wasm' | 'cpu';
 
+/**
+ * Weight format. `q8` is what ships — see MODEL_CARD.md for the measured sweep and
+ * why a smaller format does not rescue the size budget. The others exist so that
+ * claim is a measurement rather than an assumption; only `q8` is vendored by
+ * `ml/fetch-models.sh` without `--sweep`.
+ */
+export type NerDtype = 'q8' | 'q4f16' | 'fp16' | 'fp32';
+
+export const SHIPPED_DTYPE: NerDtype = 'q8';
+
 export async function loadNerModel(
-  device: NerDevice = 'wasm'
-): Promise<{ ms: number; ep: string }> {
-  if (nerPipeline && loadedEp === device) return { ms: 0, ep: loadedEp };
+  device: NerDevice = 'wasm',
+  dtype: NerDtype = SHIPPED_DTYPE
+): Promise<{ ms: number; ep: string; dtype: NerDtype }> {
+  const key = `${device}/${dtype}`;
+  if (nerPipeline && loadedKey === key) return { ms: 0, ep: device, dtype };
   if (nerPipeline) disposeNer();
 
   const start = performance.now();
-  nerPipeline = await createPipeline('token-classification', NER_MODEL_DIR, {
-    device,
-    dtype: 'q8',
-  });
-  loadedEp = device;
-  return { ms: performance.now() - start, ep: device };
+  nerPipeline = await createPipeline('token-classification', NER_MODEL_DIR, { device, dtype });
+  loadedKey = key;
+  return { ms: performance.now() - start, ep: device, dtype };
 }
 
 /** One chunk through the model. Offsets are recovered here because the library
@@ -85,5 +94,5 @@ export function isNerAvailable(): boolean {
 
 export function disposeNer(): void {
   nerPipeline = null;
-  loadedEp = null;
+  loadedKey = null;
 }

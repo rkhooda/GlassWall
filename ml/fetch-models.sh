@@ -7,7 +7,14 @@
 #
 # The assets are gitignored (apps/extension/public/), so this script is how a
 # fresh clone gets them. Run once:  bash ml/fetch-models.sh
+#
+#   --sweep   also vendor the alternative NER weight formats (q4f16, fp16, ~310MB)
+#             so packages/inference's quantization sweep can run. Not needed to
+#             build or demo; needed to reproduce the numbers in MODEL_CARD.md.
 set -euo pipefail
+
+SWEEP=0
+for arg in "$@"; do [ "$arg" = "--sweep" ] && SWEEP=1; done
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PUBLIC="$ROOT/apps/extension/public"
@@ -26,6 +33,16 @@ for f in config.json tokenizer.json tokenizer_config.json special_tokens_map.jso
   fetch "$HF/$f" "$NER/$f"
 done
 fetch "$HF/onnx/model_quantized.onnx" "$NER/onnx/model_quantized.onnx"
+
+if [ "$SWEEP" = "1" ]; then
+  echo "  --sweep: alternative weight formats for the quantization sweep"
+  # q4f16 is the only published format smaller than the int8 we ship; fp16 is the
+  # higher-precision reference that tells us whether int8 is costing us anything.
+  # Measured answer (MODEL_CARD.md): it is not, and q4f16 is worse on every axis.
+  for f in model_q4f16 model_fp16; do
+    fetch "$HF/onnx/$f.onnx" "$NER/onnx/$f.onnx"
+  done
+fi
 
 # pnpm does not hoist, so assets are located in the .pnpm store rather than
 # guessed at a path under node_modules/.
