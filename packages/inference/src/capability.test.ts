@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { probeCapabilities, serializeCapability, deserializeCapability, CapabilitySnapshot } from './capability';
+import { probeCapabilities, serializeCapability, deserializeCapability } from './capability';
 
 describe('capability probe', () => {
   it('returns a valid capability snapshot', async () => {
@@ -24,7 +24,7 @@ describe('capability probe', () => {
   it('has snapshot-serializable structure', async () => {
     const caps = await probeCapabilities();
     const json = JSON.stringify(caps);
-    const parsed = JSON.parse(json);
+    const parsed = JSON.parse(json) as unknown;
     expect(parsed).toEqual(caps);
   });
 });

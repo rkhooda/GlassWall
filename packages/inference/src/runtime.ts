@@ -15,6 +15,9 @@ export interface LoadResult {
   ms: number;
   ep: string;
   sessionId: string;
+  /** Why this execution provider was chosen. Surfaced so the capability snapshot
+   *  in the perf report can say what the machine actually did. */
+  reason: string;
 }
 
 export interface RunResult {
@@ -75,7 +78,8 @@ class ORTRuntime {
     this.config = { ...DEFAULT_CONFIG, ...config };
   }
 
-  async init(preferredEP: EPPreference = 'auto'): Promise<CapabilitySnapshot> {
+  // The preference is applied per-load by getPreferredEP(); init only probes.
+  async init(_preferredEP: EPPreference = 'auto'): Promise<CapabilitySnapshot> {
     if (this.initPromise) {
       return this.initPromise;
     }
@@ -108,7 +112,7 @@ class ORTRuntime {
     const now = Date.now();
     for (const [key, entry] of this.cache.entries()) {
       if (now - entry.lastUsedAt > this.config.sessionTtlMs) {
-        entry.session.release();
+        void entry.session.release();
         this.cache.delete(key);
       }
     }
@@ -124,7 +128,7 @@ class ORTRuntime {
       }
       if (oldestKey) {
         const entry = this.cache.get(oldestKey)!;
-        entry.session.release();
+        void entry.session.release();
         this.cache.delete(oldestKey);
       }
     }
@@ -141,7 +145,7 @@ class ORTRuntime {
     const existing = this.cache.get(cacheKey);
     if (existing) {
       existing.lastUsedAt = Date.now();
-      return { ms: 0, ep, sessionId: cacheKey };
+      return { ms: 0, ep, sessionId: cacheKey, reason };
     }
 
     this.evictOldSessions();
@@ -168,7 +172,7 @@ class ORTRuntime {
           createdAt: Date.now(),
           lastUsedAt: Date.now(),
         });
-        return { ms: wasmMs, ep: 'wasm', sessionId: wasmKey };
+        return { ms: wasmMs, ep: 'wasm', sessionId: wasmKey, reason: `${reason}; webgpu creation failed, fell back` };
       }
       throw error;
     }
@@ -182,7 +186,7 @@ class ORTRuntime {
       lastUsedAt: Date.now(),
     });
 
-    return { ms, ep, sessionId: cacheKey };
+    return { ms, ep, sessionId: cacheKey, reason };
   }
 
   async run(modelId: string, inputs: Record<string, Tensor>, preferredEP: EPPreference = 'auto'): Promise<RunResult> {
@@ -264,13 +268,13 @@ class ORTRuntime {
     if (modelId) {
       for (const [key, entry] of this.cache.entries()) {
         if (entry.modelId === modelId) {
-          entry.session.release();
+          void entry.session.release();
           this.cache.delete(key);
         }
       }
     } else {
       for (const entry of this.cache.values()) {
-        entry.session.release();
+        void entry.session.release();
       }
       this.cache.clear();
     }

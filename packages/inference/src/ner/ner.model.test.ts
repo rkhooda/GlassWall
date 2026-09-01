@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { recallByType, spanF1, type LabelledSpan } from '../../../../eval/metrics/detection';
 import { generatePersona } from '../../../../apps/bench-site/src/data/generator';
-import { chunkText } from './chunk';
+
 import { nerTypeToPii } from './types';
 
 /**

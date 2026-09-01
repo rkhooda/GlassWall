@@ -157,7 +157,7 @@ export interface TokenPrediction {
  * reconstructed surface form is located in the source text.
  */
 export function spansFromTokens(text: string, tokens: TokenPrediction[]): Span[] {
-  const groups: Array<{ type: string; pieces: string[]; scores: number[] }> = [];
+  const groups: { type: string; pieces: string[]; scores: number[] }[] = [];
 
   for (const token of tokens) {
     const type = token.entity.replace(/^[BI]-/, '');
