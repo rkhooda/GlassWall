@@ -17,7 +17,7 @@ safe_grep_count() {
 }
 
 # 1. Exactly one fetch in the entire repo (A's background/net.ts)
-echo "[1/7] Checking for fetch / XMLHttpRequest / sendBeacon / WebSocket..."
+echo "[1/8] Checking for fetch / XMLHttpRequest / sendBeacon / WebSocket..."
 
 FETCH_COUNT=$(safe_grep_count "\.fetch(" --include="*.ts" --include="*.tsx" apps/ packages/)
 if [ "$FETCH_COUNT" -gt 0 ] 2>/dev/null; then
@@ -56,7 +56,7 @@ else
 fi
 
 # 2. No eval / Function / innerHTML / insertAdjacentHTML in extension source
-echo "[2/7] Checking for eval / Function / innerHTML / insertAdjacentHTML in extension..."
+echo "[2/8] Checking for eval / Function / innerHTML / insertAdjacentHTML in extension..."
 
 safe_grep_ext() {
   local pattern="$1"
@@ -103,7 +103,7 @@ else
 fi
 
 # 3. No data-glasswall- in built bundle
-echo "[3/7] Checking for data-glasswall- in built bundle..."
+echo "[3/8] Checking for data-glasswall- in built bundle..."
 if [ -d "apps/extension/dist" ]; then
   BUNDLE_REF=$(grep -r "data-glasswall-" apps/extension/dist/ 2>/dev/null | wc -l || true)
   BUNDLE_REF=$(echo "$BUNDLE_REF" | tr -d ' \n')
@@ -119,7 +119,7 @@ else
 fi
 
 # 4. Manifest connect-src pinned to gateway
-echo "[4/7] Checking manifest.json connect-src..."
+echo "[4/8] Checking manifest.json connect-src..."
 MANIFEST="apps/extension/manifest.json"
 if [ -f "$MANIFEST" ]; then
   CONNECT_SRC=$(grep -A2 '"connect_src"' "$MANIFEST" 2>/dev/null || grep -A2 "connect-src" "$MANIFEST" 2>/dev/null || echo "")
@@ -136,7 +136,7 @@ else
 fi
 
 # 5. No host_permissions with <all_urls>
-echo "[5/7] Checking host_permissions..."
+echo "[5/8] Checking host_permissions..."
 if [ -f "$MANIFEST" ]; then
   if grep -q '"<all_urls>"' "$MANIFEST"; then
     echo "  ❌ FAIL: host_permissions contains <all_urls>"
@@ -149,7 +149,7 @@ else
 fi
 
 # 6. No vault writes to storage.local or indexedDB
-echo "[6/7] Checking for storage.local / indexedDB usage in vault..."
+echo "[6/8] Checking for storage.local / indexedDB usage in vault..."
 
 safe_grep_privacy() {
   local pattern="$1"
@@ -177,7 +177,7 @@ else
 fi
 
 # 7. Verify SafePayload brand enforcement (compile-time check via net.ts signature)
-echo "[7/7] Checking SafePayload enforcement in net.ts..."
+echo "[7/8] Checking SafePayload enforcement in net.ts..."
 if [ -f "apps/extension/src/background/net.ts" ]; then
   if grep -q "SafePayload" apps/extension/src/background/net.ts; then
     echo "  ✅ PASS: net.ts references SafePayload"
@@ -187,6 +187,29 @@ if [ -f "apps/extension/src/background/net.ts" ]; then
   fi
 else
   echo "  ⚠️  SKIP: net.ts not found"
+fi
+
+# 8. The extractor is the privacy boundary, not just a parser (PLAN.md §6.3 Layer 1,
+#    CLAUDE.md hard rule 4). It must never read a value or a storage API. This is the
+#    one invariant that is cheap to state, cheap to grep, and expensive to lose.
+echo "[8/8] Checking extractor for forbidden reads..."
+EXTRACTOR="apps/extension/src/content/extractor"
+FORBIDDEN_READS='\.value\b|\.innerHTML|\.outerHTML|document\.cookie|localStorage|sessionStorage|indexedDB'
+if [ -d "$EXTRACTOR" ]; then
+  READ_HITS=$(grep -rInE "$FORBIDDEN_READS" --include="*.ts" "$EXTRACTOR" 2>/dev/null | grep -v "\.test\.ts" | grep -vE '^\s*//' || true)
+  READ_COUNT=$(printf '%s' "$READ_HITS" | grep -c . || true)
+  if [ "${READ_COUNT:-0}" -gt 0 ] 2>/dev/null; then
+    echo "  ❌ FAIL: $READ_COUNT forbidden read(s) in the extractor"
+    printf '%s\n' "$READ_HITS" | sed 's/^/    /'
+    echo "  Note: A's file. Reading .value to derive value_state still reads it — the"
+    echo "  boundary is meant to be grep-provable, and this makes it not. Logged in"
+    echo "  docs/REQUESTS-TO-A.md and stated as a residual in SECURITY.md."
+    FAILURES=$((FAILURES + 1))
+  else
+    echo "  ✅ PASS: extractor reads no values or storage APIs"
+  fi
+else
+  echo "  ⚠️  SKIP: extractor not found"
 fi
 
 echo
