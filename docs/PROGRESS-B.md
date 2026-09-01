@@ -13,7 +13,7 @@
 | B7 NER+OCR (P8/P9) | ⚠️ | 2026-09-01 | Code + tests complete and fail-closed. Assets vendored via `ml/fetch-models.sh`. **NER measured: F1 0.958, precision 1.00, PERSON_NAME recall 1.00 ✅ — STREET_ADDRESS recall 0.84 ❌ (target 0.90) and model 109MB ❌ (target 30MB).** Latency + EP parity are browser-only, still unmeasured. OCR accuracy needs ClinicDesk fixture crops. Not wired into the step loop — A must pass `perceptionSources`. |
 | B8 Fusion (P11) | ⚠️ | 2026-09-01 | Fusion (noisy-OR) + explain-or-redact + JSON policy profiles. **Ablation measured: fusion 1.000 PII recall vs 0.600 best single source ✅**; ≤20ms budget met at p95 0.93ms ✅; profile switching needs no rebuild ✅. **Leakage is not 0** — the P8 bare-locality STREET_ADDRESS gap leaks in every configuration, including with vision disabled. Pinned by type, not lowered. |
 | B9 Eval+Inspector (P12-B) | ⚠️ | 2026-09-01 | Frontier A1/A6/A7 over 10 seeds with σ; privacy + detection metrics; `eval/reports/{frontier.svg,report.md}`. `Inspector.tsx` + `Handles.tsx` built and tested (judge flow both directions; no value in the serialized DOM). **A6 beats A1 on PII recall 86.7% vs 60.0% ✅. A7 does NOT reach leakage 0 — 2.0%, the same P8 address residual, published as measured ❌.** Task success is not measured: A's harness needs a loadable extension. Inspector is unmounted — `App.tsx` is A's. |
-| B10 Perf/chaos/docs (P13-B/P14-B/P15-B) | ☐ | | Warmup, chaos (leakage=0 degraded), SECURITY/PRIVACY/MODEL_CARD/EVALUATION |
+| B10 Perf/chaos/docs (P13-B/P14-B/P15-B) | ⚠️ | 2026-09-01 | Baseline committed before optimizing; warm-up moves **97% of a ~500ms cold start** off the first step; lazy loading by policy (STRICT loads 103.9MB, never the 43MB OCR engine); quantization sweep **measured** (int8 costs nothing, q4f16 worse on every axis, every format over 30MB); heap flat over 50 steps, now asserted. **Chaos suite found two real fail-open bugs and both are fixed** — 22 configs × 2 profiles, tier-1 exposure 0 everywhere. All four documents written from measured numbers. **Not met:** leakage 2.0% not 0; task success unmeasured; `verify:boundary` 6/8. |
 
 ---
 
@@ -29,6 +29,9 @@
 | 2026-09-01 | `pnpm-workspace.yaml`: `eval/*` → `eval` | `@glasswall/eval` is not a workspace member, so `turbo run test` never runs `eval/`. The P11 ablation and the P8 detection metrics pass locally and are invisible to CI. | CI enforcing any number measured in `eval/` |
 | 2026-09-01 | `App.tsx`: mount `<Inspector />` (exact import + JSX in `REQUESTS-TO-A.md`) and post an `extension:privacy-inspect` message per step carrying `{ raw, observation, redactions, degraded }` | The inspector is PLAN.md §28 cut #11 and renders nothing without a mount. `App.tsx` is A's file. | The judge demo |
 | 2026-09-01 | A loadable extension build (content script + side panel in `manifest.json`) | `waitForExtensionReady` cannot resolve, so no end-to-end task runs and the frontier's y-axis is an in-process utility proxy rather than task success. | Real task-success numbers on the frontier |
+| 2026-09-01 | `background/index.ts`: call `warmUpInference(policy)` on `chrome.runtime.onInstalled` | Measured ~500ms cold start paid inside the user's first step. Warm-up moves 97% of it. Never throws. | The first step of every session |
+| 2026-09-01 | `orchestrator.ts`: frame ownership when wiring `frame` into `sanitize()` | `decodeBitmap()` closes the bitmap; OCR's `renderCrops()` borrows it and must not. Sequence the screenshot pipeline after perception, or hand it its own bitmap. | An `ImageBitmap` leak, or OCR silently reading nothing |
+| 2026-09-01 | `content/extractor/walk.ts:580,591`: derive `value_state` without reading `.value` | Hard rule 4. The string is discarded and never emitted, so not a live leak — but the Layer 1 invariant stops being grep-provable. `verify-boundary.sh` check 8 (new) fails on exactly these two lines. | `verify:boundary` green; the Layer 1 claim in `SECURITY.md` being enforceable |
 
 ---
 
@@ -621,3 +624,122 @@ proves the system does not need it.
   against 0 — it will fail for the wrong reason and someone will "fix" it by loosening.
 - If NER address recall gets fixed first, re-run `tsx eval/ablations/frontier.ts` and the
   A7 row should reach 0. That is the one change that moves it.
+
+---
+
+## P13-B / P14-B / P15-B — perf, chaos, and the four documents · 2026-09-01
+
+**Built:**
+- `eval/ablations/perf.ts` + `eval/reports/perf-baseline.md` — the baseline, committed
+  **before** any optimization existed, so the delta is a measurement rather than a memory.
+- `packages/inference/src/warmup.ts` — session warm-up at install, gated by policy.
+- Policy-gated pixel path: `PerceptionContext.screenshotEnabled`, and `ocrSource` gating
+  on it instead of on `frame !== null`.
+- `packages/inference/src/ner/quantization.sweep.test.ts` + `ml/fetch-models.sh --sweep`.
+- `packages/privacy/src/sanitize.memory.test.ts` — 50 steps, heap asserted flat.
+- `eval/leakage/chaos.ts` + `chaos.test.ts` + `eval/reports/chaos.md`.
+- `packages/privacy/src/resolve.test.ts` — the C7 type-matched binding had **no test**.
+- `scripts/verify-boundary.sh` check 8 — the extractor's forbidden reads.
+- `SECURITY.md`, `PRIVACY.md`, `MODEL_CARD.md`, `EVALUATION.md`, `docs/DEMO-B.md`.
+
+**Measured (M1/8GB — the only machine, so also the weakest):**
+
+| metric | before | after |
+|---|---|---|
+| first step, model cold | 477 ms | 512 ms *(same code path; ±60 ms run noise)* |
+| **first step, after warm-up** | *did not exist* | **16 ms** |
+| model bytes loaded, STRICT | *caller decided* | **103.9 MB** |
+| `sanitize()` per step | 0.2–0.3 ms | unchanged |
+| heap growth / 10 steps | 0 MB | 0 MB, asserted |
+
+Quantization sweep, 25 held-out paragraphs, CPU EP: q8 (ships) 103.9MB / F1 **0.958**;
+q4f16 89.3MB / F1 0.926 / 3× slower; fp16 205.8MB / F1 0.958 / 12× slower. **int8 costs
+nothing** — the 0.84 address recall is the encoder, not the number format. Every
+published format is over the 30MB budget.
+
+**Acceptance met:**
+- Before/after table committed, baseline first ✅ (`eval/reports/perf-baseline.md` → `perf.md`)
+- Cold-start improvement measured on the weakest machine we have ✅ (it is the only one, and the report says so)
+- Memory flat over 50 steps ✅ — 0.06MB measured, asserted at <0.5MB, red at 2.2MB
+- Quantization sweep with **verified** accuracy deltas ✅ — not assumed
+- Chaos: every source force-failed alone and in every combination, 3 modes, 2 profiles ✅
+- Every configuration terminates with a schema-valid observation: **44/44** ✅
+- `degraded[]` names the failed source; timeouts distinguished from errors ✅
+- Detectable failures redacting less than healthy: **0/28** ✅
+- Detectable failures leaking more than healthy: **0/28** ✅
+- Tier-1 exposure 0 in every configuration ✅
+- Four documents written from actual code and actual numbers, every failure-matrix row
+  naming a real file and function ✅
+- Every number in `EVALUATION.md` traces to `eval/reports/` or to a named test file, and
+  says which ✅
+
+**The chaos suite earned its keep on the first run. Two real fail-open bugs:**
+
+1. **A source that threw contributed nothing at all** — no evidence *and* no unexplained
+   regions, because `sanitize()` had no output to read. Losing NER **raised** leakage
+   1 → 2 and **lowered** redactions 12 → 11. Fixed with `PerceptionSource.coverage()`:
+   a source declares what it is the account for, and `sanitize()` applies it when the
+   source dies. Both real sources already had this logic in their *internal* failure
+   paths; it was simply unreachable when the source itself died.
+2. **A fused region redacted pixels but never the text.** A text node could be correctly
+   marked unexplained, correctly masked in the screenshot, and still ship verbatim.
+   Fixed — but only for regions carrying no detection evidence. The first version
+   tokenized any covered node wholesale, which drove leakage to 0 by destroying the
+   type-preserving tokenization PLAN §4.5 is built on. That is the wrong kind of zero.
+
+After both: a **crashed NER leaks less than a working one** (0 vs 1), because losing it
+makes its text nodes unaccounted-for and coverage catches the address the model misses.
+
+**Two more bugs found by writing tests for claims already published:**
+
+3. `extractPiiTypeFromHandle('⟦PASSWORD⟧')` returned `'PASSWORD⟧'` — the Tier-1 shape
+   fell through the `#` alternative. It matches nothing in the compatibility matrix, so
+   a password could never have been bound at all. Fail-closed and therefore silent. No
+   live callers yet, so it was latent on the C7 surface A is about to wire.
+4. `packages/privacy/src/privacy.test.ts` was a placeholder asserting `true === true`,
+   while `SECURITY.md` was about to cite it as G1's verification. Deleted; G1 now cites
+   the tests that actually check it.
+
+**Acceptance NOT met, stated rather than lowered:**
+- **Leakage is not 0. It is 2.0%**, all `STREET_ADDRESS`, the P8 bare-locality gap.
+  Unchanged by any of this work and on the chart.
+- **`verify:boundary` is 6/8.** Check 4 (`connect-src` unpinned) was already failing;
+  check 8 is new and fails on two real `.value` reads in A's extractor. Adding a check
+  that goes red was the point — the alternative was an invariant nobody was testing.
+- **The egress gate has 6 of 7 checks.** `checkRateLimit()` returns `null`
+  unconditionally. Resource control, not disclosure control, so G2 is unaffected — but
+  the gate is advertised as seven and it is six.
+- **Gate latency (≤15ms p95) never measured.** It has never been timed in isolation.
+- **OCR character accuracy and NER browser latency still unmeasured.** Browser-only;
+  node exposes the `cpu` device only.
+
+**Deviations recorded rather than fixed:**
+- **No policy can release a checksum-verified value**, though `PLAN.md` §11.4 says
+  PERMISSIVE passes Tier 3. The recognizer loop tokenizes before the policy decision is
+  consulted. Verified across all three profiles plus a hand-built all-weights-zero,
+  Tier-2/3/5-PASS profile: leakage identical in every one. Deviation in the safe
+  direction, kept deliberately — and it is why `docs/DEMO-B.md` beat 2 uses a silently
+  failing source rather than a policy flag for the negative control.
+- **Handles are not HMAC-derived** (`PLAN.md` §4.5). Per-session insertion counter in a
+  map that never leaves the instance. Carries no value-derived material at all, which is
+  stronger against a rainbow-table oracle than a truncated HMAC.
+
+**Known debt, not touched here:**
+- `packages/privacy` has **214 open ESLint errors** — style and strictness, not
+  correctness; suite green, typecheck clean. `packages/inference` had 11 and is now 0.
+- **MailLite was never built** — `apps/bench-site/src/sites/maillite/` is a `.gitkeep`.
+  ClinicDesk carries the free-text and canvas channels instead. Recorded in `SECURITY.md`.
+- `eval/leakage/inject.ts` still does not typecheck against the current generator (P7).
+- `@glasswall/eval` is still not a workspace member, so `turbo run test` misses 33 tests.
+
+**Scaffolding added:**
+- None. The extra NER weight formats are opt-in via `--sweep` and gitignored.
+
+**Next session notes:**
+- The single highest-value thing left is **not** in my lane: the five `manifest.json` and
+  `App.tsx` items in `docs/REQUESTS-TO-A.md`. Until they land, `docs/DEMO-B.md` Path A
+  cannot run and the frontier's y-axis stays a proxy. Path B is rehearsed and runs today.
+- If NER address recall is ever fixed, re-run `tsx eval/ablations/frontier.ts`; the A7
+  row should reach 0 and it is the only change that moves it.
+- Do not write the chaos assertions against leakage 0. They are written against
+  *healthy*, deliberately, because the residual is real.
