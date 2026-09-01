@@ -243,7 +243,25 @@ Things that are true today and that we would rather you heard from us.
    identically to A7 with it enabled, because coverage — not a detector — is what
    accounts for the pixel channel. A half-trained detector would have been worse than
    the designed degradation.
-7. **`packages/privacy` has 214 open ESLint errors.** Style and strictness, not
+7. **No policy can release a checksum-verified value, and `PLAN.md` §11.4 says one
+   can.** The deterministic recognizers in `sanitize()` tokenize their matches
+   unconditionally — the policy decision is computed and recorded *after* the
+   substitution has already happened. Measured while scripting the demo: STRICT,
+   BALANCED, PERMISSIVE, and a hand-built profile with every source weight at 0 and
+   Tiers 2/3/5 set to `PASS` all produce **identical leakage**. §11.4's table describes
+   PERMISSIVE as passing Tier 3; the implementation does not, and cannot.
+   This is a deviation in the safe direction and we are keeping it — "no configuration
+   releases a value that passed a checksum" is a better property than the one specified.
+   Two consequences worth stating: the PERMISSIVE row in the frontier is not the
+   permissive configuration §11.4 describes, and the on-stage negative control cannot be
+   produced by flipping a policy flag. It is produced instead by a silently-failing
+   perception source, which is a real failure mode rather than a switch — see
+   `docs/DEMO-B.md` beat 2.
+8. **MailLite was never built.** `apps/bench-site/src/sites/maillite/` contains only a
+   `.gitkeep`. The free-text and email surface it was meant to provide does not exist,
+   so no measurement in this repository covers it. ClinicDesk carries the free-text and
+   canvas channels instead.
+9. **`packages/privacy` has 214 open ESLint errors.** Style and strictness, not
    correctness; the suite is green and typechecks clean. Pre-existing, tracked in
    `docs/PROGRESS-B.md`.
 
