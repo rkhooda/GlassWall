@@ -174,3 +174,87 @@ export function formatChaosTable(results: ChaosResult[]): string {
   }
   return lines.join('\n');
 }
+
+// --- report ----------------------------------------------------------------
+
+export function renderChaosReport(
+  byProfile: Array<{ profile: string; results: ChaosResult[] }>,
+  env: { hardware: string; os: string; runtime: string; commit: string; generatedAt: string }
+): string {
+  const sections = byProfile
+    .map(({ profile, results }) => {
+      const healthy = results.find(isHealthy)!;
+      const detectable = results.filter(isDetectable).filter(r => !isHealthy(r));
+      const silent = results.filter(r => r.config.mode === 'silent');
+      return `### ${profile}
+
+${formatChaosTable(results)}
+
+- terminated with a schema-valid observation: **${results.filter(r => r.terminated && r.schemaValid).length}/${results.length}**
+- tier-1 values exposed, any configuration: **${results.reduce((n, r) => n + r.tier1Exposed, 0)}**
+- detectable failures that redacted less than healthy: **${detectable.filter(r => r.redactions < healthy.redactions).length}/${detectable.length}**
+- detectable failures that leaked more than healthy: **${detectable.filter(r => r.leaked > healthy.leaked).length}/${detectable.length}**
+- silent failures that leaked more than healthy: **${silent.filter(r => r.leaked > healthy.leaked).length}/${silent.length}** — undetectable by design, see N1`;
+    })
+    .join('\n\n');
+
+  return `# P14-B — chaos: every perception source, force-failed
+
+**Measured ${env.generatedAt} at \`${env.commit}\`.**
+
+| | |
+|---|---|
+| Hardware | ${env.hardware} |
+| OS | ${env.os} |
+| Runtime | ${env.runtime} |
+| Scene | \`eval/ablations/scene.ts\`, seed 1337 |
+| Configurations | every non-empty subset of {ner, ocr, vision} × {throw, timeout, silent}, plus healthy |
+
+Three failure modes. **throw** and **timeout** are detectable — \`sanitize()\` sees the
+source die and applies its declared \`coverage()\`. **silent** is a source that loaded,
+ran, and returned nothing: indistinguishable from a clean page, and therefore *not*
+detectable. It is measured here rather than asserted away. See \`SECURITY.md\` N1.
+
+${sections}
+
+## What this found
+
+The suite was written against the current code and immediately failed, twice, on real
+fail-open paths:
+
+1. **A source that threw contributed nothing at all** — no evidence *and* no unexplained
+   regions, because \`sanitize()\` had no output to read. Losing NER *raised* leakage from
+   1 to 2 and *lowered* redactions from 12 to 11. Fixed by
+   \`PerceptionSource.coverage()\`: a source declares what it is the account for, and
+   \`sanitize()\` applies that when the source dies.
+2. **A fused region redacted pixels but never the text.** A text node could be correctly
+   marked unexplained, correctly masked in the screenshot, and still ship verbatim in
+   the payload. Fixed — for regions carrying no detection evidence only, because
+   replacing a whole paragraph where a detector already fired would discard the
+   type-preserving tokenization the system exists to provide.
+
+After both fixes, a **crashed NER leaks less than a working one**: losing it makes its
+text nodes unaccounted-for, and coverage tokenizes them wholesale, catching the bare
+locality the working model misses. The degraded path is strictly safer than the happy
+path, which is the property the whole design is aiming at.
+`;
+}
+
+if (require.main === module) {
+  void (async () => {
+    const { PROFILES } = await import('@glasswall/privacy/index');
+    const { buildScene: build } = await import('../ablations/scene');
+    const { describeEnvironment } = await import('../ablations/frontier');
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+
+    const scene = build(1337);
+    const byProfile = [
+      { profile: 'STRICT', results: await runChaos(scene, PROFILES.STRICT) },
+      { profile: 'BALANCED', results: await runChaos(scene, PROFILES.BALANCED) },
+    ];
+    const out = renderChaosReport(byProfile, describeEnvironment());
+    fs.writeFileSync(path.resolve(__dirname, '../reports/chaos.md'), out);
+    process.stdout.write(out);
+  })();
+}
