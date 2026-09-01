@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="560" viewBox="0 0 880 560" font-family="Helvetica Neue, Helvetica, Arial, sans-serif">
+  <rect width="880" height="560" fill="#ffffff"/>
+  <text x="104" y="34" font-size="26" font-weight="700" fill="#111">Privacy–utility frontier</text>
+  <text x="104" y="56" font-size="16" fill="#444">10 seeds per point · BALANCED profile · mean, σ in report.md</text>
+  <circle cx="582" cy="40" r="8" fill="#b31b1b"/>
+  <text x="598" y="46" font-size="16" fill="#111">measured leakage</text>
+  <circle cx="728" cy="40" r="7" fill="#fff" stroke="#e0a03a" stroke-width="4"/>
+  <text x="744" y="46" font-size="16" fill="#111">unprotected PII</text>
+  <line x1="104" y1="464.0" x2="832" y2="464.0" stroke="#d4d4d4" stroke-width="1"/><text x="90" y="470.0" text-anchor="end" font-size="17" fill="#111">0%</text>
+  <line x1="104" y1="364.0" x2="832" y2="364.0" stroke="#d4d4d4" stroke-width="1"/><text x="90" y="370.0" text-anchor="end" font-size="17" fill="#111">25%</text>
+  <line x1="104" y1="264.0" x2="832" y2="264.0" stroke="#d4d4d4" stroke-width="1"/><text x="90" y="270.0" text-anchor="end" font-size="17" fill="#111">50%</text>
+  <line x1="104" y1="164.0" x2="832" y2="164.0" stroke="#d4d4d4" stroke-width="1"/><text x="90" y="170.0" text-anchor="end" font-size="17" fill="#111">75%</text>
+  <line x1="104" y1="64.0" x2="832" y2="64.0" stroke="#d4d4d4" stroke-width="1"/><text x="90" y="70.0" text-anchor="end" font-size="17" fill="#111">100%</text>
+  <line x1="104.0" y1="64" x2="104.0" y2="464" stroke="#ececec" stroke-width="1"/><text x="104.0" y="494" text-anchor="middle" font-size="17" fill="#111">0.0%</text>
+  <line x1="286.0" y1="64" x2="286.0" y2="464" stroke="#ececec" stroke-width="1"/><text x="286.0" y="494" text-anchor="middle" font-size="17" fill="#111">12.0%</text>
+  <line x1="468.0" y1="64" x2="468.0" y2="464" stroke="#ececec" stroke-width="1"/><text x="468.0" y="494" text-anchor="middle" font-size="17" fill="#111">24.0%</text>
+  <line x1="650.0" y1="64" x2="650.0" y2="464" stroke="#ececec" stroke-width="1"/><text x="650.0" y="494" text-anchor="middle" font-size="17" fill="#111">36.0%</text>
+  <line x1="832.0" y1="64" x2="832.0" y2="464" stroke="#ececec" stroke-width="1"/><text x="832.0" y="494" text-anchor="middle" font-size="17" fill="#111">48.0%</text>
+  <line x1="104" y1="464" x2="832" y2="464" stroke="#111" stroke-width="2"/>
+  <line x1="104" y1="64" x2="104" y2="464" stroke="#111" stroke-width="2"/>
+  <polyline points="710.7,64.0 306.2,144.0 104.0,224.0" fill="none" stroke="#555" stroke-width="2.5" stroke-dasharray="7 5"/>
+  <line x1="134.3" y1="64.0" x2="710.7" y2="64.0" stroke="#e0a03a" stroke-width="7" stroke-linecap="round" opacity="0.85"/><circle cx="710.7" cy="64.0" r="8" fill="#fff" stroke="#e0a03a" stroke-width="4"/>
+  <circle cx="134.3" cy="64.0" r="11" fill="#b31b1b" stroke="#fff" stroke-width="3"/>
+  <text x="110.3" y="40.0" text-anchor="end" font-size="26" font-weight="700" fill="#111">A1</text>
+  <text x="110.3" y="61.0" text-anchor="end" font-size="16" fill="#333">DOM only (regex)</text>
+  <text x="110.3" y="83.0" text-anchor="end" font-size="16" font-weight="600" fill="#b31b1b">leak 2.0% · unprotected 40.0% · util 100%</text>
+  <line x1="134.3" y1="144.0" x2="306.2" y2="144.0" stroke="#e0a03a" stroke-width="7" stroke-linecap="round" opacity="0.85"/><circle cx="306.2" cy="144.0" r="8" fill="#fff" stroke="#e0a03a" stroke-width="4"/>
+  <circle cx="134.3" cy="144.0" r="11" fill="#b31b1b" stroke="#fff" stroke-width="3"/>
+  <text x="110.3" y="120.0" text-anchor="end" font-size="26" font-weight="700" fill="#111">A6</text>
+  <text x="110.3" y="141.0" text-anchor="end" font-size="16" fill="#333">fusion, no coverage</text>
+  <text x="110.3" y="163.0" text-anchor="end" font-size="16" font-weight="600" fill="#b31b1b">leak 2.0% · unprotected 13.3% · util 80%</text>
+  <circle cx="134.3" cy="224.0" r="11" fill="#b31b1b" stroke="#fff" stroke-width="3"/>
+  <text x="110.3" y="200.0" text-anchor="end" font-size="26" font-weight="700" fill="#111">A7</text>
+  <text x="110.3" y="221.0" text-anchor="end" font-size="16" fill="#333">fusion + explain-or-redact</text>
+  <text x="110.3" y="243.0" text-anchor="end" font-size="16" font-weight="600" fill="#b31b1b">leak 2.0% · unprotected 0.0% · util 60%</text>
+  <text x="468.0" y="516" text-anchor="middle" font-size="19" font-weight="600" fill="#111">PII exposure — solid: leaked verbatim · ring: never identified</text>
+  <text x="26" y="264.0" text-anchor="middle" font-size="19" font-weight="600" fill="#111" transform="rotate(-90 26 264.0)">task utility — elements still labelled and actionable</text>
+  <text x="104" y="544" font-size="16" fill="#b31b1b">No configuration reaches 0 leakage. Residual 2.0% (STREET_ADDRESS) is identical in all three, so leakage alone does not separate them - the unprotected bar does.</text>
+</svg>
