@@ -3,8 +3,10 @@ import path from 'path';
 
 export default defineConfig({
   test: {
-    // leakage/ is driven by Playwright, which owns its own runner.
-    exclude: ['node_modules/**', 'dist/**', 'leakage/**'],
+    // Only the Playwright-driven suites are excluded — they need a browser and a
+    // running bench site, and Playwright owns its own runner. leakage/chaos.test.ts
+    // is pure sanitize() and belongs here, where it runs on every commit.
+    exclude: ['node_modules/**', 'dist/**', 'leakage/negative-control.test.ts'],
   },
   resolve: {
     alias: {
