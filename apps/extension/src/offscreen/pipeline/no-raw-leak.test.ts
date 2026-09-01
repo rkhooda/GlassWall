@@ -103,6 +103,14 @@ describe('raw perception output never reaches the payload', () => {
     });
 
     expect(result.degraded).toContain('ocr_unavailable');
-    expect(result.redactions.some(r => r.reason === 'ocr_unavailable' && r.source === 'ocr')).toBe(true);
+
+    // The canvas is withheld either way. Since P11 the region goes through fusion,
+    // so the reason is the human-readable sentence the audit record carries and the
+    // attribution is whichever evidence claimed it — asserting on an exact source id
+    // would pin an implementation detail rather than the property that matters.
+    const covering = result.redactions.find(r => r.rect[0] <= 0 && r.rect[1] <= 0 && r.rect[2] >= 300);
+    expect(covering, 'the unreadable canvas was not redacted').toBeDefined();
+    expect(covering!.reason).toMatch(/^(DROP|MASK):/);
+    expect(covering!.reason).toContain('canvas');
   });
 });
