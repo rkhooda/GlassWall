@@ -12,7 +12,7 @@
 | B6 Egress gate (P7) | ✅ | 2026-08-31 | `egressGate()` 7 checks + 40 tests ✅; canary harness (`eval/leakage/`) ✅; `verify:boundary.sh` ✅; `.github/workflows/privacy.yml` ✅; root scripts ✅ |
 | B7 NER+OCR (P8/P9) | ⚠️ | 2026-09-01 | Code + tests complete and fail-closed. Assets vendored via `ml/fetch-models.sh`. **NER measured: F1 0.958, precision 1.00, PERSON_NAME recall 1.00 ✅ — STREET_ADDRESS recall 0.84 ❌ (target 0.90) and model 109MB ❌ (target 30MB).** Latency + EP parity are browser-only, still unmeasured. OCR accuracy needs ClinicDesk fixture crops. Not wired into the step loop — A must pass `perceptionSources`. |
 | B8 Fusion (P11) | ⚠️ | 2026-09-01 | Fusion (noisy-OR) + explain-or-redact + JSON policy profiles. **Ablation measured: fusion 1.000 PII recall vs 0.600 best single source ✅**; ≤20ms budget met at p95 0.93ms ✅; profile switching needs no rebuild ✅. **Leakage is not 0** — the P8 bare-locality STREET_ADDRESS gap leaks in every configuration, including with vision disabled. Pinned by type, not lowered. |
-| B9 Eval+Inspector (P12-B) | ☐ | | Ablations A1/A6/A7 + Inspector.tsx + Handles.tsx |
+| B9 Eval+Inspector (P12-B) | ⚠️ | 2026-09-01 | Frontier A1/A6/A7 over 10 seeds with σ; privacy + detection metrics; `eval/reports/{frontier.svg,report.md}`. `Inspector.tsx` + `Handles.tsx` built and tested (judge flow both directions; no value in the serialized DOM). **A6 beats A1 on PII recall 86.7% vs 60.0% ✅. A7 does NOT reach leakage 0 — 2.0%, the same P8 address residual, published as measured ❌.** Task success is not measured: A's harness needs a loadable extension. Inspector is unmounted — `App.tsx` is A's. |
 | B10 Perf/chaos/docs (P13-B/P14-B/P15-B) | ☐ | | Warmup, chaos (leakage=0 degraded), SECURITY/PRIVACY/MODEL_CARD/EVALUATION |
 
 ---
@@ -27,6 +27,8 @@
 | 2026-09-01 | `packages/schema/src/policy.ts`: widen `PiiType` (proposal) | Recognizers detect AADHAAR/PAN/IFSC/GSTIN/UPI/MRN; the enum cannot name them, so the audit says `PERSONAL`. | Per-type leakage reporting, inspector labels |
 | 2026-09-01 | `bench-site` shoplite/govportal build errors (`autocomplete` → `autoComplete`, `order` possibly undefined) | `pnpm build` fails at the repo level. The `autocomplete` typo also means those inputs carry no autocomplete attribute at runtime, so `element-rules.ts` under-detects on ShopLite by accident. | Repo-wide green build; honest ShopLite detection numbers |
 | 2026-09-01 | `pnpm-workspace.yaml`: `eval/*` → `eval` | `@glasswall/eval` is not a workspace member, so `turbo run test` never runs `eval/`. The P11 ablation and the P8 detection metrics pass locally and are invisible to CI. | CI enforcing any number measured in `eval/` |
+| 2026-09-01 | `App.tsx`: mount `<Inspector />` (exact import + JSX in `REQUESTS-TO-A.md`) and post an `extension:privacy-inspect` message per step carrying `{ raw, observation, redactions, degraded }` | The inspector is PLAN.md §28 cut #11 and renders nothing without a mount. `App.tsx` is A's file. | The judge demo |
+| 2026-09-01 | A loadable extension build (content script + side panel in `manifest.json`) | `waitForExtensionReady` cannot resolve, so no end-to-end task runs and the frontier's y-axis is an in-process utility proxy rather than task success. | Real task-success numbers on the frontier |
 
 ---
 
@@ -534,3 +536,88 @@ Regions now decide on `S` alone, with tier-1 the single escalation that crosses 
 None. `visionSource` in `eval/ablations/sources.ts` is a stub, and labelled one — it
 stands in for a detector P10 may never build, and the ablation's point is that A8
 proves the system does not need it.
+
+---
+
+## P12-B — Leakage evaluation, the frontier, and the inspector · 2026-09-01
+
+**Built:**
+- `eval/ablations/frontier.ts` — A1 (DOM-only) / A6 (fusion) / A7 (fusion + explain-or-redact)
+  as three points, each the same build under a different `source_weights` object. No
+  rebuild, no branch on the config name. Hand-written SVG renderer, hand-written report.
+- `eval/metrics/privacy.ts` — leakage rate, redaction precision **and** recall reported
+  separately, handle referential consistency (`scoreHandleConsistency`), tier-1 exposure
+  as a count rather than a rate.
+- `eval/metrics/detection.ts` — per-type precision/recall/F1 (`prfByType`, types taken
+  from the union of gold and predicted so a hallucinated type shows at precision 0) and
+  `nearMissFalsePositiveRate` over the generator's seeded decoys.
+- `eval/reports/frontier.svg` + `eval/reports/report.md` — 10 seeds, σ in every column,
+  hardware / OS / Node / Chromium / commit SHA stated.
+- `apps/extension/src/sidepanel/privacy/{Inspector,Handles}.tsx` + `scan.ts` + `styles.ts`.
+
+**Measured (BALANCED, 10 seeds):**
+
+| config | leakage | σ | unprotected PII | tier-1 | PII recall | redaction precision | utility |
+|---|---|---|---|---|---|---|---|
+| A1 DOM only | 2.0% | 0.031 | 40.0% | 0 | 60.0% | 100.0% | 100.0% |
+| A6 fusion | 2.0% | 0.031 | 13.3% | 0 | 86.7% | 100.0% | 80.0% |
+| A7 fusion + explain-or-redact | 2.0% | 0.031 | 0.0% | 0 | 100.0% | 100.0% | 60.0% |
+
+**Acceptance met:**
+- ≥5 seeds per point with variance reported, not a bare mean — 10 seeds, σ per column ✅
+- Report states hardware, OS, browser version and commit SHA ✅
+- **A6 beats A1 on PII recall: 86.7% vs 60.0%** ✅
+- Tier-1 exposure is 0 in every configuration ✅
+- Handle referential consistency: every handle referenced is declared, carries one type,
+  and reproduces across identical runs ✅
+- Judge flow, both directions: a canary injected on the page returns **NOT PRESENT** from
+  the payload in all nine encodings, and `Aeron Chair` — legitimately in the payload —
+  returns **FOUND**. A search that can only say "no" proves nothing, so the test asserts
+  the "yes" too ✅
+- `Handles.tsx` renders no value in any encoding, asserted on the serialized markup via
+  the same `scanPayload()` the inspector uses, plus no `title` / `data-value` /
+  `aria-description` attribute exists to hide one in ✅
+- `encodings.test.ts` pins the inspector's encoding table as a superset of what
+  `generateEncodings()` produces — the inspector cannot claim NOT PRESENT for a form the
+  gate protects against but the search never tried ✅
+
+**Acceptance NOT met, stated rather than lowered:**
+- **A7 does not reach leakage 0. It measures 2.0%** — 0.3 values per run, `STREET_ADDRESS`,
+  identical in all three configurations and in all 10 seeds. Bare Bengaluru localities with
+  no road/street token, sitting in DOM free text the extractor legitimately accounted for:
+  no detector fires and coverage does not reach them. This is the P8 NER address gap, not a
+  fusion defect, and no configuration in the sweep moves it. It closes when NER address
+  recall closes. **Not rounded toward zero; it is on the chart and in the caption.**
+- **Task success is not measured.** The frontier's y-axis is an in-process utility proxy
+  (elements whose label survived verbatim *and* that still carry an action) computed on the
+  sanitized payload, not A's Playwright harness — `apps/extension/dist` ships no content
+  script and no side panel, so `waitForExtensionReady` cannot resolve. Logged for A. The
+  report says this in its own section rather than in a footnote.
+- Leakage does not separate the three points, because the channels fusion adds were never
+  in the payload to begin with. The chart therefore plots the *unprotected* PII bar next to
+  the leaked dot, and the caption says which one is doing the work. A frontier drawn on
+  leakage alone here would have been three dots on top of each other.
+
+**Deferred:**
+- Mounting the inspector. `App.tsx` is A's file; the exact import and JSX line are in
+  `docs/REQUESTS-TO-A.md`. The components are exported from `sidepanel/privacy/index.ts`
+  and fully tested standalone, so the mount is two lines and no logic.
+
+**Fixed in passing:**
+- `no-raw-leak.test.ts` asserted `reason === 'ocr_unavailable'` on a redaction. Since P11
+  the reason is the human-readable sentence fusion builds and the attribution is whichever
+  evidence claimed the region — here the coverage pass, which drops the canvas at S=0.80.
+  The behaviour is correct and fail-closed; the assertion was pinned to a string. Now
+  asserts the substance: the unreadable canvas is covered by a DROP or MASK whose reason
+  names the canvas.
+
+**Scaffolding added:**
+- None. `eval/ablations/sources.ts` still stands in for the P10 detector and is still
+  labelled a stub; A8 in the P11 table is the evidence the system does not need it.
+
+**Next session notes:**
+- P13-B chaos is the next real one, and it inherits a residual: force-failing each source
+  must keep leakage at *the measured 2.0%* and never above it. Do not write that test
+  against 0 — it will fail for the wrong reason and someone will "fix" it by loosening.
+- If NER address recall gets fixed first, re-run `tsx eval/ablations/frontier.ts` and the
+  A7 row should reach 0. That is the one change that moves it.
