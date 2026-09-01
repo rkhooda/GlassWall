@@ -27,10 +27,17 @@ const RECOGNIZER_TO_PII: Record<string, PiiType> = {
 /** Measured in P8: the model finds any address containing a road/street token. */
 const ROAD_TOKENS = /\b(road|rd|street|st|marg|lane|cross|main|nagar\s+\d)\b/i;
 
+/** Free text is NER's domain: if NER is gone, none of it is accounted for. */
+const textCoverage = (scene: Scene) =>
+  scene.raw.text_nodes
+    .filter(n => n.text.trim().length > 0)
+    .map(n => ({ rect: n.rect, reason: 'ner_unavailable' }));
+
 export function nerSource(scene: Scene): PerceptionSource {
   return {
     id: 'ner',
     timeout_ms: 5000,
+    coverage: () => textCoverage(scene),
     async run() {
       const evidence: Evidence[] = [];
       for (const item of scene.groundTruth) {
@@ -54,6 +61,7 @@ export function ocrSource(scene: Scene): PerceptionSource {
   return {
     id: 'ocr',
     timeout_ms: 5000,
+    coverage: () => scene.canvases.map(c => ({ rect: c.rect, reason: 'ocr_unavailable' })),
     async run(ctx) {
       // What a real OCR pass hands back: text plus the crop it came from. The
       // recognizers then run over it exactly as they do over DOM text — which is
@@ -92,6 +100,7 @@ export function visionSource(scene: Scene): PerceptionSource {
   return {
     id: 'vision',
     timeout_ms: 5000,
+    coverage: () => scene.canvases.map(c => ({ rect: c.rect, reason: 'vision_unavailable' })),
     async run() {
       const target = scene.canvases.find(c => c.channel === 'canvas_readable');
       if (!target) return { evidence: [] };

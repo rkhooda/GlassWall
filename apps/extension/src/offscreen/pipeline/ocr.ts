@@ -51,6 +51,14 @@ export const ocrSource: PerceptionSource = {
   id: 'ocr',
   timeout_ms: TIMEOUT_MS,
 
+  /**
+   * Pixels the DOM cannot explain are what OCR is the account for. Reported to
+   * sanitize() for the failures this source cannot report itself — it threw, or it
+   * hung past its timeout and never returned a SourceOutput at all.
+   */
+  coverage: (ctx: PerceptionContext) =>
+    findUnexplainedRegions(ctx.raw).map(r => ({ rect: r.rect, reason: OCR_UNAVAILABLE })),
+
   async run(ctx: PerceptionContext): Promise<SourceOutput> {
     stats.runs++;
 

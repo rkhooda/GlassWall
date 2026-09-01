@@ -37,6 +37,8 @@ export const nerSource: PerceptionSource = {
   id: 'ner',
   timeout_ms: TIMEOUT_MS,
 
+  coverage: (ctx: PerceptionContext) => textCoverage(ctx, NER_UNAVAILABLE),
+
   async run(ctx: PerceptionContext): Promise<SourceOutput> {
     const { text, ranges } = joinTextNodes(ctx.raw.text_nodes);
     if (!text.trim()) return { evidence: [] };
@@ -78,14 +80,23 @@ export const nerSource: PerceptionSource = {
   },
 };
 
+/**
+ * Free text is what NER is the account for. If it is gone, none of it is accounted
+ * for. Used by both failure paths: the one this source handles itself, and the one
+ * sanitize() handles when this source throws or hangs and never returns anything.
+ */
+function textCoverage(ctx: PerceptionContext, reason: string) {
+  return ctx.raw.text_nodes
+    .filter(node => node.text.trim().length > 0)
+    .map(node => ({ rect: node.rect, reason }));
+}
+
 /** No NER means no account of what the text says, so every text block is masked. */
 function unavailable(ctx: PerceptionContext): SourceOutput {
   return {
     evidence: [],
     degraded: [NER_UNAVAILABLE],
-    unexplained: ctx.raw.text_nodes
-      .filter(node => node.text.trim().length > 0)
-      .map(node => ({ rect: node.rect, reason: NER_UNAVAILABLE })),
+    unexplained: textCoverage(ctx, NER_UNAVAILABLE),
   };
 }
 

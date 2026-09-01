@@ -28,6 +28,19 @@ export interface PerceptionSource {
   id: string;
   timeout_ms: number;
   run(ctx: PerceptionContext): Promise<SourceOutput>;
+  /**
+   * The regions this source is the account for — what nobody else is looking at.
+   *
+   * `run()` handles its own failures and reports them as `unexplained`. This exists
+   * for the failures `run()` cannot report: it threw, or it never returned. In that
+   * case `sanitize()` has no output to read, and without this it would silently drop
+   * the source's whole domain — which is fail-OPEN, and was a measured leak before
+   * P14-B's chaos suite caught it (NER throwing raised leakage from 1 to 2 on the
+   * ablation scene while *lowering* the redaction count).
+   *
+   * A source that omits this cannot be compensated for when it dies. Implement it.
+   */
+  coverage?(ctx: PerceptionContext): Array<{ rect: [number, number, number, number]; reason: string }>;
 }
 
 /**
@@ -239,7 +252,15 @@ export async function sanitize(input: {
       const result = await runWithTimeout(source.run(ctx), source.timeout_ms, source.id);
 
       if (!result.ok) {
-        degraded.push(`${source.id}_${result.error.message.includes('timeout') ? 'timeout' : 'error'}`);
+        const reason = `${source.id}_${result.error.message.includes('timeout') ? 'timeout' : 'error'}`;
+        degraded.push(reason);
+        // A source that threw or hung produced no output at all, so it cannot mark
+        // its own regions unexplained the way its internal failure paths do. We do
+        // it for it: whatever it was the account for is now unaccounted for. Losing
+        // a source must cost utility, never privacy.
+        for (const region of source.coverage?.(ctx) ?? []) {
+          sourceUnexplained.push({ rect: region.rect, reason: `${source.id}: ${reason}` });
+        }
         continue;
       }
 
@@ -356,6 +377,31 @@ export async function sanitize(input: {
       for (const { value, handle } of ordered) {
         if (tokenizedText.includes(value)) tokenizedText = tokenizedText.split(value).join(handle);
       }
+
+      // Substitution only rewrites what a detector actually *found*. A fused region
+      // covering this text node says the opposite: nothing in the system can account
+      // for what it says. Elements have always been tokenized on that basis; text
+      // nodes were not, so a region could be redacted in the screenshot while its
+      // text went into the payload verbatim.
+      //
+      // That was a measured leak, found by the P14-B chaos suite: with NER
+      // force-failed, its text nodes were correctly marked unexplained and correctly
+      // redacted as pixels, and the names in them still shipped. Losing a detector
+      // raised leakage instead of lowering it, which is the one thing a fail-closed
+      // system may never do.
+      // Only *unaccounted* regions do this — a covering region carrying no evidence,
+      // which is the coverage pass or a dead source saying "nobody read this". A
+      // region backed by detections was already handled above, value by value, and
+      // replacing the whole paragraph there would throw away the structure that
+      // type-preserving tokenization exists to keep (PLAN.md §4.5).
+      const unaccounted = redactingRegions.some(
+        r => r.evidence.length === 0 && rectsOverlap(r.rect, tn.rect)
+      );
+      if (unaccounted && tokenizedText.trim().length > 0) {
+        tokenizedText =
+          getHandleForValue(tokenizer, registry, tokenizedText, 'PERSONAL') || '[REDACTED]';
+      }
+
       return { rawTextNode: tn, tokenizedText };
     });
 
