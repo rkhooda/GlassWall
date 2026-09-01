@@ -1,6 +1,6 @@
 # P11 ablation — fusion vs. every single source
 
-10 generator seeds (1–10) · node v24.20.0 · 2026-08-31
+10 generator seeds (1–10) · node v24.20.0 · 2026-09-01
 
 Every row is the same build with a different `source_weights` object from
 `config/policies/*.json`. Nothing is recompiled and no branch is taken on the

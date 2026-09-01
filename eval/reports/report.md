@@ -2,7 +2,7 @@
 
 ![frontier](./frontier.svg)
 
-**Measured 2026-08-31T20:34:23.489Z at `c4eceae75e2db0a7d93ac803cef0460df9456a5b`.** Every number below is as measured.
+**Measured 2026-09-01T06:12:22.123Z at `bd968d33d7483120936f8689951db95110fe6c29`.** Every number below is as measured.
 No leakage figure is rounded toward zero.
 
 ## Environment
@@ -13,7 +13,7 @@ No leakage figure is rounded toward zero.
 | OS | macOS 26.5 (arm64) |
 | Runtime | Node v24.20.0 |
 | Browser (Playwright chromium) | Google Chrome for Testing 151.0.7922.34 |
-| Commit | `c4eceae75e2db0a7d93ac803cef0460df9456a5b` |
+| Commit | `bd968d33d7483120936f8689951db95110fe6c29` |
 | Seeds per point | 10 |
 | Profile | BALANCED |
 
