@@ -249,7 +249,8 @@ Collected in one place so nobody has to find them scattered.
 pnpm install
 bash ml/fetch-models.sh            # add --sweep for the quantization table
 
-pnpm test                          # 475 tests
+pnpm test                          # 449 across the workspace
+cd eval && npx vitest run          # 33 more — eval is not a workspace member yet
 bash scripts/verify-boundary.sh    # 6/8 green, see above
 
 cd eval

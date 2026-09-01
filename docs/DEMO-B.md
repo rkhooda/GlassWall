@@ -17,7 +17,9 @@ computed live from the code in the repository.
 ```bash
 pnpm install
 bash ml/fetch-models.sh          # ~150MB, once per clone. Do this the night before.
-pnpm test                        # 482 green. If this is red, do not demo.
+pnpm test                        # 449 green across the workspace
+cd eval && npx vitest run        # 33 more. eval is not a workspace member yet, so
+                                 # turbo does not reach it. 482 total. If red, do not demo.
 ```
 
 Terminal at **18pt or larger**, two tabs open and `cd`'d:
@@ -123,8 +125,8 @@ The honest answer, and it is the strongest thing in the demo:
 > immediately, on two separate fail-open paths. A source that threw contributed nothing
 > at all — no evidence and no unexplained regions — so losing NER **raised** leakage
 > from 1 to 2. And a fused region was redacting the pixels of a text node while its text
-> shipped verbatim. Both are fixed, both fixes are in this table, and the commits are
-> `cdd1c80` and the one after it."*
+> shipped verbatim. Both are fixed, both fixes are in this table, and both are in
+> commit `cdd1c80` — `git show cdd1c80` if you want to read them."*
 
 ---
 
