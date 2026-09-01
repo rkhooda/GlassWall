@@ -1,5 +1,5 @@
-import { Sensitive } from './sensitive';
-import { VaultStore } from './vault';
+import type { Sensitive } from './sensitive';
+import type { VaultStore } from './vault';
 
 export interface Violation {
   code: string;
@@ -86,7 +86,7 @@ export async function resolveForBinding(
   const accepts = target.accepts;
 
   if (accepts.length > 0 && handleType !== 'none') {
-    const allowed = COMPATIBILITY_MATRIX[handleType] || [handleType];
+    const allowed = COMPATIBILITY_MATRIX[handleType] ?? [handleType];
     const hasMatch = accepts.some(a => allowed.includes(a));
 
     if (!hasMatch) {

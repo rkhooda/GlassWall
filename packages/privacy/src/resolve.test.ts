@@ -14,7 +14,7 @@ import { extractPiiTypeFromHandle, resolveForBinding, type BindingTarget } from 
  * properties in the system". It had no test until P15-B, which is exactly the kind of
  * claim that should not survive into a document unchecked.
  */
-async function vaultWith(entries: Array<{ handle: string; type: string; value: string }>) {
+async function vaultWith(entries: { handle: string; type: string; value: string }[]) {
   const store = createInMemoryVaultStore();
   for (const e of entries) {
     await store.set(e.handle, {
