@@ -50,24 +50,33 @@ twice.
 
 ## Beat 1 — deferred value binding · 0:00 → 1:20
 
-**The claim.** The form gets filled correctly, and the network log contains no email
-address. The value goes vault → page. It never transits the network or the model.
+**The claim.** The form gets filled correctly, and the network log contains none of the
+patient's identifiers. The value goes vault → page. It never transits the network or
+the model.
+
+*A note on the canary.* `PLAN.md` §4.5 phrases this beat around an email address.
+ClinicDesk does not render one — the identifiers it shows are a phone number and an
+Aadhaar — and MailLite, which would have had emails, was never built. So the canary is
+the **Aadhaar**, which is a strictly better demo: it is Tier 1, so it is vault-only
+under every profile and its handle carries no index at all. The property being shown is
+identical; only the value type differs. Do not say "email" on stage out of habit.
 
 ### Path A — live browser · 80s
 
 | t | action | what to say |
 |---|---|---|
-| 0:00 | ClinicDesk is open at `/clinicdesk/patient/8821`. DevTools **Network** tab is already open and filtered to `localhost:3000`. Side panel open on **STRICT**. | *"Left is the page. Right is everything the model will ever see."* |
-| 0:10 | Type `Fill the referral form for this patient` and press **Start Task**. | — |
-| 0:20 | Point at the **OUTBOUND** pane as it populates. | *"Every value is a handle. `⟦EMAIL#1⟧`. The model is being asked to reason about a shape, not a person."* |
-| 0:35 | The form fills. The email lands in the field, correctly. | *"It filled. Correctly."* |
-| 0:45 | Click the one request in the Network tab → **Payload**. Ctrl-F the email. **0 results.** | *"That is the whole request. The email is not in it."* |
+| 0:00 | ClinicDesk patient detail is open. DevTools **Network** tab open and filtered to `localhost:3000`. Side panel open on **BALANCED**. | *"Left is the page. Right is everything the model will ever see."* |
+| 0:10 | Type `Fill the insurance claim form for this patient` and press **Start Task**. | *"That form is in a cross-origin iframe, which is the hard case."* |
+| 0:20 | Point at the **OUTBOUND** pane as it populates. | *"Every value is a handle. The Aadhaar is `⟦AADHAAR⟧` — Tier 1, so it does not even get an index. The model cannot tell whether there is one of them or nine."* |
+| 0:35 | The claim form fills. The Aadhaar lands in its field, correctly. | *"It filled. Correctly. The content script resolved the handle locally and typed it."* |
+| 0:45 | Click the one request in the Network tab → **Payload**. Ctrl-F the Aadhaar. **0 results.** | *"That is the entire request. The number is not in it, and it never was."* |
 | 0:55 | **Hand the laptop to a judge.** Point at the inspector's search box. | *"Type any value you can see on that page."* |
 | 1:05 | They type it. **NOT PRESENT**, and the list of nine encodings it checked. | *"Nine encodings, because a base64'd secret is still a secret."* |
-| 1:12 | Then type `Referral — Cardiology`, a heading that is genuinely on the page. **FOUND.** | *"And it says yes when the answer is yes. It is not a green light that is always on."* |
+| 1:12 | Scroll to **Near-Miss Decoys**, copy the **PAN-shaped SKU**, search it. **FOUND.** | *"That one looks exactly like a PAN and fails its checksum, so we deliberately did not redact it — and the search says so. It answers yes when the answer is yes."* |
 
-That last ten seconds is the most important part of the beat. A search that can only
-say *no* proves nothing.
+That last ten seconds is the most important part of the beat, and the decoy is why. It
+proves the search is not a green light that is always on **and** that we do not redact
+every product code in sight — both in one keystroke.
 
 ### Path B — terminal · 80s
 
