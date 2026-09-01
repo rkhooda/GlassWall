@@ -106,8 +106,17 @@ export async function resolveForBinding(
   return ok(sensitiveValue);
 }
 
+/**
+ * Read the type out of a handle. Both shapes must parse: `⟦EMAIL#3⟧` for Tier 2+,
+ * and `⟦PASSWORD⟧` for Tier 1, which deliberately carries no index so that not even
+ * cardinality leaks.
+ *
+ * The Tier-1 shape used to return `'PASSWORD⟧'`, which matches nothing in the
+ * compatibility matrix — so a password could never be bound at all. Fail-closed, and
+ * therefore silent, and therefore worth a test.
+ */
 export function extractPiiTypeFromHandle(handle: string): PiiType {
-  const match = handle.match(/⟦([^#]+)#?/);
+  const match = handle.match(/⟦([^#⟧]+)[#⟧]/);
   if (match) return match[1] as PiiType;
   return 'NONE' as PiiType;
 }
