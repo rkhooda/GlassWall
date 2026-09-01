@@ -30,6 +30,7 @@ const RECOGNITION_BUDGET_MS = 6000;
 
 export const OCR_UNAVAILABLE = 'ocr_unavailable';
 export const OCR_TIMEOUT = 'ocr_timeout';
+export const SCREENSHOT_DISABLED = 'screenshot_disabled';
 
 let workerFailed = false;
 const stats = { runs: 0, skipped: 0, lastSkipReason: null as string | null };
@@ -55,6 +56,12 @@ export const ocrSource: PerceptionSource = {
 
     const regions = findUnexplainedRegions(ctx.raw);
     if (regions.length === 0) return skip(NO_UNEXPLAINED_CROPS);
+
+    // Gate on the policy, not on whether a frame happened to arrive. STRICT turns
+    // the screenshot path off, so there are no pixels and the 43MB engine is never
+    // loaded — measured in eval/reports/perf.md. The regions still go back as
+    // unexplained, so not loading the model costs utility and never privacy.
+    if (!ctx.screenshotEnabled) return unreadable(regions, SCREENSHOT_DISABLED);
     if (!ctx.frame) return unreadable(regions, 'no_frame');
 
     const { crops, deferred } = selectCrops(regions, MAX_CROPS_PER_STEP);

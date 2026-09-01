@@ -10,7 +10,7 @@ vi.mock('@glasswall/inference/ocr', async () => {
   return { ...actual, initOcrWorker, runOcrOnCrops };
 });
 
-const { OCR_TIMEOUT, OCR_UNAVAILABLE, getOcrStats, ocrSource, resetOcrState } = await import('./ocr');
+const { OCR_TIMEOUT, OCR_UNAVAILABLE, SCREENSHOT_DISABLED, getOcrStats, ocrSource, resetOcrState } = await import('./ocr');
 
 type Rect = [number, number, number, number];
 
@@ -55,6 +55,7 @@ const context = (elements: RawElement[], withFrame = true): PerceptionContext =>
   registry: new Map(),
   tokenizer: { tokenize: (v: string, t: string) => `⟦${t}⟧` } as never,
   policyProfile: 'BALANCED',
+  screenshotEnabled: true,
 });
 
 beforeEach(() => {
@@ -159,5 +160,32 @@ describe('evidence', () => {
 
     const out = await ocrSource.run(context([canvas('c', [0, 0, 10, 10])]));
     expect(out.evidence).toEqual([]);
+  });
+});
+
+describe('lazy loading by policy (P13-B)', () => {
+  it('never loads the OCR engine when the policy disables the screenshot', async () => {
+    const out = await ocrSource.run({
+      ...context([canvas('c', [0, 0, 300, 200])]),
+      screenshotEnabled: false,
+    });
+
+    expect(initOcrWorker).not.toHaveBeenCalled();
+    // Fail-closed: not loading the model costs utility, never privacy.
+    expect(out.evidence).toEqual([]);
+    expect(out.degraded).toContain(SCREENSHOT_DISABLED);
+    expect(out.unexplained).toEqual([{ rect: [0, 0, 300, 200], reason: SCREENSHOT_DISABLED }]);
+  });
+
+  it('gates on the policy, not on a frame that happened to arrive', async () => {
+    // A frame is present but the profile says no screenshot: the model still must
+    // not load. Gating on `frame !== null` would have loaded it here.
+    const out = await ocrSource.run({
+      ...context([canvas('c', [0, 0, 300, 200])], true),
+      screenshotEnabled: false,
+    });
+
+    expect(initOcrWorker).not.toHaveBeenCalled();
+    expect(out.degraded).toContain(SCREENSHOT_DISABLED);
   });
 });

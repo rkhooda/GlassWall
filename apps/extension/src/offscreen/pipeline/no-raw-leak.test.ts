@@ -93,12 +93,15 @@ describe('raw perception output never reaches the payload', () => {
     initOcrWorker.mockRejectedValueOnce(new Error('worker missing'));
     runNer.mockResolvedValue({ spans: [], modelId: 'ner-base', inferenceMs: 1 });
 
+    // BALANCED, because since P13-B STRICT never asks for the worker at all — its
+    // policy disables the screenshot, so there is nothing to read. That path is
+    // asserted in ocr.test.ts; this one is about the worker genuinely failing.
     const result = await sanitize({
       raw,
       frame,
       task: 'test',
       step: 1,
-      session: { session_id: 'sess', policy_profile: 'STRICT' },
+      session: { session_id: 'sess', policy_profile: 'BALANCED' },
       perceptionSources: [ocrSource],
     });
 
@@ -110,7 +113,10 @@ describe('raw perception output never reaches the payload', () => {
     // would pin an implementation detail rather than the property that matters.
     const covering = result.redactions.find(r => r.rect[0] <= 0 && r.rect[1] <= 0 && r.rect[2] >= 300);
     expect(covering, 'the unreadable canvas was not redacted').toBeDefined();
-    expect(covering!.reason).toMatch(/^(DROP|MASK):/);
+    // Only non-passing regions land in `redactions`, so presence is the assertion;
+    // which transformation depends on the profile's unexplained_prior (BALANCED
+    // tokenizes at 0.40, STRICT drops at 0.80). Any of them withholds the pixels.
+    expect(covering!.reason).toMatch(/^(DROP|MASK|TOKENIZE):/);
     expect(covering!.reason).toContain('canvas');
   });
 });

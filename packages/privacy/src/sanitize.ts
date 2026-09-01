@@ -52,6 +52,13 @@ export interface PerceptionContext {
   tokenizer: Tokenizer;
   /** Sources threshold their own confidence against the active profile. */
   policyProfile: PolicyConfig['name'];
+  /**
+   * Whether the active policy captures a screenshot at all. A pixel source must
+   * gate on this rather than on `frame !== null`: an absent frame is an accident,
+   * a disabled screenshot is a decision, and only the second one means "do not
+   * load the model". STRICT sets it false and never pays for OCR or vision.
+   */
+  screenshotEnabled: boolean;
 }
 
 export interface Evidence {
@@ -225,7 +232,10 @@ export async function sanitize(input: {
 
     for (const source of perceptionSources) {
       const sourceStart = Date.now();
-      const ctx: PerceptionContext = { raw, frame, registry, tokenizer, policyProfile };
+      const ctx: PerceptionContext = {
+        raw, frame, registry, tokenizer, policyProfile,
+        screenshotEnabled: policy.screenshot.enabled,
+      };
       const result = await runWithTimeout(source.run(ctx), source.timeout_ms, source.id);
 
       if (!result.ok) {

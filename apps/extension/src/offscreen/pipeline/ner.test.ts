@@ -34,6 +34,7 @@ const context = (nodes: RawTextNode[] = textNodes): PerceptionContext => ({
   registry: new Map(),
   tokenizer: { tokenize: (v: string, t: string) => `⟦${t}⟧` } as never,
   policyProfile: 'BALANCED',
+  screenshotEnabled: true,
 });
 
 beforeEach(() => {
