@@ -52,17 +52,81 @@ export function spanF1(
   return { precision, recall, f1, truePositives, falsePositives, falseNegatives };
 }
 
-/** Per-type recall — the P8 criterion names PERSON_NAME and STREET_ADDRESS. */
-export function recallByType(predicted: LabelledSpan[], gold: LabelledSpan[]): Record<string, number> {
-  const types = new Set(gold.map(g => g.type));
-  const out: Record<string, number> = {};
+/**
+ * Per-type precision, recall and F1. Types are taken from the union of gold and
+ * predicted, so a type the model hallucinates and gold never contains still shows
+ * up — at precision 0, which is the point.
+ */
+export function prfByType(
+  predicted: LabelledSpan[],
+  gold: LabelledSpan[],
+  minOverlap: number = 0.5
+): Record<string, PrfScore> {
+  const types = new Set([...gold, ...predicted].map(s => s.type));
+  const out: Record<string, PrfScore> = {};
   for (const type of types) {
     out[type] = spanF1(
       predicted.filter(p => p.type === type),
-      gold.filter(g => g.type === type)
-    ).recall;
+      gold.filter(g => g.type === type),
+      minOverlap
+    );
   }
   return out;
+}
+
+/** Per-type recall — the P8 criterion names PERSON_NAME and STREET_ADDRESS. */
+export function recallByType(predicted: LabelledSpan[], gold: LabelledSpan[]): Record<string, number> {
+  return Object.fromEntries(Object.entries(prfByType(predicted, gold)).map(([t, s]) => [t, s.recall]));
+}
+
+export interface NearMiss {
+  value: string;
+  type: string;
+}
+
+export interface NearMissScore {
+  total: number;
+  falsePositives: number;
+  /** Fraction of decoys the detector wrongly flagged. Lower is better; 0 is the goal. */
+  rate: number;
+  byType: Record<string, { total: number; falsePositives: number; rate: number }>;
+  flaggedValueTypes: string[];
+}
+
+/**
+ * False-positive rate against the seeded decoys — values shaped exactly like the
+ * real thing but failing their checksum (an Aadhaar that fails Verhoeff, a card
+ * that fails Luhn, a PAN with a bad final letter).
+ *
+ * A regex that matches these has learned the shape and not the identifier, and a
+ * detector that redacts every order number is one nobody will leave switched on.
+ * This is the number that keeps precision honest when recall is being pushed up.
+ */
+export function nearMissFalsePositiveRate(
+  decoys: NearMiss[],
+  flagged: (decoy: NearMiss) => boolean
+): NearMissScore {
+  const byType: NearMissScore['byType'] = {};
+  const flaggedValueTypes: string[] = [];
+
+  for (const decoy of decoys) {
+    const bucket = (byType[decoy.type] ??= { total: 0, falsePositives: 0, rate: 0 });
+    bucket.total++;
+    if (flagged(decoy)) {
+      bucket.falsePositives++;
+      flaggedValueTypes.push(decoy.type);
+    }
+  }
+  for (const bucket of Object.values(byType)) bucket.rate = ratio(bucket.falsePositives, bucket.total);
+
+  const falsePositives = flaggedValueTypes.length;
+  return {
+    total: decoys.length,
+    falsePositives,
+    rate: ratio(falsePositives, decoys.length),
+    byType,
+    flaggedValueTypes: [...new Set(flaggedValueTypes)].sort(),
+  };
 }
 
 function spanIou(a: LabelledSpan, b: LabelledSpan): number {
