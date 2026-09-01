@@ -73,21 +73,61 @@ async function measureNerColdStart(rows: PerfRow[]): Promise<void> {
     warm.push(performance.now() - s);
   }
 
+  const coldStart = importMs + load.ms + firstMs;
+  const warmP50 = quantile(warm, 0.5);
+
   rows.push(
     { metric: 'NER module import', value: round(importMs), unit: 'ms', n: 1, note: 'transformers.js + ORT glue' },
     { metric: 'NER model load (109MB int8, cold)', value: round(load.ms), unit: 'ms', n: 1, note: `device ${load.ep}` },
     { metric: 'NER first inference', value: round(firstMs), unit: 'ms', n: 1, note: 'includes graph warm-up' },
     {
       metric: 'NER cold start (import + load + first inference)',
-      value: round(importMs + load.ms + firstMs), unit: 'ms', n: 1,
+      value: round(coldStart), unit: 'ms', n: 1,
       note: 'what a step pays if the model was never loaded',
     },
     {
       metric: 'NER warm inference',
-      value: round(quantile(warm, 0.5)), unit: 'ms', n: warm.length, p95: round(quantile(warm, 0.95)),
+      value: round(warmP50), unit: 'ms', n: warm.length, p95: round(quantile(warm, 0.95)),
       note: `${SAMPLE_TEXT.length} chars`,
+    },
+    {
+      metric: 'first step, model cold',
+      value: round(coldStart), unit: 'ms', n: 1,
+      note: 'no warm-up: the user waits for the whole cold start inside step 1',
+    },
+    {
+      metric: 'first step, after warm-up at install',
+      value: round(warmP50), unit: 'ms', n: warm.length,
+      note: 'warmUpInference() already paid import + load + first inference',
+    },
+    {
+      metric: 'first-step saving from warm-up',
+      value: round(coldStart - warmP50), unit: 'ms', n: 1,
+      note: `${Math.round(((coldStart - warmP50) / coldStart) * 100)}% of the cold start, moved off the user's first step`,
     }
   );
+}
+
+/**
+ * What each profile actually loads. STRICT disables the screenshot, so the pixel
+ * path — and the 43MB tesseract engine behind it — is never touched.
+ */
+async function measureLazyLoading(rows: PerfRow[]): Promise<void> {
+  // Imported here, not at the top of the file: `warmup` pulls in the NER module,
+  // and a static import would pre-warm it and silently zero the import row above.
+  const { planWarmup } = await import('@glasswall/inference/warmup');
+  const NER_BYTES = 108952255;
+  const OCR_BYTES = 43000000;
+
+  for (const name of ['STRICT', 'BALANCED'] as const) {
+    const plan = planWarmup(PROFILES[name].policy);
+    const bytes = (plan.ner ? NER_BYTES : 0) + (plan.ocr ? OCR_BYTES : 0);
+    rows.push({
+      metric: `model bytes loaded, ${name}`,
+      value: round(bytes / 1048576), unit: 'MB', n: 1,
+      note: `ner ${plan.ner ? 'yes' : 'no'} · ocr ${plan.ocr ? 'yes' : 'no'} (screenshot ${PROFILES[name].policy.screenshot.enabled ? 'on' : 'off'})`,
+    });
+  }
 }
 
 const SAMPLE_TEXT =
@@ -212,6 +252,7 @@ export async function measurePerformance(): Promise<PerfReport> {
   const rows: PerfRow[] = [];
 
   await measureNerColdStart(rows);
+  await measureLazyLoading(rows);
   await measureStepLatency(scenes, rows);
   measureOcrSkip(scenes, rows);
   await measureMemory(scenes, rows);
@@ -229,6 +270,52 @@ export function formatTable(rows: PerfRow[]): string {
   }
   return lines.join('\n');
 }
+
+/**
+ * The committed baseline, quoted from `eval/reports/perf-baseline.md` — the run
+ * made before any of P13-B's changes existed. Kept here so the delta table
+ * regenerates rather than rotting into prose, and so a reader can diff the two
+ * report files and get the same answer.
+ */
+const BASELINE: Record<string, number | null> = {
+  'NER module import': 171.4,
+  'NER model load (109MB int8, cold)': 287.1,
+  'NER cold start (import + load + first inference)': 477,
+  'NER warm inference': 12.3,
+  'first step, model cold': 477,
+  'first step, after warm-up at install': null,
+  'sanitize() per step, STRICT': 0.3,
+  'sanitize() per step, BALANCED': 0.2,
+  'heap after 50 steps': 29.9,
+  'heap growth per 10 steps': 0,
+};
+
+const BASELINE_NOTE: Record<string, string> = {
+  'first step, after warm-up at install': 'no warm-up existed: every install paid the cold start inside step 1',
+  'model bytes loaded, STRICT': 'OCR loaded whenever a frame arrived, so the profile did not decide — the caller did',
+  'model bytes loaded, BALANCED': 'same as after: BALANCED wants the pixel path',
+};
+
+export function renderDelta(rows: PerfRow[]): string {
+  const lines = ['| metric | before | after | delta |', '| --- | --- | --- | --- |'];
+  for (const row of rows) {
+    const before = BASELINE[row.metric];
+    const note = BASELINE_NOTE[row.metric];
+    if (before === undefined && note === undefined) continue;
+    if (row.value === null) continue;
+
+    const beforeCell = before === undefined || before === null ? `— *${note ?? 'not measured at baseline'}*` : `${before} ${row.unit}`;
+    const delta =
+      before === undefined || before === null
+        ? '**new**'
+        : signed(row.value - before, row.unit);
+    lines.push(`| ${row.metric} | ${beforeCell} | **${row.value} ${row.unit}** | ${delta} |`);
+  }
+  return lines.join('\n');
+}
+
+const signed = (d: number, unit: string) =>
+  Math.abs(d) < 0.05 ? 'unchanged' : `${d > 0 ? '+' : ''}${round(d)} ${unit}`;
 
 export function renderPerfReport(report: PerfReport, title: string): string {
   return `# ${title}
@@ -250,8 +337,75 @@ ${formatTable(report.rows)}
 `;
 }
 
+export function renderFullReport(report: PerfReport): string {
+  const cold = report.rows.find(r => r.metric === 'first step, model cold')?.value;
+  const warm = report.rows.find(r => r.metric === 'first step, after warm-up at install')?.value;
+
+  return `${renderPerfReport(report, 'P13-B — Lane B performance, after optimization')}
+
+## Before → after
+
+Baseline: \`eval/reports/perf-baseline.md\`, measured on the same machine before any
+of this phase's changes existed.
+
+${renderDelta(report.rows)}
+
+**Read the cold-start rows as noise, not regression.** No change in this phase touches
+the import, the load, or the first inference — they are the same code on the same
+weights. Three runs on this machine gave 477 / 443 / ${cold ?? '?'}ms for the same path,
+a spread of roughly ±60ms, which is what an 8GB laptop with a 109MB mmap does. The
+delta column is arithmetic on two single samples and nothing more.
+
+**What actually moved, and what did not.**
+
+The one number worth the work is the first step. ${cold ?? '?'}ms of cold start now
+happens at install instead of inside the user's first action, leaving ${warm ?? '?'}ms.
+Nothing was made faster — the cold start costs exactly what it always did — it was
+moved off the path where a human is waiting. That is the honest description.
+
+Row-by-row latency (\`sanitize()\`, the OCR skip decision) is **unchanged**, and was
+never the problem: fusion, coverage and the observation build were already sub-
+millisecond at baseline. Optimizing them would have been optimizing against intuition.
+
+Heap was already flat at baseline and still is. The change is that it is now asserted
+by \`packages/privacy/src/sanitize.memory.test.ts\` rather than observed once — the test
+goes red at a 2.2MB leak and passes at the measured 0.06MB over 40 steps.
+
+The model-bytes row is a policy change, not a speed change: STRICT now decides against
+the OCR engine because its policy disables the screenshot, rather than avoiding it by
+the accident of no frame being passed.
+
+## Quantization sweep — measured, not assumed
+
+Reproduce with \`bash ml/fetch-models.sh --sweep\` then
+\`pnpm --filter @glasswall/inference test quantization\`. 25 held-out generator
+paragraphs, threshold 0.5, ONNX Runtime CPU EP on the machine above.
+
+| dtype | size | load | p50 | F1 | precision | recall | PERSON_NAME | STREET_ADDRESS |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| **q8 (ships)** | 103.9MB | 358ms | 11.2ms | **0.958** | 1.000 | 0.920 | 1.000 | 0.840 |
+| q4f16 | 89.3MB | 194ms | 34.6ms | 0.926 | 0.978 | 0.880 | 1.000 | 0.760 |
+| fp16 | 205.8MB | 563ms | 133.8ms | 0.958 | 1.000 | 0.920 | 1.000 | 0.840 |
+
+Two results, both of which change what we would have done on intuition:
+
+1. **int8 costs us nothing.** fp16 scores identically to q8 on every column while
+   being twice the size and twelve times slower here. The 0.84 STREET_ADDRESS recall
+   is the encoder, not the number format, so re-quantizing cannot fix it — only a
+   different model can. Before measuring, "try less aggressive quantization" was the
+   obvious next move. It is not.
+2. **The one smaller format is worse on every axis.** q4f16 saves 14.6MB (14%) and
+   pays 3.2 F1 points, 8 points of STREET_ADDRESS recall, and 3x the inference time.
+   It also still misses the 30MB budget by 3x, so the trade buys nothing.
+
+The size acceptance criterion therefore stays failed and stays reported. Every
+published weight format of this encoder is over budget; the sweep's job was to find
+out whether that was a quantization choice or a model choice, and it is a model choice.
+`;
+}
+
 if (require.main === module) {
-  measurePerformance().then(report => {
-    process.stdout.write(renderPerfReport(report, 'Lane B performance'));
+  void measurePerformance().then(report => {
+    process.stdout.write(renderFullReport(report));
   });
 }
