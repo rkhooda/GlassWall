@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": { "jsx": "react-jsx", "composite": false, "noEmit": true },
+  "include": ["packages/*/src", "apps/*/src", "eval/harness", "eval/leakage", "eval/metrics", "eval/ablations"]
+}

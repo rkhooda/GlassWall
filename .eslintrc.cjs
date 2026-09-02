@@ -15,7 +15,7 @@ module.exports = {
   parserOptions: {
     ecmaVersion: "latest",
     sourceType: "module",
-    project: ["./packages/*/tsconfig.json", "./apps/*/tsconfig.json", "./eval/tsconfig.json"],
+    project: ["./tsconfig.eslint.json"],
     tsconfigRootDir: __dirname
   },
   plugins: ["@typescript-eslint"],
@@ -57,7 +57,7 @@ module.exports = {
   },
   overrides: [
     {
-      "files": ["apps/extension/src/background/net.ts"],
+      "files": ["apps/extension/src/background/net.ts", "apps/backend/**"],
       "rules": {
         "no-restricted-globals": "off"
       }
