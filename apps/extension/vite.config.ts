@@ -15,16 +15,19 @@ export const workspaceAliases = [
 // GLASSWALL_EVAL_BUILD=1 produces dist-eval: the same code with <all_urls>, so the
 // Playwright harness can capture screenshots without a toolbar click. The shipped
 // manifest keeps activeTab + an optional per-site permission requested on Start.
-const evalBuild = process.env.GLASSWALL_EVAL_BUILD === '1';
+const unsafeBuild = process.env.GLASSWALL_UNSAFE_PASSTHROUGH === '1';
+const evalBuild = process.env.GLASSWALL_EVAL_BUILD === '1' || unsafeBuild;
 const effectiveManifest = evalBuild
-  ? { ...manifest, name: `${manifest.name} (eval build)`, host_permissions: [...manifest.host_permissions, '<all_urls>'] }
+  ? { ...manifest, name: `${manifest.name} (${unsafeBuild ? 'UNSAFE negative control' : 'eval build'})`, host_permissions: [...manifest.host_permissions, '<all_urls>'] }
   : manifest;
 
 export default defineConfig({
   plugins: [react(), crx({ manifest: effectiveManifest })],
   resolve: { alias: workspaceAliases },
+  // The negative control compiles the unsafe path in; every other build compiles it out.
+  define: { __GW_UNSAFE_PASSTHROUGH__: JSON.stringify(unsafeBuild) },
   build: {
-    outDir: evalBuild ? 'dist-eval' : 'dist',
+    outDir: unsafeBuild ? 'dist-unsafe' : evalBuild ? 'dist-eval' : 'dist',
     emptyOutDir: true,
     rollupOptions: {
       // Pages that the manifest does not reference directly.

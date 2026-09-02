@@ -1,6 +1,6 @@
 # P11 ablation — fusion vs. every single source
 
-10 generator seeds (1–10) · node v24.20.0 · 2026-09-01
+10 generator seeds (1–10) · node v24.20.0 · 2026-09-02
 
 Every row is the same build with a different `source_weights` object from
 `config/policies/*.json`. Nothing is recompiled and no branch is taken on the
@@ -10,29 +10,29 @@ configuration name — an ablation here is literally setting `w_i` to 0.
 
 | config | source(s) | PII recall | σ | dom_structured | dom_free_text | canvas_readable | canvas_opaque | leaked |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| A1 | DOM only (regex) | **0.600** | 0.000 | 1.00 | 0.00 | 0.00 | 0.00 | 7 |
-| A2 | NER only | **0.133** | 0.000 | 0.00 | 1.00 | 0.00 | 0.00 | 7 |
-| A3 | OCR only | **0.133** | 0.000 | 0.00 | 0.00 | 1.00 | 0.00 | 7 |
-| A4 | vision only | **0.000** | 0.000 | 0.00 | 0.00 | 0.00 | 0.00 | 7 |
-| A5 | explain-or-redact only | **0.267** | 0.000 | 0.00 | 0.00 | 1.00 | 1.00 | 7 |
-| A6 | fusion, no coverage | **0.867** | 0.000 | 1.00 | 1.00 | 1.00 | 0.00 | 7 |
-| A7 | fusion + explain-or-redact | **1.000** | 0.000 | 1.00 | 1.00 | 1.00 | 1.00 | 7 |
-| A8 | fusion + explain-or-redact, vision disabled | **1.000** | 0.000 | 1.00 | 1.00 | 1.00 | 1.00 | 7 |
-| A9 | fusion, no coverage, vision disabled | **0.867** | 0.000 | 1.00 | 1.00 | 1.00 | 0.00 | 7 |
+| A1 | DOM only (regex) | **0.600** | 0.000 | 1.00 | 0.00 | 0.00 | 0.00 | 5 |
+| A2 | NER only | **0.133** | 0.000 | 0.00 | 1.00 | 0.00 | 0.00 | 5 |
+| A3 | OCR only | **0.133** | 0.000 | 0.00 | 0.00 | 1.00 | 0.00 | 5 |
+| A4 | vision only | **0.000** | 0.000 | 0.00 | 0.00 | 0.00 | 0.00 | 5 |
+| A5 | explain-or-redact only | **0.267** | 0.000 | 0.00 | 0.00 | 1.00 | 1.00 | 5 |
+| A6 | fusion, no coverage | **0.867** | 0.000 | 1.00 | 1.00 | 1.00 | 0.00 | 5 |
+| A7 | fusion + explain-or-redact | **1.000** | 0.000 | 1.00 | 1.00 | 1.00 | 1.00 | 5 |
+| A8 | fusion + explain-or-redact, vision disabled | **1.000** | 0.000 | 1.00 | 1.00 | 1.00 | 1.00 | 5 |
+| A9 | fusion, no coverage, vision disabled | **0.867** | 0.000 | 1.00 | 1.00 | 1.00 | 0.00 | 5 |
 
 ## STRICT
 
 | config | source(s) | PII recall | σ | dom_structured | dom_free_text | canvas_readable | canvas_opaque | leaked |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| A1 | DOM only (regex) | **0.600** | 0.000 | 1.00 | 0.00 | 0.00 | 0.00 | 7 |
-| A2 | NER only | **0.133** | 0.000 | 0.00 | 1.00 | 0.00 | 0.00 | 7 |
-| A3 | OCR only | **0.133** | 0.000 | 0.00 | 0.00 | 1.00 | 0.00 | 7 |
-| A4 | vision only | **0.000** | 0.000 | 0.00 | 0.00 | 0.00 | 0.00 | 7 |
-| A5 | explain-or-redact only | **0.267** | 0.000 | 0.00 | 0.00 | 1.00 | 1.00 | 7 |
-| A6 | fusion, no coverage | **0.867** | 0.000 | 1.00 | 1.00 | 1.00 | 0.00 | 7 |
-| A7 | fusion + explain-or-redact | **1.000** | 0.000 | 1.00 | 1.00 | 1.00 | 1.00 | 7 |
-| A8 | fusion + explain-or-redact, vision disabled | **1.000** | 0.000 | 1.00 | 1.00 | 1.00 | 1.00 | 7 |
-| A9 | fusion, no coverage, vision disabled | **0.867** | 0.000 | 1.00 | 1.00 | 1.00 | 0.00 | 7 |
+| A1 | DOM only (regex) | **0.600** | 0.000 | 1.00 | 0.00 | 0.00 | 0.00 | 5 |
+| A2 | NER only | **0.133** | 0.000 | 0.00 | 1.00 | 0.00 | 0.00 | 5 |
+| A3 | OCR only | **0.133** | 0.000 | 0.00 | 0.00 | 1.00 | 0.00 | 5 |
+| A4 | vision only | **0.000** | 0.000 | 0.00 | 0.00 | 0.00 | 0.00 | 5 |
+| A5 | explain-or-redact only | **0.267** | 0.000 | 0.00 | 0.00 | 1.00 | 1.00 | 5 |
+| A6 | fusion, no coverage | **0.867** | 0.000 | 1.00 | 1.00 | 1.00 | 0.00 | 5 |
+| A7 | fusion + explain-or-redact | **1.000** | 0.000 | 1.00 | 1.00 | 1.00 | 1.00 | 5 |
+| A8 | fusion + explain-or-redact, vision disabled | **1.000** | 0.000 | 1.00 | 1.00 | 1.00 | 1.00 | 5 |
+| A9 | fusion, no coverage, vision disabled | **0.867** | 0.000 | 1.00 | 1.00 | 1.00 | 0.00 | 5 |
 
 ## Reading it
 

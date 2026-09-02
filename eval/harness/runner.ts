@@ -1,320 +1,135 @@
-import * as fs from 'fs';
-import * as path from 'path';
+// Runs task definitions through the real extension and collects everything the
+// metrics need: audit entries per step, gateway traffic, ground truth sampled from
+// the page, and predicate results.
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import * as yaml from 'js-yaml';
-import { launchExtension, closeExtension, ExtensionContext, DriverConfig, NetworkCapture, createNetworkCapture, navigateToTask, waitForExtensionReady, sendMessageToExtension, evaluateOnPage } from './driver';
-import { checkPredicate, PredicateResult } from './predicates';
+import { launch, openPage, drive, type Harness, type DriveResult, type WireRequest, type AuditEntry } from './driver';
+import { checkPredicate, personaFields, type Predicate, type PredicateResult } from './predicates';
 
 export interface TaskDefinition {
   id: string;
   site: string;
   entry: string;
   instruction: string;
-  seed: number;
   max_steps: number;
-  success: SuccessPredicate[];
-  expected_redactions?: string[];
-  forbidden_in_payload?: string[];
+  policies?: Array<'STRICT' | 'BALANCED'>;
+  success: Predicate[];
 }
 
-export interface SuccessPredicate {
-  kind: string;
-  pattern?: string;
-  selector_map?: Record<string, string>;
-  [key: string]: any;
+export interface GroundTruthSnapshot {
+  step: number;
+  /** Visible interactive controls on the page, by tag and viewport rect. */
+  controls: Array<{ tag: string; rect: [number, number, number, number] }>;
+  /** PII values on screen with their type and rect. */
+  pii: Array<{ type: string; value: string; rect: [number, number, number, number]; decoy: boolean }>;
+  /** Pixel regions inside canvases/images that hold PII, in viewport px. */
+  regions: Array<{ type: string; rect: [number, number, number, number] }>;
+  /** Inputs that will hold PII (autocomplete / password): redacting them is anticipatory shielding, not a false positive. */
+  fields: Array<{ rect: [number, number, number, number] }>;
 }
 
-export interface RunResult {
+export interface RunRecord {
   taskId: string;
   seed: number;
+  policy: 'STRICT' | 'BALANCED';
   success: boolean;
-  steps: StepResult[];
   predicates: PredicateResult[];
-  networkCapture: NetworkCapture;
-  timings: TimingMetrics;
-  error?: string;
-  flakyRetries: number;
+  result: DriveResult;
+  wire: WireRequest[];
+  truth: GroundTruthSnapshot[];
+  persona: Record<string, string>;
+  errors: string[];
 }
 
-export interface StepResult {
-  stepIndex: number;
-  action: any;
-  result: any;
-  observationId: string;
-  durationMs: number;
-}
-
-export interface TimingMetrics {
-  totalMs: number;
-  perceptionMs: number;
-  sanitizeMs: number;
-  gateMs: number;
-  networkMs: number;
-  executeMs: number;
-  verifyMs: number;
-  stepTimings: Array<{
-    step: number;
-    perception: number;
-    sanitize: number;
-    gate: number;
-    network: number;
-    execute: number;
-    verify: number;
-    total: number;
-  }>;
-}
-
-export interface SuiteConfig {
-  tasksDir: string;
+export interface SuiteOptions {
   extensionPath: string;
   baseUrl: string;
+  tasks: TaskDefinition[];
+  seeds: number[];
+  policies: Array<'STRICT' | 'BALANCED'>;
   headless?: boolean;
-  slowMo?: number;
-  retries?: number;
-  smokeTasks?: string[];
-  seeds?: number[];
-  policyProfile?: 'STRICT' | 'BALANCED' | 'PERMISSIVE';
-  outputDir?: string;
+  timeoutMs?: number;
+  log?: (line: string) => void;
 }
 
-const DEFAULT_CONFIG: Partial<SuiteConfig> = {
-  headless: false,
-  slowMo: 0,
-  retries: 3,
-  seeds: [1337],
-  policyProfile: 'STRICT',
-  outputDir: 'eval/reports',
-};
-
-export async function loadTask(filePath: string): Promise<TaskDefinition> {
-  const content = fs.readFileSync(filePath, 'utf-8');
-  return yaml.load(content) as TaskDefinition;
+export function loadTasks(dir: string, only?: string[]): TaskDefinition[] {
+  return fs
+    .readdirSync(dir)
+    .filter(f => /\.ya?ml$/.test(f))
+    .map(f => yaml.load(fs.readFileSync(path.join(dir, f), 'utf8')) as TaskDefinition)
+    .filter(t => !only || only.includes(t.id))
+    .sort((a, b) => a.id.localeCompare(b.id));
 }
 
-export async function loadAllTasks(tasksDir: string): Promise<TaskDefinition[]> {
-  const files = fs.readdirSync(tasksDir).filter(f => f.endsWith('.yaml') || f.endsWith('.yml'));
-  const tasks: TaskDefinition[] = [];
-  for (const file of files) {
-    const task = await loadTask(path.join(tasksDir, file));
-    tasks.push(task);
+/**
+ * Ground truth is read from the bench-site instrumentation; the extension never sees
+ * these attributes. Plain JS in a string: tsx would otherwise inject a `__name`
+ * helper into the serialized callback that does not exist in the page.
+ */
+const SNAPSHOT_JS = `(step) => {
+  const rectOf = el => { const b = el.getBoundingClientRect(); return [Math.round(b.left), Math.round(b.top), Math.round(b.width), Math.round(b.height)]; };
+  const visible = Array.from(document.querySelectorAll('input:not([type=hidden]), button, a[href], select, textarea, [data-glasswall-pii], [data-glasswall-regions]')).filter(el => {
+    const b = el.getBoundingClientRect(); const s = getComputedStyle(el);
+    return b.width > 0 && b.height > 0 && b.bottom > 0 && b.right > 0 && b.top < innerHeight && b.left < innerWidth && s.visibility !== 'hidden' && s.display !== 'none';
+  });
+  const controls = visible.filter(el => /^(input|button|a|select|textarea)$/i.test(el.tagName)).map(el => ({ tag: el.tagName.toLowerCase(), rect: rectOf(el) }));
+  const pii = visible.filter(el => el.hasAttribute('data-glasswall-pii') && el.getAttribute('data-glasswall-pii') !== 'NONE' && (el.textContent || '').trim().length > 0)
+    .map(el => ({ type: el.getAttribute('data-glasswall-pii'), value: (el.textContent || '').trim(), rect: rectOf(el), decoy: el.getAttribute('data-glasswall-decoy') === 'true' }));
+  const regions = [];
+  for (const el of visible.filter(el => el.hasAttribute('data-glasswall-regions'))) {
+    const base = el.getBoundingClientRect();
+    try { for (const reg of JSON.parse(el.getAttribute('data-glasswall-regions'))) regions.push({ type: reg.pii, rect: [Math.round(base.left + reg.x), Math.round(base.top + reg.y), Math.round(reg.w), Math.round(reg.h)] }); } catch (e) {}
   }
-  return tasks;
+  const fields = visible.filter(el => /^(input|textarea)$/i.test(el.tagName) && (el.getAttribute('autocomplete') || el.getAttribute('type') === 'password' || /email|tel/.test(el.getAttribute('type') || ''))).map(el => ({ rect: rectOf(el) }));
+  return { step, controls, pii, regions, fields };
+}`;
+
+export async function snapshotTruth(h: Harness, step: number): Promise<GroundTruthSnapshot> {
+  return h.page.evaluate(`(${SNAPSHOT_JS})(${step})`) as Promise<GroundTruthSnapshot>;
 }
 
-export async function runTask(
-  task: TaskDefinition,
-  config: SuiteConfig,
-  seed: number
-): Promise<RunResult> {
-  const extensionPath = config.extensionPath;
-  const baseUrl = config.baseUrl;
-  const headless = config.headless ?? false;
-  const slowMo = config.slowMo ?? 0;
-  const policyProfile = config.policyProfile ?? 'STRICT';
-
-  let extContext: ExtensionContext | null = null;
-  let lastError: Error | null = null;
-  let flakyRetries = 0;
-
-  for (let attempt = 0; attempt <= (config.retries ?? 3); attempt++) {
-    try {
-      if (attempt > 0) {
-        flakyRetries++;
-        console.log(`[${task.id}] Retry attempt ${attempt}/${config.retries} (seed: ${seed})`);
-      }
-
-      extContext = await launchExtension({
-        extensionPath,
-        headless,
-        slowMo,
-      });
-
-      await waitForExtensionReady(extContext.page, extContext.extensionId);
-
-      const startUrl = `${baseUrl}${task.entry}?seed=${seed}`;
-      await navigateToTask(extContext.page, startUrl);
-
-      await sendMessageToExtension(extContext.page, extContext.extensionId, {
-        type: 'extension:start-task',
-        payload: {
-          task: task.instruction,
-          policyProfile,
-          siteAllowlist: ['localhost'],
-        },
-      });
-
-      const stepResults: StepResult[] = [];
-      const networkCapture = createNetworkCapture(extContext.cdpSession);
-      const startTime = Date.now();
-      let stepIndex = 0;
-
-      while (stepIndex < task.max_steps) {
-        const stepStart = Date.now();
-        
-        await extContext.page.waitForFunction(
-          (extId: string) => {
-            return !!(window as any).__GLASSWALL_STEP_COMPLETE__ && (window as any).__GLASSWALL_STEP_COMPLETE__[extId];
-          },
-          extContext.extensionId,
-          { timeout: 60000 }
-        );
-
-        const traceEntry = await evaluateOnPage(extContext!.page, () => {
-          return (window as any).__GLASSWALL_LAST_TRACE__?.[extContext!.extensionId];
-        });
-
-        if (!traceEntry) {
-          throw new Error('No trace entry received from extension');
+export async function runTask(task: TaskDefinition, seed: number, policy: 'STRICT' | 'BALANCED', opts: SuiteOptions): Promise<RunRecord> {
+  const h = await launch({ extensionPath: opts.extensionPath, headless: opts.headless });
+  const truth: GroundTruthSnapshot[] = [];
+  try {
+    await openPage(h, `${opts.baseUrl}${task.entry}${task.entry.includes('?') ? '&' : '?'}seed=${seed}`);
+    truth.push(await snapshotTruth(h, 0));
+    const result = await drive(h, {
+      task: task.instruction,
+      policy,
+      timeoutMs: opts.timeoutMs ?? Math.max(60_000, task.max_steps * 12_000),
+      onStep: async entry => {
+        try {
+          truth.push(await snapshotTruth(h, entry.step + 1));
+        } catch {
+          /* page navigating */
         }
+      },
+    });
+    const predicates: PredicateResult[] = [];
+    for (const p of task.success) predicates.push(await checkPredicate(p, h.page, result, seed));
+    return { taskId: task.id, seed, policy, success: predicates.every(p => p.passed), predicates, result, wire: [...h.wire], truth, persona: personaFields(seed), errors: [...h.errors] };
+  } finally {
+    await h.close();
+  }
+}
 
-        stepResults.push({
-          stepIndex: traceEntry.step,
-          action: traceEntry.action,
-          result: traceEntry.result,
-          observationId: traceEntry.observationId || '',
-          durationMs: Date.now() - stepStart,
-        });
-
-        if (traceEntry.action?.type === 'DONE') {
-          break;
-        }
-
-        stepIndex++;
+export async function runSuite(opts: SuiteOptions): Promise<RunRecord[]> {
+  const out: RunRecord[] = [];
+  for (const task of opts.tasks) {
+    for (const policy of (task.policies ?? opts.policies)) {
+      if (!opts.policies.includes(policy)) continue;
+      for (const seed of opts.seeds) {
+        opts.log?.(`▶ ${task.id} · ${policy} · seed ${seed}`);
+        const rec = await runTask(task, seed, policy, opts);
+        out.push(rec);
+        opts.log?.(`  ${rec.success ? 'PASS' : 'FAIL'} · ${rec.result.audit.length} steps · ${(rec.result.totalMs / 1000).toFixed(1)}s · ${rec.result.state.status}${rec.result.state.outcome ? '/' + rec.result.state.outcome : ''}${rec.result.state.message ? ` · ${rec.result.state.message}` : ''}${rec.errors.length ? ` · ${rec.errors.length} console errors` : ''}`);
+        for (const p of rec.predicates) if (!p.passed) opts.log?.(`    ✗ ${p.kind}: ${p.message}`);
       }
-
-      const totalMs = Date.now() - startTime;
-
-      const timings = calculateTimings(stepResults, totalMs);
-
-      const predicates = await Promise.all(
-        task.success.map(pred => checkPredicate(pred, extContext!, task, seed))
-      );
-
-      const success = predicates.every(p => p.passed);
-
-      return {
-        taskId: task.id,
-        seed,
-        success,
-        steps: stepResults,
-        predicates,
-        networkCapture,
-        timings,
-        flakyRetries,
-      };
-    } catch (error) {
-      lastError = error instanceof Error ? error : new Error(String(error));
-      console.error(`[${task.id}] Attempt ${attempt + 1} failed:`, lastError.message);
-      
-      if (extContext) {
-        await closeExtension(extContext);
-        extContext = null;
-      }
-      
-      if (attempt === (config.retries ?? 3)) {
-        break;
-      }
-      
-      await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
     }
   }
-
-  if (extContext) {
-    await closeExtension(extContext);
-  }
-
-  throw lastError || new Error('Task failed after all retries');
+  return out;
 }
 
-function calculateTimings(steps: StepResult[], totalMs: number): TimingMetrics {
-  return {
-    totalMs,
-    perceptionMs: 0,
-    sanitizeMs: 0,
-    gateMs: 0,
-    networkMs: 0,
-    executeMs: 0,
-    verifyMs: 0,
-    stepTimings: steps.map((s, i) => ({
-      step: i,
-      perception: 0,
-      sanitize: 0,
-      gate: 0,
-      network: 0,
-      execute: s.durationMs,
-      verify: 0,
-      total: s.durationMs,
-    })),
-  };
-}
-
-export async function runSuite(config: SuiteConfig): Promise<RunResult[]> {
-  const tasks = config.smokeTasks 
-    ? (await loadAllTasks(config.tasksDir)).filter(t => config.smokeTasks!.includes(t.id))
-    : await loadAllTasks(config.tasksDir);
-
-  const seeds = config.seeds ?? [1337];
-  const results: RunResult[] = [];
-
-  for (const task of tasks) {
-    for (const seed of seeds) {
-      console.log(`Running ${task.id} with seed ${seed}...`);
-      const result = await runTask(task, config, seed);
-      results.push(result);
-      console.log(`  ${result.success ? 'PASS' : 'FAIL'} (${result.flakyRetries} retries)`);
-    }
-  }
-
-  return results;
-}
-
-export function generateReport(results: RunResult[], outputDir: string): void {
-  fs.mkdirSync(outputDir, { recursive: true });
-
-  const summary = {
-    timestamp: new Date().toISOString(),
-    totalTasks: results.length,
-    passed: results.filter(r => r.success).length,
-    failed: results.filter(r => !r.success).length,
-    flakyRate: results.reduce((sum, r) => sum + r.flakyRetries, 0) / Math.max(results.length, 1),
-    results: results.map(r => ({
-      taskId: r.taskId,
-      seed: r.seed,
-      success: r.success,
-      steps: r.steps.length,
-      totalMs: r.timings.totalMs,
-      flakyRetries: r.flakyRetries,
-      predicates: r.predicates.map(p => ({ kind: p.kind, passed: p.passed, message: p.message })),
-    })),
-  };
-
-  fs.writeFileSync(
-    path.join(outputDir, 'summary.json'),
-    JSON.stringify(summary, null, 2)
-  );
-
-  const md = generateMarkdownReport(summary);
-  fs.writeFileSync(path.join(outputDir, 'report.md'), md);
-
-  console.log(`Report written to ${outputDir}`);
-}
-
-function generateMarkdownReport(summary: any): string {
-  let md = `# Evaluation Report\n\n`;
-  md += `**Generated:** ${summary.timestamp}\n\n`;
-  md += `## Summary\n\n`;
-  md += `| Metric | Value |\n|--------|-------|\n`;
-  md += `| Total Tasks | ${summary.totalTasks} |\n`;
-  md += `| Passed | ${summary.passed} |\n`;
-  md += `| Failed | ${summary.failed} |\n`;
-  md += `| Flake Rate | ${summary.flakyRate.toFixed(2)} |\n\n`;
-  
-  md += `## Results\n\n`;
-  md += `| Task | Seed | Status | Steps | Time (ms) | Retries |\n`;
-  md += `|------|------|--------|-------|-----------|---------|\n`;
-  
-  for (const r of summary.results) {
-    md += `| ${r.taskId} | ${r.seed} | ${r.success ? '✅ PASS' : '❌ FAIL'} | ${r.steps} | ${r.totalMs} | ${r.flakyRetries} |\n`;
-  }
-
-  return md;
-}
+export type { AuditEntry };

@@ -43,6 +43,7 @@ export {
 export {
   normalize,
   generateEncodings,
+  generateNgrams,
   base64Utf8,
   SecretRegistry,
   type SecretEntry,

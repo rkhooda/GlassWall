@@ -1,258 +1,149 @@
-import { chromium, Browser, BrowserContext, Page, CDPSession } from '@playwright/test';
-import * as path from 'path';
-import * as fs from 'fs';
+// Drives the real extension in a real Chromium: loads a built extension, opens the
+// side panel as a page, starts a task, auto-approves confirmations, and captures
+// every request the service worker makes to the gateway.
+process.env.PW_EXPERIMENTAL_SERVICE_WORKER_NETWORK_EVENTS ??= '1';
+import { chromium, type BrowserContext, type Page, type Worker } from 'playwright';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 
-declare global {
-  interface Window {
-    __GLASSWALL_READY__?: Record<string, boolean>;
-    __GLASSWALL_STEP_COMPLETE__?: Record<string, boolean>;
-    __GLASSWALL_LAST_TRACE__?: Record<string, any>;
-    __GLASSWALL_TRACE__?: Record<string, any[]>;
-  }
-  namespace chrome {
-    namespace runtime {
-      function sendMessage(extensionId: string, message: any, callback: (response: any) => void): void;
-      const lastError: { message: string } | undefined;
-    }
-  }
+export interface WireRequest {
+  url: string;
+  method: string;
+  body: string;
+  at: number;
 }
 
-export interface ExtensionContext {
-  browser: Browser;
+export interface Harness {
   context: BrowserContext;
-  page: Page;
+  worker: Worker;
   extensionId: string;
-  cdpSession: CDPSession;
+  page: Page;
+  panel: Page;
+  wire: WireRequest[];
+  errors: string[];
+  close(): Promise<void>;
 }
 
-export interface DriverConfig {
+export interface LaunchOptions {
   extensionPath: string;
-  headless?: boolean | 'new';
-  slowMo?: number;
-  viewport?: { width: number; height: number };
-  userDataDir?: string;
+  headless?: boolean;
+  gatewayOrigin?: string;
 }
 
-const DEFAULT_CONFIG: Required<DriverConfig> = {
-  extensionPath: '',
-  headless: 'new',
-  slowMo: 0,
-  viewport: { width: 1280, height: 720 },
-  userDataDir: '',
-};
-
-export async function launchExtension(config: DriverConfig): Promise<ExtensionContext> {
-  const mergedConfig = { ...DEFAULT_CONFIG, ...config };
-  
-  if (!mergedConfig.extensionPath) {
-    throw new Error('extensionPath is required');
-  }
-
-  const absExtensionPath = path.resolve(mergedConfig.extensionPath);
-  if (!fs.existsSync(absExtensionPath)) {
-    throw new Error(`Extension path does not exist: ${absExtensionPath}`);
-  }
-
-  const userDataDir = mergedConfig.userDataDir || 
-    path.join(process.cwd(), '.eval-profile-' + Date.now());
-
-  const context = await chromium.launchPersistentContext(userDataDir, {
-    headless: mergedConfig.headless as boolean | undefined,
-    slowMo: mergedConfig.slowMo,
-    args: [
-      `--disable-extensions-except=${absExtensionPath}`,
-      `--load-extension=${absExtensionPath}`,
-      '--no-first-run',
-      '--no-default-browser-check',
-      '--disable-background-networking',
-      '--disable-background-timer-throttling',
-      '--disable-renderer-backgrounding',
-      '--disable-features=TranslateUI',
-      '--enable-automation=false',
-    ],
-    viewport: mergedConfig.viewport,
-    ignoreDefaultArgs: ['--enable-automation'],
+export async function launch(opts: LaunchOptions): Promise<Harness> {
+  const ext = path.resolve(opts.extensionPath);
+  if (!fs.existsSync(path.join(ext, 'manifest.json'))) throw new Error(`No extension build at ${ext}. Run: pnpm --filter @glasswall/extension build:eval`);
+  const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'gw-eval-'));
+  const headless = opts.headless ?? true;
+  const context = await chromium.launchPersistentContext(profile, {
+    headless: false,
+    channel: 'chromium',
+    args: [`--disable-extensions-except=${ext}`, `--load-extension=${ext}`, ...(headless ? ['--headless=new'] : []), '--window-size=1280,900'],
   });
-
+  const wire: WireRequest[] = [];
+  const errors: string[] = [];
+  const gateway = opts.gatewayOrigin ?? 'http://localhost:3000';
+  context.on('request', req => {
+    if (req.url().startsWith(gateway)) wire.push({ url: req.url(), method: req.method(), body: req.postData() ?? '', at: Date.now() });
+  });
+  let [worker] = context.serviceWorkers();
+  if (!worker) worker = await context.waitForEvent('serviceworker');
+  worker.on('console', m => { if (m.type() === 'error') errors.push(`[worker] ${m.text()}`); });
+  const extensionId = new URL(worker.url()).host;
   const page = await context.newPage();
-  
-  const extensionId = await getExtensionId(context, absExtensionPath);
-  
-  const cdpSession = await context.newCDPSession(page);
-  await cdpSession.send('Network.enable');
-  await cdpSession.send('Performance.enable');
-  // Memory domain may not be available in all Chrome versions
-  try {
-    await (cdpSession as any).send('Memory.enable');
-  } catch {
-    // Ignore if Memory domain is not available
-  }
-
-  await page.waitForLoadState('domcontentloaded');
-
+  page.on('console', m => { if (m.type() === 'error' && !/404|net::ERR/.test(m.text())) errors.push(`[page] ${m.text()}`); });
+  const panel = await context.newPage();
+  panel.on('console', m => { if (m.type() === 'error') errors.push(`[panel] ${m.text()}`); });
+  await panel.goto(`chrome-extension://${extensionId}/src/sidepanel/index.html`);
   return {
-    browser: context.browser()!,
-    context,
-    page,
-    extensionId,
-    cdpSession,
+    context, worker, extensionId, page, panel, wire, errors,
+    close: async () => { await context.close().catch(() => undefined); fs.rmSync(profile, { recursive: true, force: true }); },
   };
 }
 
-async function getExtensionId(context: BrowserContext, extensionPath: string): Promise<string> {
-  const backgroundPages = context.backgroundPages();
-  if (backgroundPages.length > 0) {
-    const firstPage = backgroundPages[0];
-    if (firstPage) {
-      const url = firstPage.url();
-      const match = url.match(/chrome-extension:\/\/([a-z]+)\//);
-      if (match && match[1]) return match[1];
+export async function openPage(h: Harness, url: string): Promise<void> {
+  await h.page.goto(url, { waitUntil: 'networkidle' });
+  await h.page.waitForFunction("document.documentElement.dataset.gwEvalReady === '1'", null, { timeout: 15_000 });
+  await h.page.bringToFront();
+}
+
+export interface RunState {
+  status: string;
+  sessionId: string | null;
+  step: number;
+  provider: string | null;
+  outcome?: string;
+  message?: string;
+}
+
+export interface AuditEntry {
+  step: number;
+  action: string;
+  provider: string | null;
+  latency_ms: number;
+  element_count: number;
+  handle_count: number;
+  redaction_count: number;
+  degraded: string[];
+  has_redacted_screenshot: boolean;
+  gate: string;
+  validation: string;
+  payload_bytes: number;
+  redactions: Array<{ rect: [number, number, number, number]; source: string; reason: string }>;
+  observed: Array<{ tag: string; rect: [number, number, number, number]; visible: boolean }>;
+  timings: Record<string, number>;
+}
+
+/** Ask the extension for its run state / audit log through the panel page's chrome.runtime. */
+export function getState(h: Harness): Promise<RunState> {
+  return h.panel.evaluate("chrome.runtime.sendMessage({ type: 'gw:get-state' })") as Promise<RunState>;
+}
+export function getAudit(h: Harness): Promise<AuditEntry[]> {
+  return h.panel.evaluate("chrome.runtime.sendMessage({ type: 'gw:get-audit' })") as Promise<AuditEntry[]>;
+}
+
+export interface DriveOptions {
+  task: string;
+  policy: 'STRICT' | 'BALANCED';
+  timeoutMs?: number;
+  autoApprove?: boolean;
+  /** Called after each new audit entry appears (for per-step ground truth sampling). */
+  onStep?: (entry: AuditEntry) => Promise<void> | void;
+}
+
+export interface DriveResult {
+  state: RunState;
+  audit: AuditEntry[];
+  approvals: number;
+  totalMs: number;
+  finalUrl: string;
+}
+
+export async function drive(h: Harness, opts: DriveOptions): Promise<DriveResult> {
+  const started = Date.now();
+  await h.panel.bringToFront();
+  await h.panel.fill('#task', opts.task);
+  await h.panel.selectOption('select', opts.policy);
+  await h.panel.click('button.primary');
+  const deadline = Date.now() + (opts.timeoutMs ?? 120_000);
+  let approvals = 0;
+  let seen = 0;
+  let state: RunState = { status: 'running', sessionId: null, step: 0, provider: null };
+  while (Date.now() < deadline) {
+    if (opts.autoApprove !== false && (await h.panel.locator('.modal button.primary').count())) {
+      await h.panel.click('.modal button.primary');
+      approvals++;
     }
+    const audit = await getAudit(h).catch(() => [] as AuditEntry[]);
+    while (seen < audit.length) {
+      await opts.onStep?.(audit[seen]!);
+      seen++;
+    }
+    state = await getState(h).catch(() => state);
+    if (/done|error|aborted/.test(state.status)) break;
+    await h.panel.waitForTimeout(200);
   }
-
-  for (const page of context.pages()) {
-    const url = page.url();
-    const match = url.match(/chrome-extension:\/\/([a-z]+)\//);
-    if (match && match[1]) return match[1];
-  }
-
-  throw new Error('Could not determine extension ID');
-}
-
-export async function closeExtension(context: ExtensionContext): Promise<void> {
-  await context.cdpSession.detach();
-  await context.context.close();
-}
-
-export async function navigateToTask(page: Page, url: string, waitUntil: 'load' | 'domcontentloaded' | 'networkidle' = 'networkidle'): Promise<void> {
-  await page.goto(url, { waitUntil, timeout: 30000 });
-}
-
-export async function injectScript(page: Page, script: string): Promise<void> {
-  await page.addInitScript(script);
-}
-
-export async function evaluateOnPage<T>(page: Page, fn: () => T): Promise<T> {
-  return await page.evaluate(fn);
-}
-
-export async function waitForExtensionReady(page: Page, extensionId: string, timeout = 10000): Promise<void> {
-  await page.waitForFunction(
-    (extId: string) => {
-      return !!(window as any).__GLASSWALL_READY__ && (window as any).__GLASSWALL_READY__[extId];
-    },
-    extensionId,
-    { timeout }
-  );
-}
-
-export async function sendMessageToExtension(
-  page: Page, 
-  extensionId: string, 
-  message: any
-): Promise<any> {
-  return await page.evaluate(
-    ({ extId, msg }: { extId: string; msg: any }) => {
-      return new Promise((resolve, reject) => {
-        chrome.runtime.sendMessage(extId, msg, (response: any) => {
-          if (chrome.runtime.lastError) {
-            reject(new Error(chrome.runtime.lastError.message));
-          } else {
-            resolve(response);
-          }
-        });
-      });
-    },
-    { extId: extensionId, msg: message }
-  );
-}
-
-export interface NetworkCapture {
-  requests: Array<{
-    url: string;
-    method: string;
-    headers: Record<string, string>;
-    postData?: string;
-    timestamp: number;
-  }>;
-  responses: Array<{
-    url: string;
-    status: number;
-    headers: Record<string, string>;
-    body?: string;
-    timestamp: number;
-  }>;
-}
-
-interface RequestWillBeSentParams {
-  request: {
-    url: string;
-    method: string;
-    headers: Record<string, string>;
-    postData?: string;
-  };
-  timestamp: number;
-}
-
-interface ResponseReceivedParams {
-  response: {
-    url: string;
-    status: number;
-    headers: Record<string, string>;
-  };
-  timestamp: number;
-}
-
-export function createNetworkCapture(cdpSession: CDPSession): NetworkCapture {
-  const capture: NetworkCapture = { requests: [], responses: [] };
-
-  cdpSession.on('Network.requestWillBeSent', (params: RequestWillBeSentParams) => {
-    capture.requests.push({
-      url: params.request.url,
-      method: params.request.method,
-      headers: params.request.headers,
-      postData: params.request.postData,
-      timestamp: params.timestamp * 1000,
-    });
-  });
-
-  cdpSession.on('Network.responseReceived', (params: ResponseReceivedParams) => {
-    capture.responses.push({
-      url: params.response.url,
-      status: params.response.status,
-      headers: params.response.headers,
-      timestamp: params.timestamp * 1000,
-    });
-  });
-
-  return capture;
-}
-
-export async function getResponseBody(cdpSession: CDPSession, requestId: string): Promise<string | null> {
-  try {
-    const result = await cdpSession.send('Network.getResponseBody', { requestId });
-    return result.body;
-  } catch {
-    return null;
-  }
-}
-
-export async function takeScreenshot(page: Page, name: string, outputDir: string): Promise<string> {
-  const filepath = path.join(outputDir, `${name}-${Date.now()}.png`);
-  await page.screenshot({ path: filepath, fullPage: false });
-  return filepath;
-}
-
-export async function getPerformanceMetrics(cdpSession: CDPSession): Promise<any> {
-  const metrics = await cdpSession.send('Performance.getMetrics');
-  return metrics.metrics;
-}
-
-export async function getMemoryMetrics(cdpSession: CDPSession): Promise<any> {
-  try {
-    const memory = await cdpSession.send('Memory.getDOMCounters');
-    return memory;
-  } catch {
-    return null;
-  }
+  const audit = await getAudit(h).catch(() => [] as AuditEntry[]);
+  return { state, audit, approvals, totalMs: Date.now() - started, finalUrl: h.page.url() };
 }

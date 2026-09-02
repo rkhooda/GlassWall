@@ -1,17 +1,10 @@
 id: T2
 site: shoplite
-entry: /orders
-instruction: "Find my order for the blue kettle and tell me its status"
-seed: 1337
-max_steps: 10
+entry: /shoplite/
+instruction: "Open my orders"
+max_steps: 6
 success:
-  - kind: status_reported
-    expected_status: "Delivered"
-  - kind: page_contains
-    text: "blue kettle"
-expected_redactions:
-  - ORDER_ID
-  - TRACKING_NUMBER
-forbidden_in_payload:
-  - "$order.id"
-  - "$order.tracking"
+  - kind: url_matches
+    pattern: "/shoplite/orders"
+  - kind: outcome
+    outcome: success

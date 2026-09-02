@@ -26,6 +26,15 @@ import { GATEWAY_ORIGIN, DEFAULT_STEP_BUDGET } from '../shared/config';
 import { createStepPerception } from './perception';
 import { captureVisibleTabDataUrl, warmUpInOffscreen, statsFromOffscreen } from './capture';
 
+declare const __GW_UNSAFE_PASSTHROUGH__: boolean;
+/**
+ * Negative control for the leakage harness (eval/leakage). True only in the
+ * `build:unsafe` output: the raw observation is sent and the gate is skipped, so
+ * the canary harness must go red. Dead code in every other build; verify:boundary
+ * asserts the marker is absent from dist/.
+ */
+const UNSAFE_PASSTHROUGH = typeof __GW_UNSAFE_PASSTHROUGH__ !== 'undefined' && __GW_UNSAFE_PASSTHROUGH__;
+
 const MAX_CONSECUTIVE_FAILURES = 3;
 const CONFIRM_TIMEOUT_MS = 90_000;
 const STEP_PAUSE_MS = 150;
@@ -68,7 +77,9 @@ class RunError extends Error {
 
 /** One gated request to the gateway. Throws RunError on gate violation or transport failure. */
 async function gateway<T>(request: Parameters<typeof egressGate>[0], secrets: SessionSecrets | null, policy: PolicyProfile, parse: (body: unknown) => T): Promise<T> {
-  const gate = egressGate(request, secrets?.registry ?? new Map(), PROFILES[policy].policy, GATEWAY_ORIGIN);
+  const gate = UNSAFE_PASSTHROUGH
+    ? ({ ok: true, value: { __safePayloadBrand: '__safePayloadBrand', destination: GATEWAY_ORIGIN, path: request.path, method: request.body === undefined ? 'GET' : 'POST', body: request.body } } as const)
+    : egressGate(request, secrets?.registry ?? new Map(), PROFILES[policy].policy, GATEWAY_ORIGIN);
   if (!gate.ok) throw new RunError('EGRESS_GATE_VIOLATION', `${gate.error.code}: ${gate.error.message}`);
   let reply: Awaited<ReturnType<typeof send>>;
   try {
@@ -211,6 +222,14 @@ async function bind(action: Action, obs: SanitizedObservation, secrets: SessionS
   return { action: { ...action, value: { kind: 'literal', text: resolved.value.value } } };
 }
 
+function auditShape(obs: SanitizedObservation, redactions: import('@glasswall/schema/audit').RedactionReason[], timings: TraceEntry['timings']) {
+  return {
+    redactions: redactions.map(r => ({ rect: r.rect, source: r.source, reason: r.reason })),
+    observed: obs.elements.map(e => ({ tag: e.tag, rect: e.rect, visible: e.visible })),
+    timings: Object.fromEntries(Object.entries(timings).filter(([, v]) => typeof v === 'number')) as Record<string, number>,
+  };
+}
+
 async function recordAudit(entry: AuditEntry): Promise<void> {
   audit.push(entry);
   try {
@@ -282,7 +301,8 @@ export async function startRun(task: string, policy: PolicyProfile, tabIdHint?: 
         budget: { steps_left: session.budget.steps_left - step, ms_left: session.budget.ms_left },
       });
       await secrets.flush();
-      const obs = result.observation as SanitizedObservation;
+      // UNSAFE build only: ship the raw observation so the leakage harness can prove it detects a leak.
+      const obs = (UNSAFE_PASSTHROUGH ? { ...raw, handles: [], budget: { steps_left: 1, ms_left: 1 } } : result.observation) as SanitizedObservation;
       if (pixels && !frameDataUrl) result.degraded.push(`capture_unavailable${capture.error ? ':' + capture.error.replace(/\s+/g, '_').slice(0, 80) : ''}`);
       const local = perception.timings();
       timings.perceive = Math.round((local.ner ?? 0) + (local.ocr ?? 0) + (local.decode ?? 0));
@@ -306,7 +326,7 @@ export async function startRun(task: string, policy: PolicyProfile, tabIdHint?: 
         const message = e instanceof Error ? e.message : String(e);
         timings.gate = lastGateTimings().schema !== undefined ? Math.round(Object.values(lastGateTimings()).reduce((a, b) => a + b, 0)) : undefined;
         sendToPanel({ type: 'gw:trace', entry: { step, phase: 'error', timings: { ...timings, total: Math.round(performance.now() - t0) }, redactions: result.redactions.length, degraded: result.degraded, observedElements: raw.elements.length, errorCode: code, errorMessage: message, at: Date.now() } });
-        await recordAudit({ session_id: sessionId, step, ts: Date.now(), action: 'none', provider: null, latency_ms: Math.round(performance.now() - t0), element_count: raw.elements.length, text_block_count: raw.text_nodes.length, handle_count: obs.handles?.length ?? 0, redaction_count: result.redactions.length, degraded: result.degraded, has_redacted_screenshot: !!screenshot, gate: code === 'EGRESS_GATE_VIOLATION' ? 'rejected' : 'accepted', validation: code, payload_bytes: 0 });
+        await recordAudit({ session_id: sessionId, step, ts: Date.now(), action: 'none', provider: null, latency_ms: Math.round(performance.now() - t0), element_count: raw.elements.length, text_block_count: raw.text_nodes.length, handle_count: obs.handles?.length ?? 0, redaction_count: result.redactions.length, degraded: result.degraded, has_redacted_screenshot: !!screenshot, gate: code === 'EGRESS_GATE_VIOLATION' ? 'rejected' : 'accepted', validation: code, payload_bytes: 0, ...auditShape(obs, result.redactions, { ...timings, total: Math.round(performance.now() - t0) }) });
         if (code === 'EGRESS_GATE_VIOLATION' && ++consecutiveFailures < MAX_CONSECUTIVE_FAILURES) continue; // re-observe; the gate is fail-closed
         throw e;
       }
@@ -327,7 +347,7 @@ export async function startRun(task: string, policy: PolicyProfile, tabIdHint?: 
         lastResult = { ok: false, error_code: invalid.code, effect_observed: false };
         sendToPanel({ type: 'gw:trace', entry: { ...base, phase: 'blocked', timings: { ...timings, total: Math.round(performance.now() - t0) }, errorCode: invalid.code, errorMessage: invalid.message } });
         if (invalid.code === 'VAULT_TYPE_MISMATCH' || invalid.code === 'LITERAL_CONTAINS_SECRET') sendToPanel({ type: 'gw:error', code: invalid.code, message: `Blocked: ${invalid.message}`, step });
-        await recordAudit({ session_id: sessionId, step, ts: Date.now(), action: action.type, provider: planned.provider, latency_ms: Math.round(performance.now() - t0), element_count: raw.elements.length, text_block_count: raw.text_nodes.length, handle_count: obs.handles?.length ?? 0, redaction_count: result.redactions.length, degraded: result.degraded, has_redacted_screenshot: !!screenshot, gate: 'accepted', validation: invalid.code, payload_bytes: payloadBytes });
+        await recordAudit({ session_id: sessionId, step, ts: Date.now(), action: action.type, provider: planned.provider, latency_ms: Math.round(performance.now() - t0), element_count: raw.elements.length, text_block_count: raw.text_nodes.length, handle_count: obs.handles?.length ?? 0, redaction_count: result.redactions.length, degraded: result.degraded, has_redacted_screenshot: !!screenshot, gate: 'accepted', validation: invalid.code, payload_bytes: payloadBytes, ...auditShape(obs, result.redactions, { ...timings, total: Math.round(performance.now() - t0) }) });
         history.push(envelope);
         if (++consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) { finish('error', { message: `Stopped after ${MAX_CONSECUTIVE_FAILURES} blocked actions (last: ${invalid.code})` }); return; }
         await new Promise(r => setTimeout(r, STEP_PAUSE_MS));
@@ -353,7 +373,7 @@ export async function startRun(task: string, policy: PolicyProfile, tabIdHint?: 
       // DONE ends the run without an executor round-trip.
       if (action.type === 'DONE') {
         sendToPanel({ type: 'gw:trace', entry: { ...base, phase: 'done', timings: { ...timings, total: Math.round(performance.now() - t0) } } });
-        await recordAudit({ session_id: sessionId, step, ts: Date.now(), action: 'DONE', provider: planned.provider, latency_ms: Math.round(performance.now() - t0), element_count: raw.elements.length, text_block_count: raw.text_nodes.length, handle_count: obs.handles?.length ?? 0, redaction_count: result.redactions.length, degraded: result.degraded, has_redacted_screenshot: !!screenshot, gate: 'accepted', validation: 'ok', payload_bytes: payloadBytes });
+        await recordAudit({ session_id: sessionId, step, ts: Date.now(), action: 'DONE', provider: planned.provider, latency_ms: Math.round(performance.now() - t0), element_count: raw.elements.length, text_block_count: raw.text_nodes.length, handle_count: obs.handles?.length ?? 0, redaction_count: result.redactions.length, degraded: result.degraded, has_redacted_screenshot: !!screenshot, gate: 'accepted', validation: 'ok', payload_bytes: payloadBytes, ...auditShape(obs, result.redactions, { ...timings, total: Math.round(performance.now() - t0) }) });
         void sendToTab(tabId, { type: 'gw:eval-hook', key: 'step', value: JSON.stringify({ step, action: 'DONE', outcome: action.outcome }) }, 1000).catch(() => undefined);
         finish('done', { outcome: action.outcome, message: action.outcome === 'success' ? 'Task completed' : `Planner stopped: ${action.outcome}${envelope.reasoning ? ` — ${envelope.reasoning}` : ''}` });
         return;
@@ -382,7 +402,7 @@ export async function startRun(task: string, policy: PolicyProfile, tabIdHint?: 
 
       const total = Math.round(performance.now() - t0);
       sendToPanel({ type: 'gw:trace', entry: { ...base, phase: execResult.ok ? 'ok' : 'error', result: execResult, timings: { ...timings, total }, errorCode: execResult.ok ? undefined : execResult.error_code, errorMessage: execResult.ok ? undefined : execResult.error_message } });
-      await recordAudit({ session_id: sessionId, step, ts: Date.now(), action: action.type, provider: planned.provider, latency_ms: total, element_count: raw.elements.length, text_block_count: raw.text_nodes.length, handle_count: obs.handles?.length ?? 0, redaction_count: result.redactions.length, degraded: result.degraded, has_redacted_screenshot: !!screenshot, gate: 'accepted', validation: execResult.ok ? 'ok' : (execResult.error_code ?? 'error'), payload_bytes: payloadBytes });
+      await recordAudit({ session_id: sessionId, step, ts: Date.now(), action: action.type, provider: planned.provider, latency_ms: total, element_count: raw.elements.length, text_block_count: raw.text_nodes.length, handle_count: obs.handles?.length ?? 0, redaction_count: result.redactions.length, degraded: result.degraded, has_redacted_screenshot: !!screenshot, gate: 'accepted', validation: execResult.ok ? 'ok' : (execResult.error_code ?? 'error'), payload_bytes: payloadBytes, ...auditShape(obs, result.redactions, { ...timings, total: Math.round(performance.now() - t0) }) });
       void sendToTab(tabId, { type: 'gw:eval-hook', key: 'step', value: JSON.stringify({ step, action: action.type, ok: execResult.ok, total }) }, 1000).catch(() => undefined);
 
       if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) { finish('error', { message: `Stopped after ${MAX_CONSECUTIVE_FAILURES} failed actions (last: ${execResult.error_code})` }); return; }

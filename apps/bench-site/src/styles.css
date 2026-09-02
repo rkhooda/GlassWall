@@ -96,3 +96,5 @@ dd { margin: 0; }
 .govportal .steps li { padding: 6px 10px; border-radius: 6px; background: #eef2f6; color: var(--muted); }
 .govportal .steps li.current { background: var(--accent); color: #fff; }
 .govportal .review dl { margin-bottom: 16px; }
+
+.govportal-page { display: grid; grid-template-columns: 1fr 2fr; gap: 20px; align-items: start; }

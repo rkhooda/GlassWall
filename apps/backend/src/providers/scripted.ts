@@ -144,10 +144,31 @@ function lookup(input: PlanInput): ActionEnvelope | null {
   return null;
 }
 
+/** "Open the first patient's record", "click Orders", "go to my account": click the best-matching control. */
+function openSomething(input: PlanInput): ActionEnvelope | null {
+  const { observation, history, task } = input;
+  const phrase = (task.match(/(?:open|click|go to|view|show)\s+(?:the\s+|my\s+|on\s+)?(.+?)(?:\s+(?:page|link|button|tab|section))?\s*$/i)?.[1] ?? '').toLowerCase();
+  if (!phrase) return null;
+  if (history.some(h => h.action.type === 'CLICK')) return envelope({ type: 'DONE', outcome: 'success' }, input, 'low', `opened "${phrase}"`);
+  const words = phrase.split(/\s+/).filter(w => w.length > 2 && !/^(first|the|a|an|of|for|this|that)$/i.test(w));
+  const scored = observation.elements
+    .filter(isClickable)
+    .map(e => ({ e, score: words.filter(w => e.label_raw.toLowerCase().includes(w)).length }))
+    .filter(x => x.score > 0)
+    .sort((a, b) => b.score - a.score);
+  const pick = scored[0]?.e ?? (/first|record|patient|view|details/.test(phrase) ? observation.elements.find(e => isClickable(e) && /view|open|details/i.test(e.label_raw)) : undefined);
+  if (!pick) return null;
+  return envelope({ type: 'CLICK', target: target(pick) }, input, 'low', `open via "${pick.label_raw}"`);
+}
+
 export function planScripted(input: PlanInput): ActionEnvelope {
   const task = input.task;
   const done = input.history.some(h => h.action.type === 'DONE');
   if (done) return envelope({ type: 'DONE', outcome: 'success' }, input, 'low', 'already done');
+  if (/^(open|click|go to|view|show)\b/i.test(task.trim())) {
+    const next = openSomething(input);
+    if (next) return next;
+  }
   // A form task ends when the page reports confirmation.
   if (/fill|form|checkout|shipping|address|submit|place|apply|register/i.test(task)) {
     if (/confirm|success|thank|placed|complete/i.test(observation(input).url_template + ' ' + observation(input).title_raw) && input.history.some(h => h.action.type === 'CLICK')) {

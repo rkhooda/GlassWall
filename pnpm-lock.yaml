@@ -97,6 +97,9 @@ importers:
 
   apps/extension:
     dependencies:
+      '@glasswall/inference':
+        specifier: workspace:*
+        version: link:../../packages/inference
       '@glasswall/privacy':
         specifier: workspace:*
         version: link:../../packages/privacy
@@ -149,6 +152,9 @@ importers:
 
   eval:
     devDependencies:
+      '@glasswall/privacy':
+        specifier: workspace:*
+        version: link:../packages/privacy
       '@glasswall/schema':
         specifier: workspace:*
         version: link:../packages/schema
@@ -164,6 +170,9 @@ importers:
       js-yaml:
         specifier: ^4.3.2
         version: 4.3.2
+      playwright:
+        specifier: ^1.62.1
+        version: 1.62.1
       tsx:
         specifier: ^4.23.12
         version: 4.23.12

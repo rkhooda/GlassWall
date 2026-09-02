@@ -60,10 +60,15 @@ export const nerSource: PerceptionSource = {
       for (const node of mapSpansToRanges(spans, ranges)) {
         const nodeText = ctx.raw.text_nodes.find(tn => tn.id === node.id)?.text ?? '';
         for (const span of node.spans) {
+          // Only people and places are personal data. Organisations and MISC entities
+          // (product names, brands) are not, and registering them as secrets would make
+          // the gate refuse the agent's own legitimate literals.
+          const piiType = nerTypeToPii(span.type);
+          if (piiType !== 'PERSON_NAME' && piiType !== 'STREET_ADDRESS' && piiType !== 'NAME' && piiType !== 'ADDRESS') continue;
           evidence.push({
             sourceId: 'ner',
             type: 'ner',
-            piiType: nerTypeToPii(span.type),
+            piiType,
             confidence: span.confidence,
             rect: node.rect,
             // The matched text. sanitize() tokenizes it into the session registry

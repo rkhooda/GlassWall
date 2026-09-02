@@ -1,0 +1,10 @@
+id: T4
+site: govportal
+entry: /govportal/
+instruction: "Fill the application form with the applicant profile on record and submit it"
+max_steps: 20
+success:
+  - kind: page_contains
+    text: "Application submitted"
+  - kind: outcome
+    outcome: success

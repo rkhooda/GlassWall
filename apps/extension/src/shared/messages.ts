@@ -78,6 +78,11 @@ export interface AuditEntry {
   gate: 'accepted' | 'rejected';
   validation: string;
   payload_bytes: number;
+  /** Redacted regions (viewport px) and why; no content. */
+  redactions: Array<{ rect: [number, number, number, number]; source: string; reason: string }>;
+  /** What the payload described: tag + rect per element, so the harness can score visual-context accuracy. */
+  observed: Array<{ tag: string; rect: [number, number, number, number]; visible: boolean }>;
+  timings: Record<string, number>;
 }
 
 export type PanelToWorker =

@@ -1,6 +1,6 @@
 # P14-B — chaos: every perception source, force-failed
 
-**Measured 2026-09-01T06:24:21.226Z at `24c802bcf7c84f920428a6d7ae7a098120035233`.**
+**Measured 2026-09-01T06:28:13.443Z at `fecda0542a80bda57062464c8fcb29e1a6b88b53`.**
 
 | | |
 |---|---|

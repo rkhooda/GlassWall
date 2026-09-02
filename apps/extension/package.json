@@ -8,7 +8,8 @@
     "lint": "eslint src --ext .ts,.tsx",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "build:eval": "GLASSWALL_EVAL_BUILD=1 vite build"
+    "build:eval": "GLASSWALL_EVAL_BUILD=1 vite build",
+    "build:unsafe": "GLASSWALL_UNSAFE_PASSTHROUGH=1 vite build"
   },
   "dependencies": {
     "@glasswall/privacy": "workspace:*",

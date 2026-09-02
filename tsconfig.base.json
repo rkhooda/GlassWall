@@ -1,7 +1,11 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["ES2022", "DOM", "DOM.iterable"],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.iterable"
+    ],
     "module": "ESNext",
     "moduleResolution": "bundler",
     "strict": true,
@@ -17,11 +21,37 @@
     "sourceMap": true,
     "baseUrl": ".",
     "paths": {
-      "@glasswall/schema/*": ["packages/schema/src/*"],
-      "@glasswall/privacy/*": ["packages/privacy/src/*"],
-      "@glasswall/perception/*": ["packages/perception/src/*"],
-      "@glasswall/inference/*": ["packages/inference/src/*"]
+      "@glasswall/schema/*": [
+        "packages/schema/src/*"
+      ],
+      "@glasswall/privacy/*": [
+        "packages/privacy/src/*"
+      ],
+      "@glasswall/perception/*": [
+        "packages/perception/src/*"
+      ],
+      "@glasswall/inference/*": [
+        "packages/inference/src/*"
+      ],
+      "@glasswall/schema": [
+        "packages/schema/src/index.ts"
+      ],
+      "@glasswall/privacy": [
+        "packages/privacy/src/index.ts"
+      ],
+      "@glasswall/perception": [
+        "packages/perception/src/index.ts"
+      ],
+      "@glasswall/inference": [
+        "packages/inference/src/index.ts"
+      ]
     }
   },
-  "exclude": ["node_modules", "dist", "build", "generated", ".turbo"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "build",
+    "generated",
+    ".turbo"
+  ]
 }

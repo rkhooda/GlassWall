@@ -1,0 +1,11 @@
+id: T5
+site: clinicdesk
+entry: /clinicdesk/
+instruction: "Open the first patient's record"
+max_steps: 5
+policies: [BALANCED]
+success:
+  - kind: url_matches
+    pattern: "/clinicdesk/patient/"
+  - kind: outcome
+    outcome: success

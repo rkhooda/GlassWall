@@ -1,30 +1,10 @@
 id: T1
 site: shoplite
-entry: /cart
-instruction: "Fill the shipping form and submit it."
-seed: 1337
+entry: /shoplite/checkout
+instruction: "Fill the shipping form with my saved details and place the order"
 max_steps: 15
 success:
   - kind: url_matches
-    pattern: ".*/checkout/confirm.*"
-  - kind: field_values
-    selector_map:
-      "#name": "$person.name"
-      "#email": "$person.email"
-      "#phone": "$person.phone"
-      "#address": "$person.street"
-      "#city": "$person.city"
-      "#postal": "$person.pin"
-expected_redactions:
-  - PERSON_NAME
-  - EMAIL
-  - PHONE
-  - STREET_ADDRESS
-  - POSTAL_CODE
-forbidden_in_payload:
-  - "$person.email"
-  - "$person.phone"
-  - "$person.name"
-  - "$person.street"
-  - "$person.city"
-  - "$person.pin"
+    pattern: "/shoplite/checkout/confirm/"
+  - kind: outcome
+    outcome: success

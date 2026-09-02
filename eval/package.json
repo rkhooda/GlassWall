@@ -3,15 +3,15 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "build": "tsc -b",
-    "lint": "eslint src --ext .ts",
+    "lint": "eslint harness leakage metrics ablations --ext .ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "bench:smoke": "tsx harness/cli.ts --smoke",
-    "bench:all": "tsx harness/cli.ts --full",
+    "bench:all": "tsx harness/cli.ts --all",
     "bench:leakage": "tsx harness/cli.ts --leakage",
-    "bench:ablation": "tsx harness/cli.ts --ablation",
-    "bench:perf": "tsx harness/cli.ts --perf"
+    "bench:report": "tsx harness/cli.ts --report",
+    "bench:frontier": "tsx ablations/frontier.ts",
+    "bench:chaos": "tsx leakage/chaos.ts"
   },
   "devDependencies": {
     "@glasswall/schema": "workspace:*",
@@ -21,6 +21,8 @@
     "js-yaml": "^4.3.2",
     "tsx": "^4.23.12",
     "typescript": "^5.5.0",
-    "vitest": "^2.0.0"
+    "vitest": "^2.0.0",
+    "playwright": "^1.62.1",
+    "@glasswall/privacy": "workspace:*"
   }
 }

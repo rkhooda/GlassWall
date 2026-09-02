@@ -42,6 +42,11 @@ else
   echo "  ⚠️  no build; run pnpm --filter @glasswall/extension build"
 fi
 
+echo "[3b/8] negative-control code compiled out of the shipped bundle"
+if [ -d apps/extension/dist ]; then
+  if grep -rq "UNSAFE negative control" apps/extension/dist/manifest.json 2>/dev/null; then fail "dist/ is the unsafe build"; else pass "dist/ is a safe build"; fi
+fi
+
 echo "[4/8] CSP connect-src pinned to the gateway ($GATEWAY)"
 CSP=$(python3 -c "import json;print(json.load(open('$MANIFEST'))['content_security_policy']['extension_pages'])")
 case "$CSP" in
