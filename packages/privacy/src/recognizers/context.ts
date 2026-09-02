@@ -70,9 +70,11 @@ function accept(rule: LabelRule, value: string): boolean {
  */
 function tableHits(raw: RawObservation): ContextHit[] {
   const nodes = raw.text_nodes;
-  const labelled = nodes.map(n => ({ n, rule: ruleFor(n.text) })).filter(h => h.rule);
-  // A header row is two or more label-like cells on one line; a lone label is not a table.
-  const headers = labelled.filter(h => labelled.some(o => o !== h && Math.abs(o.n.rect[1] - h.n.rect[1]) <= 8));
+  const labelled = nodes.map((n, i) => ({ n, i, rule: ruleFor(n.text) })).filter(h => h.rule);
+  // A header row is two or more label cells that are neighbours in DOM order and sit on
+  // one line (<th><th><th>). Two labels that merely share a y coordinate (a step chip
+  // and a <dt> in another card) are not a table, and everything below them is not a column.
+  const headers = labelled.filter(h => labelled.some(o => Math.abs(o.i - h.i) === 1 && Math.abs(o.n.rect[1] - h.n.rect[1]) <= 8));
   const hits: ContextHit[] = [];
   const seen = new Set<string>();
   for (const { n: header, rule } of headers) {

@@ -37,6 +37,14 @@ describe('table columns', () => {
     const hits = recognizeByContext(raw).map(h => `${h.type}:${h.value}`).sort();
     expect(hits).toEqual(['MRN:MRN-000002', 'MRN:MRN-000003', 'PERSON_NAME:Arjun Singh', 'PERSON_NAME:Priya Patel', 'PHONE:+918765432109']);
   });
+
+  it('does not treat two unrelated labels on one line as a header row', () => {
+    // A profile card's <dt>PAN</dt> beside a wizard's step chip "Address": the buttons
+    // and headings below the chip are UI copy, not address cells.
+    const rows: Array<[string, number, number]> = [['PAN', 10, 0], ['JHWKJ5637Y', 60, 0], ['2.', 400, 0], ['Address', 420, 0], ['3.', 500, 0], ['Personal information', 400, 40], ['Back', 400, 200], ['Submit application', 440, 200]];
+    const raw: RawObservation = { ...rawBase(), text_nodes: rows.map(([text, x, y], i) => ({ id: `t${i}`, rect: [x, y, text.length * 8, 18], text, owner_element_id: null, source: 'dom' as const })) };
+    expect(recognizeByContext(raw).map(h => `${h.type}:${h.value}`)).toEqual(['PAN:JHWKJ5637Y']);
+  });
 });
 
 function rawBase(): RawObservation {
