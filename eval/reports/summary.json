@@ -3,8 +3,8 @@
     "Hardware": "Apple M1 · 8 cores · 8 GB",
     "OS": "Darwin 25.5.0 (arm64)",
     "Node": "v24.20.0",
-    "Commit": "f769890",
-    "Measured": "2026-09-02T06:13:52.554Z",
+    "Commit": "98cec6b",
+    "Measured": "2026-09-02T09:27:24.024Z",
     "Seeds": "1337",
     "Policies": "STRICT"
   },
@@ -14,8 +14,8 @@
         "taskId": "T4",
         "seed": 1337,
         "policy": "STRICT",
-        "success": false,
-        "steps": 12,
+        "success": true,
+        "steps": 13,
         "visual": {
           "recall": 1,
           "precision": 1,
@@ -32,34 +32,34 @@
           "leakedValues": []
         },
         "redaction": {
-          "precision": 0.8451612903225807,
-          "total": 155,
+          "precision": 0.8972602739726028,
+          "total": 146,
           "justified": 131
         },
         "resources": {
-          "localMsPerStep": 1508,
-          "payloadBytesP50": 17532,
+          "localMsPerStep": 1516,
+          "payloadBytesP50": 16555,
           "screenshotBytesP50": 0,
-          "steps": 12
+          "steps": 13
         },
         "latency": {
-          "totalMs": 22472,
-          "stepP50": 1559,
-          "stepP95": 2102,
-          "reasonerMsPerStep": 10
+          "totalMs": 25626,
+          "stepP50": 1485,
+          "stepP95": 2852,
+          "reasonerMsPerStep": 20
         }
       }
     ],
-    "completion": 0,
+    "completion": 1,
     "visualRecall": 1,
     "visualPrecision": 1,
     "detectionRecall": 1,
     "detectionPrecision": 1,
-    "redactionPrecision": 0.8451612903225807,
-    "localMsPerStep": 1508,
-    "payloadBytesP50": 17532,
-    "stepP50": 1559,
-    "stepP95": 2102,
+    "redactionPrecision": 0.8972602739726028,
+    "localMsPerStep": 1516,
+    "payloadBytesP50": 16555,
+    "stepP50": 1485,
+    "stepP95": 2852,
     "leaks": 0
   }
 }
