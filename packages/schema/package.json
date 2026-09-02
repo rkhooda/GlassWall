@@ -24,6 +24,14 @@
     "./audit": {
       "types": "./dist/audit.d.ts",
       "import": "./dist/audit.js"
+    },
+    "./transport": {
+      "types": "./dist/transport.d.ts",
+      "import": "./dist/transport.js"
+    },
+    "./branded": {
+      "types": "./dist/branded.d.ts",
+      "import": "./dist/branded.js"
     }
   },
   "scripts": {

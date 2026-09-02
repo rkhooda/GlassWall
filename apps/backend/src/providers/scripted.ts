@@ -1,218 +1,165 @@
-// Scripted Provider - deterministic finite-state planner per task
-// Runs with ZERO network, for CI and demo-day insurance
-
-import type { Action, ActionEnvelope, Target, Value } from '@glasswall/schema/action';
+// The scripted planner: a deterministic, network-free reasoner used as the last link
+// in the failover chain and as demo-day insurance. It is not a script for one page:
+// it reads the sanitized observation the same way a model would (labels, roles,
+// autocomplete classes, the handle inventory) and handles the common shapes of a
+// task — fill a form, search and add to cart, look something up — on pages it has
+// never seen. Anything else ends with DONE/impossible, honestly.
 import type { SanitizedObservation, SanitizedElement } from '@glasswall/schema/observation';
+import type { Action, ActionEnvelope } from '@glasswall/schema/action';
+import type { PlanInput, Provider } from './types';
 
-export interface ScriptedStep {
-  action: Action;
-  rationale: string;
-  risk: 'low' | 'medium' | 'high';
-  requiresConfirmation: boolean;
-}
+type Handle = { handle: string; type: string; tier: number };
 
-export interface TaskScript {
-  name: string;
-  steps: ScriptedStep[];
-  // Optional: condition to check if we should continue
-  doneCondition?: (observation: SanitizedObservation) => boolean;
-}
-
-// T1: "Fill the shipping form and submit" on ShopLite
-export const T1_SCRIPT: TaskScript = {
-  name: 'T1_shoplite_checkout',
-  steps: [
-    {
-      action: { type: 'TYPE', target: { id: 'e1', id_hash: '' }, value: { kind: 'vault_ref', handle: '⟦PERSON_NAME#1⟧' }, clear_first: true },
-      rationale: 'fill_required_field',
-      risk: 'medium',
-      requiresConfirmation: false,
-    },
-    {
-      action: { type: 'TYPE', target: { id: 'e2', id_hash: '' }, value: { kind: 'vault_ref', handle: '⟦EMAIL#1⟧' }, clear_first: true },
-      rationale: 'fill_required_field',
-      risk: 'medium',
-      requiresConfirmation: false,
-    },
-    {
-      action: { type: 'TYPE', target: { id: 'e3', id_hash: '' }, value: { kind: 'vault_ref', handle: '⟦PHONE#1⟧' }, clear_first: true },
-      rationale: 'fill_required_field',
-      risk: 'medium',
-      requiresConfirmation: false,
-    },
-    {
-      action: { type: 'TYPE', target: { id: 'e4', id_hash: '' }, value: { kind: 'vault_ref', handle: '⟦STREET_ADDRESS#1⟧' }, clear_first: true },
-      rationale: 'fill_required_field',
-      risk: 'medium',
-      requiresConfirmation: false,
-    },
-    {
-      action: { type: 'TYPE', target: { id: 'e5', id_hash: '' }, value: { kind: 'vault_ref', handle: '⟦POSTAL_CODE#1⟧' }, clear_first: true },
-      rationale: 'fill_required_field',
-      risk: 'medium',
-      requiresConfirmation: false,
-    },
-    {
-      action: { type: 'CLICK', target: { id: 'e6', id_hash: '' } },
-      rationale: 'complete',
-      risk: 'high',
-      requiresConfirmation: true,
-    },
-  ],
-  doneCondition: (obs) => {
-    // Check if we're on confirmation page
-    return obs.page.url_template.includes('/checkout/confirm') || obs.page.url_template.includes('/confirm');
-  },
+const TYPEABLE = new Set(['text', 'email', 'tel', 'search', 'url', 'number', undefined]);
+const SUBMIT_RE = /place order|submit|continue|proceed|next|confirm|pay now|checkout|save|apply|sign in|log in|register|send/i;
+const FIELD_KEYWORDS: Array<{ re: RegExp; types: string[] }> = [
+  { re: /e-?mail/i, types: ['EMAIL'] },
+  { re: /phone|mobile|tel/i, types: ['PHONE'] },
+  { re: /pin ?code|postal|zip/i, types: ['POSTAL_CODE'] },
+  { re: /city|town|district/i, types: ['STREET_ADDRESS'] },
+  { re: /state|province/i, types: ['STREET_ADDRESS'] },
+  { re: /address|street|house|line ?1/i, types: ['STREET_ADDRESS'] },
+  { re: /aadhaar|uid/i, types: ['AADHAAR'] },
+  { re: /\bpan\b/i, types: ['PAN'] },
+  { re: /full name|^name$|first name|last name|your name/i, types: ['PERSON_NAME'] },
+  { re: /birth|dob/i, types: ['DOB'] },
+];
+const CLASS_TO_HANDLE_TYPES: Record<string, string[]> = {
+  EMAIL: ['EMAIL'],
+  PHONE: ['PHONE'],
+  PERSON_NAME: ['PERSON_NAME'],
+  STREET_ADDRESS: ['STREET_ADDRESS'],
+  POSTAL_CODE: ['POSTAL_CODE'],
+  AADHAAR: ['AADHAAR'],
+  PAN: ['PAN'],
+  DOB: ['DOB'],
 };
 
-// T3: "Search for wireless earbuds under ₹3000 and add the top result to cart" on ShopLite
-export const T3_SCRIPT: TaskScript = {
-  name: 'T3_shoplite_search',
-  steps: [
-    {
-      action: { type: 'TYPE', target: { id: 'e1', id_hash: '' }, value: { kind: 'literal', text: 'wireless earbuds' }, clear_first: true },
-      rationale: 'search',
-      risk: 'low',
-      requiresConfirmation: false,
-    },
-    {
-      action: { type: 'PRESS_KEY', key: 'Enter', target: { id: 'e1', id_hash: '' } },
-      rationale: 'search',
-      risk: 'low',
-      requiresConfirmation: false,
-    },
-    {
-      action: { type: 'CLICK', target: { id: 'e2', id_hash: '' } },
-      rationale: 'advance_step',
-      risk: 'low',
-      requiresConfirmation: false,
-    },
-    {
-      action: { type: 'CLICK', target: { id: 'e3', id_hash: '' } },
-      rationale: 'complete',
-      risk: 'high',
-      requiresConfirmation: true,
-    },
-  ],
-  doneCondition: (obs) => obs.page.url_template.includes('/cart'),
-};
+const visible = (e: SanitizedElement) => e.visible && e.enabled;
+const isTypeable = (e: SanitizedElement) => visible(e) && e.focusable && ((e.tag === 'input' && TYPEABLE.has(e.type)) || e.tag === 'textarea');
+const isClickable = (e: SanitizedElement) => visible(e) && (e.tag === 'button' || e.tag === 'a' || e.role === 'button' || e.role === 'link' || e.type === 'submit');
 
-// Fallback generic script for unknown tasks
-export const GENERIC_SCRIPT: TaskScript = {
-  name: 'generic',
-  steps: [
-    {
-      action: { type: 'WAIT', condition: 'stable', timeout_ms: 1000 },
-      rationale: 'wait_stable',
-      risk: 'low',
-      requiresConfirmation: false,
-    },
-    {
-      action: { type: 'DONE', outcome: 'impossible' as const, evidence_element: undefined },
-      rationale: 'complete',
-      risk: 'low',
-      requiresConfirmation: false,
-    },
-  ],
-};
-
-function findMatchingElement(
-  observation: SanitizedObservation,
-  preferredRoles: string[],
-  preferredLabels: string[]
-): SanitizedElement | null {
-  // Try to find element by role first
-  for (const role of preferredRoles) {
-    const el = observation.elements.find(e => e.role === role && e.visible && e.enabled);
-    if (el) return el;
-  }
-  // Try by label
-  for (const label of preferredLabels) {
-    const el = observation.elements.find(e => 
-      e.label_raw.toLowerCase().includes(label.toLowerCase()) && e.visible && e.enabled
-    );
-    if (el) return el;
-  }
-  // Fallback: first visible, enabled, focusable input
-  return observation.elements.find(e => e.visible && e.enabled && e.focusable) ?? null;
-}
-
-function createTarget(element: SanitizedElement): Target {
-  return { id: element.id, id_hash: element.id_hash };
-}
-
-function detectTaskType(task: string): 'T1' | 'T3' | 'generic' {
-  const lower = task.toLowerCase();
-  if (lower.includes('shipping') || lower.includes('checkout') || lower.includes('fill') && lower.includes('form')) {
-    return 'T1';
-  }
-  if (lower.includes('search') || lower.includes('find') && lower.includes('add') && lower.includes('cart')) {
-    return 'T3';
-  }
-  return 'generic';
-}
-
-export function getScriptedPlanner(task: string): TaskScript {
-  const taskType = detectTaskType(task);
-  switch (taskType) {
-    case 'T1': return T1_SCRIPT;
-    case 'T3': return T3_SCRIPT;
-    default: return GENERIC_SCRIPT;
-  }
-}
-
-export function buildScriptedAction(
-  script: TaskScript,
-  stepIndex: number,
-  observation: SanitizedObservation,
-  _history: ActionEnvelope[]
-): { action: Action; rationale: string; risk: 'low' | 'medium' | 'high'; requiresConfirmation: boolean } | null {
-  if (stepIndex >= script.steps.length) {
-    return null;
-  }
-
-  const scriptStep = script.steps[stepIndex];
-  if (!scriptStep) {
-    return null;
-  }
-  let action = { ...scriptStep.action };
-
-  // For TYPE actions with vault_ref, we need to find the actual target element
-  if (action.type === 'TYPE' && action.value.kind === 'vault_ref') {
-    // Find the next unfilled input field
-    const unfilledInputs = observation.elements.filter(e => 
-      e.tag === 'input' && 
-      e.visible && 
-      e.enabled && 
-      e.value_state !== 'filled' &&
-      !['hidden', 'button', 'submit', 'reset', 'image', 'checkbox', 'radio', 'file', 'color'].includes(e.type || '')
-    );
-    
-    if (unfilledInputs.length > 0) {
-      // Pick the first unfilled input that matches the expected type
-      const target = unfilledInputs[0];
-      if (target) {
-        action = { ...action, target: createTarget(target) };
-      }
-    }
-  }
-
-  // For CLICK actions, find appropriate clickable element
-  if (action.type === 'CLICK') {
-    const clickable = observation.elements.find(e => 
-      (e.role === 'button' || e.role === 'link' || e.tag === 'button' || e.tag === 'a') &&
-      e.visible && 
-      e.enabled
-    );
-    if (clickable) {
-      action = { ...action, target: createTarget(clickable) };
-    }
-  }
-
+function envelope(action: Action, input: PlanInput, risk: ActionEnvelope['risk'], reasoning: string): ActionEnvelope {
   return {
     action,
-    rationale: scriptStep.rationale,
-    risk: scriptStep.risk,
-    requiresConfirmation: scriptStep.requiresConfirmation,
+    observation_id: input.observation.observation_id,
+    step_index: input.stepIndex,
+    session_id: input.sessionId,
+    risk,
+    requires_confirmation: risk === 'high',
+    reasoning: `scripted: ${reasoning}`,
   };
 }
+
+const target = (e: SanitizedElement) => ({ id: e.id, id_hash: e.id_hash });
+
+/** Handles the planner already typed somewhere, so #1/#2 of the same type are used in order. */
+function usedHandles(history: ActionEnvelope[]): Set<string> {
+  const used = new Set<string>();
+  for (const h of history) if (h.action.type === 'TYPE' && h.action.value.kind === 'vault_ref') used.add(h.action.value.handle);
+  return used;
+}
+
+/** Fields the planner already filled in this run (value_state may be n/a on pages without placeholders). */
+function filledTargets(history: ActionEnvelope[]): Set<string> {
+  const filled = new Set<string>();
+  for (const h of history) if (h.action.type === 'TYPE') filled.add(h.action.target.id);
+  return filled;
+}
+
+function pickHandle(field: SanitizedElement, handles: Handle[], used: Set<string>): Handle | null {
+  const wanted = new Set<string>();
+  const cls = field.sensitivity_class;
+  if (cls && CLASS_TO_HANDLE_TYPES[cls]) CLASS_TO_HANDLE_TYPES[cls]!.forEach(t => wanted.add(t));
+  const text = `${field.label_raw} ${field.placeholder_raw ?? ''} ${field.autocomplete ?? ''}`;
+  for (const { re, types } of FIELD_KEYWORDS) if (re.test(text)) types.forEach(t => wanted.add(t));
+  if (wanted.size === 0) return null;
+  // Handles are numbered in the order they were seen on the page: address before
+  // city before state, so "next unused of this type" follows the saved-details card.
+  const candidates = handles.filter(h => wanted.has(h.type)).sort((a, b) => a.handle.localeCompare(b.handle, undefined, { numeric: true }));
+  return candidates.find(h => !used.has(h.handle)) ?? candidates[0] ?? null;
+}
+
+function fillForm(input: PlanInput): ActionEnvelope | null {
+  const { observation, history } = input;
+  const handles = (observation.handles ?? []) as Handle[];
+  const used = usedHandles(history);
+  const filled = filledTargets(history);
+  const fields = observation.elements.filter(e => isTypeable(e) && !filled.has(e.id) && e.value_state !== 'filled' && !/search/i.test(e.label_raw + (e.type ?? '')));
+  for (const field of fields) {
+    // Payment fields are never filled by the agent unless the task says so.
+    if (/CREDIT_CARD|CVC|OTP|PASSWORD/.test(field.sensitivity_class ?? '') && !/card|payment/i.test(input.task)) continue;
+    const handle = pickHandle(field, handles, used);
+    if (!handle) continue;
+    return envelope({ type: 'TYPE', target: target(field), value: { kind: 'vault_ref', handle: handle.handle }, clear_first: true }, input, 'medium', `fill "${field.label_raw}" from ${handle.handle}`);
+  }
+  // Nothing left to fill: submit. A confirm dialog button wins over the page's submit.
+  const dialogButton = observation.page.modal_active ? observation.elements.find(e => isClickable(e) && /confirm|yes|place|ok/i.test(e.label_raw)) : undefined;
+  const submit = dialogButton ?? observation.elements.find(e => isClickable(e) && SUBMIT_RE.test(e.label_raw));
+  if (submit) return envelope({ type: 'CLICK', target: target(submit) }, input, 'high', `submit via "${submit.label_raw}"`);
+  return null;
+}
+
+function searchAndAdd(input: PlanInput): ActionEnvelope | null {
+  const { observation, history, task } = input;
+  const query = (task.match(/(?:search for|find|look for)\s+(.+?)(?:\s+(?:and|under|below|then)\b|,|$)/i)?.[1] ?? '').trim();
+  const searched = history.some(h => h.action.type === 'TYPE' && h.action.value.kind === 'literal');
+  const submitted = history.some(h => h.action.type === 'PRESS_KEY' || (h.action.type === 'CLICK' && /search/i.test(h.reasoning ?? '')));
+  const added = history.some(h => h.action.type === 'CLICK' && /add/i.test(h.reasoning ?? ''));
+  const box = observation.elements.find(e => isTypeable(e) && (e.type === 'search' || e.role === 'searchbox' || /search/i.test(e.label_raw + (e.placeholder_raw ?? ''))));
+  if (query && !searched && box) return envelope({ type: 'TYPE', target: target(box), value: { kind: 'literal', text: query }, clear_first: true }, input, 'low', `search "${query}"`);
+  if (searched && !submitted && box) return envelope({ type: 'PRESS_KEY', key: 'Enter', target: target(box) }, input, 'low', 'submit search');
+  if (/add|cart|buy/i.test(task) && !added) {
+    const add = observation.elements.find(e => isClickable(e) && /\badd\b.*\b(cart|bag|basket)\b|\bbuy\b/i.test(e.label_raw));
+    if (add) return envelope({ type: 'CLICK', target: target(add) }, input, 'medium', `add via "${add.label_raw}"`);
+    if (submitted) return envelope({ type: 'SCROLL', direction: 'down', amount: 1 }, input, 'low', 'look for an add-to-cart button');
+  }
+  if (added || (searched && !/add|cart|buy/i.test(task))) return envelope({ type: 'DONE', outcome: 'success' }, input, 'low', 'search task complete');
+  return null;
+}
+
+function lookup(input: PlanInput): ActionEnvelope | null {
+  const { observation, history, task } = input;
+  const want = (task.match(/(?:order|status|track(?:ing)?)\s+(?:for|of)?\s*(?:the|my)?\s*([\w ]+?)(?:\s+and|,|$)/i)?.[1] ?? '').trim().toLowerCase();
+  const onOrders = /order/i.test(observation.page.url_template);
+  if (!onOrders) {
+    const link = observation.elements.find(e => isClickable(e) && /orders?/i.test(e.label_raw));
+    if (link && !history.some(h => h.action.type === 'CLICK')) return envelope({ type: 'CLICK', target: target(link) }, input, 'low', 'open orders');
+  }
+  const row = observation.text_nodes.find(t => want && t.text.toLowerCase().includes(want));
+  if (row) return envelope({ type: 'DONE', outcome: 'success', evidence_element: row.owner_element_id ?? undefined }, input, 'low', `found "${want}"`);
+  if (onOrders && history.filter(h => h.action.type === 'SCROLL').length < 3) return envelope({ type: 'SCROLL', direction: 'down', amount: 1 }, input, 'low', 'scan orders');
+  return null;
+}
+
+export function planScripted(input: PlanInput): ActionEnvelope {
+  const task = input.task;
+  const done = input.history.some(h => h.action.type === 'DONE');
+  if (done) return envelope({ type: 'DONE', outcome: 'success' }, input, 'low', 'already done');
+  // A form task ends when the page reports confirmation.
+  if (/fill|form|checkout|shipping|address|submit|place|apply|register/i.test(task)) {
+    if (/confirm|success|thank|placed|complete/i.test(observation(input).url_template + ' ' + observation(input).title_raw) && input.history.some(h => h.action.type === 'CLICK')) {
+      return envelope({ type: 'DONE', outcome: 'success' }, input, 'low', 'confirmation page reached');
+    }
+    const next = fillForm(input);
+    if (next) return next;
+  }
+  if (/search|find|look for|add .* cart|buy/i.test(task)) {
+    const next = searchAndAdd(input);
+    if (next) return next;
+  }
+  if (/order|status|track/i.test(task)) {
+    const next = lookup(input);
+    if (next) return next;
+  }
+  return envelope({ type: 'DONE', outcome: 'impossible' }, input, 'low', 'no scripted strategy matches this task and page');
+}
+
+const observation = (i: PlanInput): SanitizedObservation['page'] => i.observation.page;
+
+export const scriptedProvider: Provider = {
+  name: 'scripted',
+  vision: false,
+  available: async () => ({ ok: true, detail: 'deterministic planner, no network' }),
+  plan: async input => planScripted(input),
+};
