@@ -22,7 +22,7 @@ command that can be re-run.
 |---|---|---|---|
 | 0 — Foundation and cleanup | 🟡 IN PROGRESS | 90% | build green, backend starts, bench sites serve; `pnpm lint` still red |
 | 1 — Extension shell that loads and observes | ✅ COMPLETE | 100% | verified in Chromium: panel, content script, overlay, `verify:boundary` 8/8 |
-| 2 — Privacy seam: sanitize ↔ vault ↔ gate ↔ net | ⬜ NOT STARTED | 0% | |
+| 2 — Privacy seam: sanitize ↔ vault ↔ gate ↔ net | ✅ COMPLETE | 100% | integration test: sanitize → gate accepts; vault resolves; exfiltration blocked; handles stable |
 | 3 — Closed loop: orchestrator, gateway, execution | ⬜ NOT STARTED | 0% | |
 | 4 — Side panel UI and page overlay | ⬜ NOT STARTED | 0% | |
 | 5 — Local vision: OCR, NER, redacted screenshot | ⬜ NOT STARTED | 0% | |
@@ -179,9 +179,9 @@ smuggled into a label is rejected by the sweep. Existing gate/tokenizer/resolve 
 updated and green.
 
 ### Definition of Done
-- [ ] Integration test green
-- [ ] `verify:boundary` 8/8
-- [ ] Handles stable across two consecutive `sanitize()` calls with the same secrets
+- [x] Integration test green (`packages/privacy/src/integration.test.ts`)
+- [x] `verify:boundary` 8/8
+- [x] Handles stable across two consecutive `sanitize()` calls with the same secrets
 
 ### SIH relevance
 Privacy-preserving filter; "only anonymized data transmitted"; PII P/R and redaction precision.
