@@ -1,28 +1,16 @@
-// Backend entry point - Fastify server with routes
+// Gateway entry point: Fastify server exposing /v1/health, /v1/session, /v1/step.
 import Fastify from 'fastify';
-import { registerRoutes } from './routes';
+import { registerRoutes } from './routes/index.js';
 
-const app = Fastify({ 
-  logger: {
-    level: 'info',
-    transport: {
-      target: 'pino-pretty',
-      options: { colorize: true }
-    }
-  }
-});
+const PORT = Number(process.env.PORT ?? 3000);
+const HOST = process.env.HOST ?? '127.0.0.1';
 
-// Register routes
+const app = Fastify({ logger: { level: process.env.LOG_LEVEL ?? 'info' } });
 await registerRoutes(app);
 
-const start = async (): Promise<void> => {
-  try {
-    await app.listen({ port: 3000, host: '0.0.0.0' });
-    console.log('Backend listening on http://localhost:3000');
-  } catch (err) {
-    app.log.error(err);
-    process.exit(1);
-  }
-};
-
-void start();
+try {
+  await app.listen({ port: PORT, host: HOST });
+} catch (err) {
+  app.log.error(err);
+  process.exit(1);
+}
