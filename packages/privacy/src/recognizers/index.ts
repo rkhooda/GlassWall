@@ -30,7 +30,7 @@ import type { Span } from './types';
 import { recognizeByContext } from './context';
 export { recognizeByContext, isLabelWord } from './context';
 
-let _allRecognizers: Array<{ recognizer: any; recognizeFn: (text: string) => Span[] }> | null = null;
+let _allRecognizers: { recognizer: any; recognizeFn: (text: string) => Span[] }[] | null = null;
 
 function getAllRecognizers() {
   if (!_allRecognizers) {
@@ -64,7 +64,7 @@ export function recognizeText(text: string): Span[] {
 
 export async function detectAll(text: string) {
   const recognizers = getAllRecognizers();
-  const results: Array<{ type: string; tier: number; spans: Span[] }> = [];
+  const results: { type: string; tier: number; spans: Span[] }[] = [];
   for (const { recognizer, recognizeFn } of recognizers) {
     const spans = recognizeFn(text);
     if (spans.length > 0) {
@@ -118,7 +118,7 @@ export function recognizeAll(raw: RawObservation, _frame: CapturedFrame | null =
   }
 
   for (const textNode of raw.text_nodes) {
-    for (const { recognizer, recognizeFn } of recognizers) {
+    for (const { recognizeFn } of recognizers) {
       const spans = recognizeFn(textNode.text);
       for (const span of spans) {
         results.push({

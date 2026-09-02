@@ -1,5 +1,5 @@
-import { Rect } from '@glasswall/perception';
-import { RedactedImage } from '@glasswall/schema';
+import type { Rect } from '@glasswall/perception';
+import type { RedactedImage } from '@glasswall/schema';
 
 export interface RedactionRect extends Rect {
   // Additional metadata for audit trail

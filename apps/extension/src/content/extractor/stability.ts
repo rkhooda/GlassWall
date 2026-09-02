@@ -1,17 +1,6 @@
 // DOM stability checking for validation ladder (WAIT_STABLE)
 // Implements PLAN.md section 12.4: Validation ladder
 
-import { createRect, area, intersects, quantizeRect } from '@glasswall/perception';
-import {
-  computeAccessibleNameForElement,
-  computeRoleForElement,
-  getElementState,
-  isElementHidden
-} from './a11y';
-
-// Import types from schema
-import type { Rect } from '@glasswall/schema';
-
 // Configuration for stability checking
 const STABILITY_CHECK_INTERVAL = 50; // ms between stability checks
 const STABILITY_TIMEOUT = 2000; // max time to wait for stability (ms)
@@ -83,7 +72,7 @@ export async function waitForStability(
     };
 
     // Set up mutation observer to detect DOM changes
-    mutationObserver = new MutationObserver((mutations) => {
+    mutationObserver = new MutationObserver(() => {
       hasRecentMutation = true;
     });
 

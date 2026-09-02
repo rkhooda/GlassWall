@@ -2,13 +2,13 @@ import { z } from 'zod';
 
 // SafePayload: an outbound request that has passed every egress-gate check. It is
 // the only thing net.ts will send, and only egressGate() constructs it.
-export type SafePayload = {
+export interface SafePayload {
   readonly __safePayloadBrand: '__safePayloadBrand';
   readonly destination: string;
   readonly path: string;
   readonly method: 'GET' | 'POST';
   readonly body: unknown;
-};
+}
 
 export const SafePayloadSchema = z.object({
   __safePayloadBrand: z.literal('__safePayloadBrand' as const),
@@ -20,10 +20,10 @@ export const SafePayloadSchema = z.object({
 
 // Brand for Sensitive<T> - represents data that should never be exposed in plaintext
 // The toString() implementation returns "[redacted]" to prevent accidental leaks
-export type Sensitive<T> = {
+export interface Sensitive<T> {
   readonly __sensitiveBrand: '__sensitiveBrand';
   readonly value: T;
-};
+}
 
 // Zod schema factory for Sensitive<T>
 // Takes an inner schema and returns a schema for Sensitive<InnerType>
@@ -40,13 +40,13 @@ export type SensitiveValue<T> = T extends Sensitive<infer U> ? U : never;
 
 // Brand for RedactedImage - represents an image that has been redacted and is safe to transmit
 // This is the ONLY type that can carry image bytes out of the offscreen document
-export type RedactedImage = {
+export interface RedactedImage {
   readonly __redactedImageBrand: '__redactedImageBrand';
   readonly data: Uint8Array;
   readonly width: number;
   readonly height: number;
   readonly format: 'png' | 'jpeg' | 'webp' | 'rgba';
-};
+}
 
 // Zod schema for RedactedImage
 export const RedactedImageSchema = z.object({

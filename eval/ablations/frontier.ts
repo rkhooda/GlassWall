@@ -18,7 +18,7 @@ import * as path from 'node:path';
 import { PROFILES, sanitize, type Profile } from '@glasswall/privacy/index';
 import type { RawObservation, SanitizedObservation } from '@glasswall/schema/observation';
 import { buildScene, type Scene } from './scene';
-import { CONFIGS, profileFor, type AblationConfig } from './run';
+import { CONFIGS, profileFor } from './run';
 import { nerSource, ocrSource, visionSource } from './sources';
 import {
   mean,
@@ -137,7 +137,7 @@ export async function computeFrontier(
   const points: FrontierPoint[] = [];
 
   for (const id of FRONTIER_IDS) {
-    const config = CONFIGS.find(c => c.id === id) as AblationConfig;
+    const config = CONFIGS.find(c => c.id === id)!;
     const profile = profileFor(base, config);
     const runs: SeedRun[] = [];
     for (const scene of scenes) runs.push(await runSeed(scene, profile));
@@ -398,7 +398,7 @@ export function writeFrontier(points: FrontierPoint[], outDir: string, env = des
 
 const SEEDS = [1337, 42, 999, 2024, 7, 31337, 8080, 12345, 555, 90210];
 
-if (process.argv[1] && process.argv[1].endsWith('frontier.ts')) {
+if (process.argv[1]?.endsWith('frontier.ts')) {
   computeFrontier(SEEDS).then(points => {
     writeFrontier(points, path.resolve(__dirname, '../reports'));
     console.log(renderReport(points, describeEnvironment()));

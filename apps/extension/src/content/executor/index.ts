@@ -15,7 +15,7 @@ const EVENT_GAP_MS = 8;
 const CHAR_GAP_MS = 6;
 const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
 
-type Outcome = { ok: boolean; effect_observed: boolean; error_code?: ActionResult['error_code']; error_message?: string };
+interface Outcome { ok: boolean; effect_observed: boolean; error_code?: ActionResult['error_code']; error_message?: string }
 
 function fail(error_code: ActionResult['error_code'], error_message: string): Outcome {
   return { ok: false, effect_observed: false, error_code, error_message };
@@ -143,6 +143,7 @@ async function click(element: Element, action: Action): Promise<Outcome> {
 function nativeSetter(element: Element): ((value: string) => void) | null {
   const proto = element instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : element instanceof HTMLInputElement ? HTMLInputElement.prototype : null;
   if (!proto) return null;
+  // eslint-disable-next-line @typescript-eslint/unbound-method -- bound with .call below
   const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
   return setter ? (v: string) => setter.call(element, v) : null;
 }

@@ -2,7 +2,7 @@
 export function base64Utf8(value: string): string {
   const bytes = new TextEncoder().encode(value);
   let bin = '';
-  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]!);
+  for (const b of bytes) bin += String.fromCharCode(b);
   return btoa(bin);
 }
 
@@ -41,8 +41,7 @@ export function generateEncodings(value: string): string[] {
     '/': '&#x2F;',
   };
   let namedHtml = '';
-  for (let i = 0; i < normalized.length; i++) {
-    const ch = normalized[i]!;
+  for (const ch of normalized) {
     namedHtml += namedEntities[ch] || ch;
   }
   if (namedHtml !== normalized) {
@@ -50,8 +49,7 @@ export function generateEncodings(value: string): string[] {
   }
 
   let jsonEscaped = '';
-  for (let i = 0; i < normalized.length; i++) {
-    const ch = normalized[i]!;
+  for (const ch of normalized) {
     const code = ch.charCodeAt(0);
     jsonEscaped += `\\\\u${code.toString(16).padStart(4, '0')}`;
   }

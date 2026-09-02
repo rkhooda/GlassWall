@@ -123,7 +123,7 @@ export default function App() {
         <span className={`status status-${state.status}`}>{state.status.replace('_', ' ')}</span>
       </header>
 
-      <form className="task" onSubmit={onStart}>
+      <form className="task" onSubmit={e => { void onStart(e); }}>
         <label htmlFor="task">Task</label>
         <textarea id="task" rows={2} value={task} onChange={e => setTask(e.target.value)} disabled={running} />
         <div className="task-controls">

@@ -43,7 +43,7 @@ function normalize(raw: unknown, observation: SanitizedObservation, expected: { 
     const el = observation.elements.find(e => e.id === action.target);
     action.target = el ? { id: el.id, id_hash: el.id_hash } : { id: action.target, id_hash: '' };
   }
-  if (action && action.target && typeof action.target === 'object' && !(action.target as Record<string, unknown>).id_hash) {
+  if (action?.target && typeof action.target === 'object' && !(action.target as Record<string, unknown>).id_hash) {
     const t = action.target as Record<string, unknown>;
     const el = observation.elements.find(e => e.id === t.id);
     if (el) t.id_hash = el.id_hash;

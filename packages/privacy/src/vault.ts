@@ -1,4 +1,4 @@
-import { Sensitive } from './sensitive';
+import type { Sensitive } from './sensitive';
 
 export interface VaultEntry {
   value: string;

@@ -1,4 +1,5 @@
-import { Recognizer, Span, getTier } from './types';
+import type { Recognizer, Span} from './types';
+import { getTier } from './types';
 import { incrementConstructionCount } from './types';
 
 const IFSC_REGEX = /\b[A-Z]{4}0[A-Z0-9]{6}\b/g;

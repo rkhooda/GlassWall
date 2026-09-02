@@ -29,7 +29,7 @@ export interface Scene {
   raw: RawObservation;
   groundTruth: GroundTruthItem[];
   /** What a real OCR pass would recover from each canvas. Never in the DOM. */
-  canvases: Array<{ rect: Rect4; text: string; channel: 'canvas_readable' | 'canvas_opaque' }>;
+  canvases: { rect: Rect4; text: string; channel: 'canvas_readable' | 'canvas_opaque' }[];
 }
 
 /** Structured identifiers a deterministic recognizer can match and checksum. */

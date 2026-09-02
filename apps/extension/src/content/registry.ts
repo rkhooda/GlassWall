@@ -18,5 +18,5 @@ export function currentObservationId(): string | null {
 
 export function resolve(id: string): Element | null {
   const el = elements.get(id);
-  return el && el.isConnected ? el : null;
+  return el?.isConnected ? el : null;
 }

@@ -52,11 +52,11 @@ export class Tokenizer {
   }
 
   /** For session persistence only (chrome.storage.session). Keys contain values. */
-  exportCounter(): Array<[string, number]> {
+  exportCounter(): [string, number][] {
     return [...this.handleCounter.entries()];
   }
 
-  importCounter(entries: Array<[string, number]>): void {
+  importCounter(entries: [string, number][]): void {
     this.handleCounter = new Map(entries);
   }
 }
@@ -111,7 +111,7 @@ export function getHandleForValue(
   registry: SecretRegistry,
   value: string,
   piiType: string,
-  tier: number = 3
+  tier = 3
 ): string | undefined {
   const handle = tokenizer.tokenize(value, piiType, tier);
   return registry.has(handle) ? handle : undefined;

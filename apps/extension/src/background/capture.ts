@@ -50,7 +50,7 @@ export function dataUrlToBytes(dataUrl: string): Uint8Array {
 async function askOffscreen<T>(message: { target: 'offscreen'; type: string }, timeoutMs: number, fallback: T): Promise<T> {
   await ensureOffscreenDocument();
   const timeout = new Promise<T>(resolve => setTimeout(() => resolve(fallback), timeoutMs));
-  const reply = (chrome.runtime.sendMessage(message) as Promise<T | undefined>).then(r => r ?? fallback).catch(() => fallback);
+  const reply = (chrome.runtime.sendMessage(message)).then(r => r ?? fallback).catch(() => fallback);
   return Promise.race([reply, timeout]);
 }
 

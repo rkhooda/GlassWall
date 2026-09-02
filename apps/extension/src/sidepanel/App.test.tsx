@@ -31,7 +31,7 @@ const emit = (m: WorkerToPanel) => act(() => { listeners.forEach(l => l(m)); });
 describe('side panel', () => {
   it('starts a run, shows the trace, and reports completion', async () => {
     render(<App />);
-    await act(async () => {});
+    await act(() => Promise.resolve());
     expect(await screen.findByText(/gateway · scripted/)).toBeTruthy();
     fireEvent.change(screen.getByLabelText('Task'), { target: { value: 'Fill the form' } });
     await act(async () => { fireEvent.click(screen.getByText('Start')); });
@@ -49,7 +49,7 @@ describe('side panel', () => {
 
   it('shows a confirmation and sends the answer', async () => {
     render(<App />);
-    await act(async () => {});
+    await act(() => Promise.resolve());
     emit({ type: 'gw:state', state: { status: 'waiting_confirmation', sessionId: 's1', task: 't', policy: 'STRICT', step: 2, stepsLeft: 18, provider: 'scripted' } });
     emit({ type: 'gw:confirm-request', context: { actionType: 'CLICK', targetLabel: 'Place order', risk: 'high', reason: 'payment or order placement' } });
     expect(screen.getByRole('dialog')).toBeTruthy();
@@ -60,7 +60,7 @@ describe('side panel', () => {
 
   it('surfaces errors and blocked actions', async () => {
     render(<App />);
-    await act(async () => {});
+    await act(() => Promise.resolve());
     emit({ type: 'gw:error', code: 'VAULT_TYPE_MISMATCH', message: 'Blocked: AADHAAR handle bound into e3', step: 0 });
     expect(screen.getByRole('alert').textContent).toContain('Blocked');
     emit({ type: 'gw:trace', entry: { step: 0, phase: 'blocked', action: { type: 'TYPE', target: { id: 'e3', id_hash: 'h' }, value: { kind: 'vault_ref', handle: '⟦AADHAAR#1⟧' }, clear_first: true }, targetLabel: 'Search products', provider: 'demo-hijacked', timings: { total: 90 }, redactions: 1, degraded: [], observedElements: 20, errorCode: 'VAULT_TYPE_MISMATCH', errorMessage: 'no', at: 2 } });
@@ -70,7 +70,7 @@ describe('side panel', () => {
 
   it('privacy tab renders the inspector with the latest step', async () => {
     render(<App />);
-    await act(async () => {});
+    await act(() => Promise.resolve());
     fireEvent.click(screen.getByRole('tab', { name: 'Privacy' }));
     expect(screen.getByText(/Is a value in the outbound payload/)).toBeTruthy();
   });

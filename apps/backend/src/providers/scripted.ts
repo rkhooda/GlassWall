@@ -8,11 +8,11 @@ import type { SanitizedObservation, SanitizedElement } from '@glasswall/schema/o
 import type { Action, ActionEnvelope } from '@glasswall/schema/action';
 import type { PlanInput, Provider } from './types';
 
-type Handle = { handle: string; type: string; tier: number };
+interface Handle { handle: string; type: string; tier: number }
 
 const TYPEABLE = new Set(['text', 'email', 'tel', 'search', 'url', 'number', undefined]);
 const SUBMIT_RE = /place order|submit|continue|proceed|next|review|confirm|pay now|checkout|save|apply|sign in|log in|register|send|finish/i;
-const FIELD_KEYWORDS: Array<{ re: RegExp; types: string[] }> = [
+const FIELD_KEYWORDS: { re: RegExp; types: string[] }[] = [
   { re: /e-?mail/i, types: ['EMAIL'] },
   { re: /phone|mobile|tel/i, types: ['PHONE'] },
   { re: /pin ?code|postal|zip/i, types: ['POSTAL_CODE'] },
@@ -77,7 +77,7 @@ function filledFields(history: ActionEnvelope[]): Set<string> {
 function pickHandle(field: SanitizedElement, handles: Handle[], used: Set<string>): Handle | null {
   const wanted = new Set<string>();
   const cls = field.sensitivity_class;
-  if (cls && CLASS_TO_HANDLE_TYPES[cls]) CLASS_TO_HANDLE_TYPES[cls]!.forEach(t => wanted.add(t));
+  if (cls && CLASS_TO_HANDLE_TYPES[cls]) CLASS_TO_HANDLE_TYPES[cls].forEach(t => wanted.add(t));
   const text = `${field.label_raw} ${field.placeholder_raw ?? ''} ${field.autocomplete ?? ''}`;
   for (const { re, types } of FIELD_KEYWORDS) if (re.test(text)) types.forEach(t => wanted.add(t));
   if (wanted.size === 0) return null;

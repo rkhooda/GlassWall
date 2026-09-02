@@ -90,17 +90,17 @@ export interface AuditEntry {
   gate: string;
   validation: string;
   payload_bytes: number;
-  redactions: Array<{ rect: [number, number, number, number]; source: string; reason: string }>;
-  observed: Array<{ tag: string; rect: [number, number, number, number]; visible: boolean }>;
+  redactions: { rect: [number, number, number, number]; source: string; reason: string }[];
+  observed: { tag: string; rect: [number, number, number, number]; visible: boolean }[];
   timings: Record<string, number>;
 }
 
 /** Ask the extension for its run state / audit log through the panel page's chrome.runtime. */
 export function getState(h: Harness): Promise<RunState> {
-  return h.panel.evaluate("chrome.runtime.sendMessage({ type: 'gw:get-state' })") as Promise<RunState>;
+  return h.panel.evaluate("chrome.runtime.sendMessage({ type: 'gw:get-state' })");
 }
 export function getAudit(h: Harness): Promise<AuditEntry[]> {
-  return h.panel.evaluate("chrome.runtime.sendMessage({ type: 'gw:get-audit' })") as Promise<AuditEntry[]>;
+  return h.panel.evaluate("chrome.runtime.sendMessage({ type: 'gw:get-audit' })");
 }
 
 export interface DriveOptions {

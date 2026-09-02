@@ -74,7 +74,7 @@ export function assertNoValuesInAudit(fields: AuditPrivacyFields): void {
 export function createEgressChecks(
   payload: unknown,
   registry: Map<string, { handle: string; pii_type: string; tier: number; normalized_value: string }>,
-  policy: { fail_mode: 'CLOSED' }
+  _policy: { fail_mode: 'CLOSED' }
 ): EgressCheck[] {
   const checks: EgressCheck[] = [];
 

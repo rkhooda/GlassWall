@@ -6,10 +6,10 @@ import type { StepRequest } from '@glasswall/schema/transport';
 import { checkoutPage, EMAIL, AADHAAR } from '@glasswall/privacy/test-fixtures';
 import { resetRateLimitForTests } from '@glasswall/privacy';
 
-const wire: Array<{ path: string; body: string }> = [];
-const tab: Array<{ type: string; action?: { type: string; value?: { kind: string; text?: string } } }> = [];
-const panel: Array<{ type: string; [k: string]: unknown }> = [];
-let plans: Array<(req: StepRequest) => ActionEnvelope>;
+const wire: { path: string; body: string }[] = [];
+const tab: { type: string; action?: { type: string; value?: { kind: string; text?: string } } }[] = [];
+const panel: { type: string; [k: string]: unknown }[] = [];
+let plans: ((req: StepRequest) => ActionEnvelope)[];
 let sendImpl: (p: { path: string; body?: unknown }) => Promise<{ status: number; body: unknown }>;
 let perceiveOk = true;
 let observation = () => checkoutPage(0);

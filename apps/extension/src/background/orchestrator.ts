@@ -7,6 +7,7 @@
 import type { PolicyProfile } from '@glasswall/schema/policy';
 import type { RawObservation, SanitizedObservation } from '@glasswall/schema/observation';
 import type { Action, ActionEnvelope, ActionResult } from '@glasswall/schema/action';
+import type { RedactionReason } from '@glasswall/schema/audit';
 import { StepResponseSchema, SessionResponseSchema, HealthResponseSchema, GATEWAY_PATHS, type StepRequest } from '@glasswall/schema/transport';
 import {
   sanitize,
@@ -222,7 +223,7 @@ async function bind(action: Action, obs: SanitizedObservation, secrets: SessionS
   return { action: { ...action, value: { kind: 'literal', text: resolved.value.value } } };
 }
 
-function auditShape(obs: SanitizedObservation, redactions: import('@glasswall/schema/audit').RedactionReason[], timings: TraceEntry['timings']) {
+function auditShape(obs: SanitizedObservation, redactions: RedactionReason[], timings: TraceEntry['timings']) {
   return {
     redactions: redactions.map(r => ({ rect: r.rect, source: r.source, reason: r.reason })),
     observed: obs.elements.map(e => ({ tag: e.tag, rect: e.rect, visible: e.visible })),

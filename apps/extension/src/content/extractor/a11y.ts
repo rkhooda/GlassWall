@@ -111,7 +111,7 @@ function getRoleFallback(element: Element): string {
 
   // Default roles based on tag name
   switch (element.tagName.toLowerCase()) {
-    case 'input':
+    case 'input': {
       const type = element.getAttribute('type') || 'text';
       switch (type) {
         case 'checkbox': return 'checkbox';
@@ -124,6 +124,7 @@ function getRoleFallback(element: Element): string {
         case 'hidden': return 'none';
         default: return 'textbox';
       }
+    }
     case 'textarea': return 'textbox';
     case 'select': return 'combobox';
     case 'button': return 'button';

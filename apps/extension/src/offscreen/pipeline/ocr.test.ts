@@ -6,7 +6,7 @@ const initOcrWorker = vi.fn();
 const runOcrOnCrops = vi.fn();
 
 vi.mock('@glasswall/inference/ocr', async () => {
-  const actual = await vi.importActual<typeof import('@glasswall/inference/ocr')>('@glasswall/inference/ocr');
+  const actual = await vi.importActual<Record<string, unknown>>('@glasswall/inference/ocr');
   return { ...actual, initOcrWorker, runOcrOnCrops };
 });
 // NER over OCR text is best effort; keep the model out of this unit test.

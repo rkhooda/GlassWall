@@ -171,7 +171,7 @@ export function quantize(value: number, step: number): number {
 }
 
 // Quantize a rectangle to a 4px grid
-export function quantizeRect(rect: Rect, gridSize: number = 4): Rect {
+export function quantizeRect(rect: Rect, gridSize = 4): Rect {
   return createRect(
     quantize(rect.x, gridSize),
     quantize(rect.y, gridSize),

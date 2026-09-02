@@ -21,7 +21,7 @@ const unsafePath = opt('unsafe-extension', path.join(ROOT, 'apps/extension/dist-
 const reportsDir = opt('reports', path.join(ROOT, 'eval/reports'));
 const headless = opt('headed', '0') !== '1';
 const seeds = opt('seeds', mode === 'all' ? '1337,42,7' : '1337').split(',').map(Number);
-const policies = opt('policies', mode === 'all' ? 'STRICT,BALANCED' : 'STRICT').split(',') as Array<'STRICT' | 'BALANCED'>;
+const policies = opt('policies', mode === 'all' ? 'STRICT,BALANCED' : 'STRICT').split(',') as ('STRICT' | 'BALANCED')[];
 const only = opt('tasks', mode === 'smoke' ? 'T1,T3' : '').split(',').filter(Boolean);
 
 function env(): Record<string, string> {

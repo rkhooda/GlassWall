@@ -31,7 +31,7 @@ const SWEEP_TIERS = new Set([1, 2]);
 
 const violation = (code: string, message: string, details: Record<string, unknown> = {}): Violation => ({ code, message, details });
 
-function extractStrings(obj: unknown, path = '', out: Array<{ value: string; path: string }> = []): Array<{ value: string; path: string }> {
+function extractStrings(obj: unknown, path = '', out: { value: string; path: string }[] = []): { value: string; path: string }[] {
   if (typeof obj === 'string') out.push({ value: obj, path });
   else if (Array.isArray(obj)) obj.forEach((v, i) => extractStrings(v, `${path}[${i}]`, out));
   else if (obj && typeof obj === 'object') for (const [k, v] of Object.entries(obj)) extractStrings(v, path ? `${path}.${k}` : k, out);
@@ -173,7 +173,7 @@ export function lastGateTimings(): Record<string, number> {
 }
 
 export function egressGate(request: OutboundRequest, registry: SecretRegistry, policy: GatePolicy, destination: string = policy.gateway_origin ?? ''): Result<SafePayload, Violation> {
-  const checks: Array<() => Violation | null> = [
+  const checks: (() => Violation | null)[] = [
     () => checkSchema(request),
     () => checkRegistry(request.body, registry),
     () => checkRecognizerSweep(request.body),

@@ -95,7 +95,7 @@ export function gstinCheckChar(gstin14: string): string {
 
 export function verifyGstin(gstin: string): boolean {
   if (gstin.length !== 15) return false;
-  return gstin[14]! === gstinCheckChar(gstin.slice(0, 14));
+  return gstin[14] === gstinCheckChar(gstin.slice(0, 14));
 }
 
 export function calculateShannonEntropy(str: string): number {

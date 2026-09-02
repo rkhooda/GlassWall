@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { elementRulesRecognizer, RawElement } from './element-rules';
+import type { RawElement } from './element-rules';
+import { elementRulesRecognizer } from './element-rules';
 
 describe('elementRulesRecognizer', () => {
   const baseElement: RawElement = {

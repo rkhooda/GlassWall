@@ -1,4 +1,5 @@
-import { Recognizer, Span, PiiType, PiiTier, getTier, RawElement } from './types';
+import type { Recognizer, Span, PiiType, RawElement } from './types';
+import { getTier } from './types';
 import { incrementConstructionCount } from './types';
 
 incrementConstructionCount();
@@ -11,11 +12,11 @@ function normalizeAutocomplete(autocomplete: string): string[] {
     .filter(t => t.length > 0);
 }
 
-function checkAutocompleteTokens(autocomplete: string | undefined): Array<{ type: PiiType; confidence: number; rule_id: string }> {
+function checkAutocompleteTokens(autocomplete: string | undefined): { type: PiiType; confidence: number; rule_id: string }[] {
   if (!autocomplete) return [];
   const tokens = normalizeAutocomplete(autocomplete);
 
-  const tokenMap: Array<{ tokens: string[]; type: PiiType; confidence: number; rule_id: string }> = [
+  const tokenMap: { tokens: string[]; type: PiiType; confidence: number; rule_id: string }[] = [
     { tokens: ['cc-number', 'credit-card', 'card-number'], type: 'CREDIT_CARD', confidence: 0.99, rule_id: 'element-autocomplete-cc-number-v1' },
     { tokens: ['cc-csc', 'cc-cvc', 'cvc', 'cvv', 'security-code'], type: 'CVC', confidence: 0.99, rule_id: 'element-autocomplete-cvc-v1' },
     { tokens: ['cc-exp', 'cc-exp-month', 'cc-exp-year', 'cc-name', 'cc-type'], type: 'CREDIT_CARD', confidence: 0.9, rule_id: 'element-autocomplete-cc-meta-v1' },
@@ -32,7 +33,7 @@ function checkAutocompleteTokens(autocomplete: string | undefined): Array<{ type
     { tokens: ['address', 'shipping', 'billing'], type: 'STREET_ADDRESS', confidence: 0.7, rule_id: 'element-autocomplete-address-v1' },
   ];
 
-  const results: Array<{ type: PiiType; confidence: number; rule_id: string }> = [];
+  const results: { type: PiiType; confidence: number; rule_id: string }[] = [];
   for (const token of tokens) {
     for (const mapping of tokenMap) {
       if (mapping.tokens.includes(token)) {
@@ -99,7 +100,7 @@ function checkCvcHeuristics(element: RawElement): { type: PiiType; confidence: n
 }
 
 /** A field's own label says what it will hold: "PAN number", "Aadhaar", "Mobile". Used when autocomplete is absent. */
-const LABEL_RULES: Array<{ re: RegExp; type: PiiType; confidence: number; rule_id: string }> = [
+const LABEL_RULES: { re: RegExp; type: PiiType; confidence: number; rule_id: string }[] = [
   { re: /aadhaar|aadhar|\buid\b/i, type: 'AADHAAR', confidence: 0.9, rule_id: 'element-label-aadhaar-v1' },
   { re: /\bpan\b/i, type: 'PAN', confidence: 0.9, rule_id: 'element-label-pan-v1' },
   { re: /\bmrn\b|medical record|patient id/i, type: 'MRN', confidence: 0.85, rule_id: 'element-label-mrn-v1' },

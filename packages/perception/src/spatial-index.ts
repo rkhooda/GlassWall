@@ -1,4 +1,5 @@
-import { Rect, createRect, intersects } from './geometry';
+import type { Rect} from './geometry';
+import { intersects } from './geometry';
 
 export interface IndexedRect {
   rect: Rect;
@@ -13,10 +14,10 @@ interface GridCell {
 
 export class UniformGridIndex {
   private readonly cellSize: number;
-  private readonly grid: Map<string, GridCell> = new Map();
+  private readonly grid = new Map<string, GridCell>();
   private readonly bounds: Rect;
 
-  constructor(bounds: Rect, cellSize: number = 64) {
+  constructor(bounds: Rect, cellSize = 64) {
     this.bounds = bounds;
     this.cellSize = cellSize;
   }
@@ -104,9 +105,9 @@ export class UniformGridIndex {
 }
 
 export function buildSpatialIndex(
-  items: Array<{ id: string; rect: Rect; source: string; data: unknown }>,
+  items: { id: string; rect: Rect; source: string; data: unknown }[],
   bounds: Rect,
-  cellSize: number = 64
+  cellSize = 64
 ): UniformGridIndex {
   const index = new UniformGridIndex(bounds, cellSize);
   for (const item of items) {

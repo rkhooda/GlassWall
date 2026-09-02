@@ -18,7 +18,7 @@ describe('sanitize → egressGate → vault, as the orchestrator uses them', () 
     const policy = PROFILES.STRICT.policy;
 
     const result = await sanitize({ raw: checkoutPage(0), frame: null, task: 'Fill the form', step: 0, session: { session_id: 's1', policy_profile: 'STRICT', secrets } });
-    const obs = result.observation as { elements: Array<{ id: string; label_raw: string; sensitivity_class?: string; available_actions?: string[] }>; text_nodes: Array<{ text: string }>; handles?: Array<{ handle: string; type: string }> };
+    const obs = result.observation as { elements: { id: string; label_raw: string; sensitivity_class?: string; available_actions?: string[] }[]; text_nodes: { text: string }[]; handles?: { handle: string; type: string }[] };
     const text = obs.text_nodes.map(t => t.text).join('\n');
 
     // Values are gone, replaced by typed handles; public text survives.
@@ -70,7 +70,7 @@ describe('sanitize → egressGate → vault, as the orchestrator uses them', () 
     const secrets = createSessionSecrets('s2');
     const a = await sanitize({ raw: checkoutPage(0), frame: null, task: 't', step: 0, session: { session_id: 's2', policy_profile: 'BALANCED', secrets } });
     const b = await sanitize({ raw: checkoutPage(1), frame: null, task: 't', step: 1, session: { session_id: 's2', policy_profile: 'BALANCED', secrets } });
-    const handlesOf = (r: typeof a) => (r.observation as { handles?: Array<{ handle: string; type: string }> }).handles!.map(h => `${h.type}:${h.handle}`).sort();
+    const handlesOf = (r: typeof a) => (r.observation as { handles?: { handle: string; type: string }[] }).handles!.map(h => `${h.type}:${h.handle}`).sort();
     expect(handlesOf(b)).toEqual(handlesOf(a));
     expect(secrets.handleCount()).toBe(handlesOf(a).length);
   });
@@ -80,7 +80,7 @@ describe('sanitize → egressGate → vault, as the orchestrator uses them', () 
     await sanitize({ raw: checkoutPage(0), frame: null, task: 't', step: 0, session: { session_id: 's4', policy_profile: 'STRICT', secrets } });
     const later = { ...checkoutPage(1), text_nodes: [{ id: 't1', rect: [0, 0, 300, 20] as [number, number, number, number], text: `Ship to ${EMAIL} today?`, owner_element_id: null, source: 'dom' as const }, { id: 't2', rect: [0, 30, 300, 20] as [number, number, number, number], text: `Contact: ${PHONE.toUpperCase()}`, owner_element_id: null, source: 'dom' as const }] };
     const r = await sanitize({ raw: later, frame: null, task: 't', step: 1, session: { session_id: 's4', policy_profile: 'STRICT', secrets } });
-    const text = (r.observation as { text_nodes: Array<{ text: string }> }).text_nodes.map(t => t.text).join(' ');
+    const text = (r.observation as { text_nodes: { text: string }[] }).text_nodes.map(t => t.text).join(' ');
     expect(text).not.toContain(EMAIL);
     expect(text).toMatch(/Ship to ⟦EMAIL#\d+⟧ today\?/);
     expect(text).toMatch(/Contact: ⟦PHONE#\d+⟧/);

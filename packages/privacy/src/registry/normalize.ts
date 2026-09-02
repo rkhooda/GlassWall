@@ -11,5 +11,5 @@ export function normalizeForComparison(value: string): string {
 }
 
 export function normalizeNumeric(value: string): string {
-  return normalize(value).replace(/[\-\.\s]/g, '');
+  return normalize(value).replace(/[\s.-]/g, '');
 }

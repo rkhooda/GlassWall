@@ -1,4 +1,4 @@
-import { VaultStore, VaultEntry } from './vault';
+import type { VaultStore, VaultEntry } from './vault';
 
 declare const chrome: {
   storage: {
@@ -57,15 +57,15 @@ const VAULT_NAMESPACE = 'glasswall:vault:';
 
 export class ChromeSessionStorageAdapter implements StorageAdapter {
   async get(keys: string | string[]): Promise<Record<string, unknown>> {
-    if (typeof chrome === 'undefined' || !chrome.storage?.session) {
+    if (!chrome?.storage?.session) {
       throw new Error('chrome.storage.session not available');
     }
     const keyArray = Array.isArray(keys) ? keys : [keys];
     const namespaced = keyArray.map(k => VAULT_NAMESPACE + k);
     return new Promise((resolve, reject) => {
-      chrome!.storage.session.get(namespaced, (result) => {
-        if (chrome!.runtime.lastError) {
-          reject(chrome!.runtime.lastError);
+      chrome.storage.session.get(namespaced, (result) => {
+        if (chrome.runtime.lastError) {
+          reject(chrome.runtime.lastError);
         } else {
           const stripped: Record<string, unknown> = {};
           for (const [key, value] of Object.entries(result)) {
@@ -78,7 +78,7 @@ export class ChromeSessionStorageAdapter implements StorageAdapter {
   }
 
   async set(items: Record<string, unknown>): Promise<void> {
-    if (typeof chrome === 'undefined' || !chrome.storage?.session) {
+    if (!chrome?.storage?.session) {
       throw new Error('chrome.storage.session not available');
     }
     const namespaced: Record<string, unknown> = {};
@@ -86,9 +86,9 @@ export class ChromeSessionStorageAdapter implements StorageAdapter {
       namespaced[VAULT_NAMESPACE + key] = value;
     }
     return new Promise((resolve, reject) => {
-      chrome!.storage.session.set(namespaced, () => {
-        if (chrome!.runtime.lastError) {
-          reject(chrome!.runtime.lastError);
+      chrome.storage.session.set(namespaced, () => {
+        if (chrome.runtime.lastError) {
+          reject(chrome.runtime.lastError);
         } else {
           resolve();
         }
@@ -97,15 +97,15 @@ export class ChromeSessionStorageAdapter implements StorageAdapter {
   }
 
   async remove(keys: string | string[]): Promise<void> {
-    if (typeof chrome === 'undefined' || !chrome.storage?.session) {
+    if (!chrome?.storage?.session) {
       throw new Error('chrome.storage.session not available');
     }
     const keyArray = Array.isArray(keys) ? keys : [keys];
     const namespaced = keyArray.map(k => VAULT_NAMESPACE + k);
     return new Promise((resolve, reject) => {
-      chrome!.storage.session.remove(namespaced, () => {
-        if (chrome!.runtime.lastError) {
-          reject(chrome!.runtime.lastError);
+      chrome.storage.session.remove(namespaced, () => {
+        if (chrome.runtime.lastError) {
+          reject(chrome.runtime.lastError);
         } else {
           resolve();
         }
@@ -114,17 +114,17 @@ export class ChromeSessionStorageAdapter implements StorageAdapter {
   }
 
   async clear(): Promise<void> {
-    if (typeof chrome === 'undefined' || !chrome.storage?.session) {
+    if (!chrome?.storage?.session) {
       throw new Error('chrome.storage.session not available');
     }
     // Only the vault's keys: the same storage area holds the audit log.
     const all = await new Promise<Record<string, unknown>>((resolve, reject) => {
-      chrome!.storage.session.get(null, result => (chrome!.runtime.lastError ? reject(chrome!.runtime.lastError) : resolve(result)));
+      chrome.storage.session.get(null, result => (chrome.runtime.lastError ? reject(chrome.runtime.lastError) : resolve(result)));
     });
     const mine = Object.keys(all).filter(k => k.startsWith(VAULT_NAMESPACE));
     if (mine.length === 0) return;
     return new Promise((resolve, reject) => {
-      chrome!.storage.session.remove(mine, () => (chrome!.runtime.lastError ? reject(chrome!.runtime.lastError) : resolve()));
+      chrome.storage.session.remove(mine, () => (chrome.runtime.lastError ? reject(chrome.runtime.lastError) : resolve()));
     });
   }
 }
@@ -149,7 +149,7 @@ export class VaultStoreImpl implements VaultStore {
       return this.cache.get(handle);
     }
     const result = await this.adapter.get([handle]);
-    if (result && result[handle]) {
+    if (result?.[handle]) {
       const entry = result[handle] as VaultEntry;
       this.cache.set(handle, entry);
       return entry;

@@ -1,4 +1,4 @@
-export function generateNgrams(text: string, n: number = 8): string[] {
+export function generateNgrams(text: string, n = 8): string[] {
   const ngrams: string[] = [];
   for (let i = 0; i <= text.length - n; i++) {
     ngrams.push(text.slice(i, i + n));
@@ -6,7 +6,7 @@ export function generateNgrams(text: string, n: number = 8): string[] {
   return ngrams;
 }
 
-export function hasNgramOverlap(text: string, patterns: string[], n: number = 8): boolean {
+export function hasNgramOverlap(text: string, patterns: string[], n = 8): boolean {
   const textNgrams = new Set(generateNgrams(text, n));
   for (const pattern of patterns) {
     if (pattern.length < n) continue;
@@ -20,7 +20,7 @@ export function hasNgramOverlap(text: string, patterns: string[], n: number = 8)
   return false;
 }
 
-export function findNgramMatches(text: string, patterns: string[], n: number = 8): { pattern: string; ngram: string; position: number }[] {
+export function findNgramMatches(text: string, patterns: string[], n = 8): { pattern: string; ngram: string; position: number }[] {
   const matches: { pattern: string; ngram: string; position: number }[] = [];
   const textNgrams = new Map<string, number[]>();
 

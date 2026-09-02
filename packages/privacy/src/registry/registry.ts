@@ -85,7 +85,7 @@ export interface AhoCorasickMatch {
 
 export class AhoCorasick {
   private trie: TrieNode;
-  private output: Map<TrieNode, string[]> = new Map();
+  private output = new Map<TrieNode, string[]>();
 
   constructor(patterns: string[]) {
     this.trie = { children: {}, fail: null, output: [] };
@@ -132,7 +132,7 @@ export class AhoCorasick {
 
         child.fail = fail ? fail.children[ch]! || this.trie : this.trie;
 
-        const failOutput = this.output.get(child.fail!);
+        const failOutput = this.output.get(child.fail);
         if (failOutput && failOutput.length > 0) {
           if (!this.output.has(child)) {
             this.output.set(child, []);

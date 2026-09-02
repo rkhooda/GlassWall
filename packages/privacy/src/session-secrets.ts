@@ -5,15 +5,16 @@
 // Values live here and in the page. They are serialized only to chrome.storage.session
 // (wiped when the browser closes) so a service-worker restart mid-task can resume.
 import type { SecretRegistry, SecretRegistryEntry } from '@glasswall/schema/branded';
-import { createTokenizer, Tokenizer, tokenizeAndRegister } from './tokenizer';
+import type { Tokenizer} from './tokenizer';
+import { createTokenizer, tokenizeAndRegister } from './tokenizer';
 import type { VaultStore, VaultEntry } from './vault';
 import { createInMemoryVaultStore } from './vault-store';
 
 export interface SessionSecretsSnapshot {
   session_id: string;
   registry: SecretRegistryEntry[];
-  tokenizer: Array<[string, number]>;
-  vault: Array<[string, VaultEntry]>;
+  tokenizer: [string, number][];
+  vault: [string, VaultEntry][];
 }
 
 export class SessionSecrets {
@@ -38,8 +39,8 @@ export class SessionSecrets {
   }
 
   /** Known values and their handles, for substitution in text the detectors did not flag. */
-  knownValues(): Array<{ value: string; handle: string }> {
-    const out: Array<{ value: string; handle: string }> = [];
+  knownValues(): { value: string; handle: string }[] {
+    const out: { value: string; handle: string }[] = [];
     for (const [handle, forms] of this.surfaces) for (const value of forms) out.push({ value, handle });
     return out;
   }
@@ -63,7 +64,7 @@ export class SessionSecrets {
 
   async snapshot(): Promise<SessionSecretsSnapshot> {
     await this.flush();
-    const vault: Array<[string, VaultEntry]> = [];
+    const vault: [string, VaultEntry][] = [];
     for (const handle of await this.vault.keys()) {
       const entry = await this.vault.get(handle);
       if (entry) vault.push([handle, entry]);

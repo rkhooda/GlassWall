@@ -6,7 +6,7 @@ const loadNerModel = vi.fn();
 const runNer = vi.fn();
 
 vi.mock('@glasswall/inference/ner', async () => {
-  const actual = await vi.importActual<typeof import('@glasswall/inference/ner')>('@glasswall/inference/ner');
+  const actual = await vi.importActual<Record<string, unknown>>('@glasswall/inference/ner');
   return { ...actual, loadNerModel, runNer };
 });
 

@@ -1,4 +1,4 @@
-import { Rect } from '@glasswall/perception';
+import type { Rect } from '@glasswall/perception';
 
 export interface DprNormalized {
   cssWidth: number;

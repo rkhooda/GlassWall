@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { normalizeDpr, cssToBitmapRect, bitmapToCssRect, cssToDownscaledRect, downscaledToCssRect } from './dpr';
 import { downscaleFrame, calculateScaleFactor, computeDownscaledSize } from './downscale';
-import { redactSync, isRedactedImage, RedactionRect, createRedactedImageFromData } from './redact';
-import { decodeBitmap, DecodedFrame } from './decode';
-import { Rect } from '@glasswall/perception';
+import type { RedactionRect} from './redact';
+import { redactSync, isRedactedImage, createRedactedImageFromData } from './redact';
+import type { DecodedFrame } from './decode';
+import { decodeBitmap } from './decode';
+import type { Rect } from '@glasswall/perception';
 
 const mockDrawImage = vi.fn();
 const mockFillRect = vi.fn();
@@ -186,7 +188,7 @@ describe('redact.ts - Redaction', () => {
       { x: 300, y: 200, width: 100, height: 100, reason: 'test', source: 'vision' },
     ];
 
-    const result = redactSync(mockCanvas as any, rects);
+    redactSync(mockCanvas as any, rects);
 
     expect(mockFillRect).toHaveBeenCalledTimes(2);
     expect(mockFillRect).toHaveBeenCalledWith(100, 100, 200, 50);
@@ -213,7 +215,7 @@ describe('redact.ts - Redaction', () => {
       { x: 600, y: 400, width: 200, height: 200, reason: 'test', source: 'vision' },
     ];
 
-    const result = redactSync(mockCanvas as any, rects);
+    redactSync(mockCanvas as any, rects);
 
     // First rect clamped to (0, 0, 200, 200), second rect clamped to (600, 400, 40, 80)
     expect(mockFillRect).toHaveBeenCalledTimes(2);
@@ -227,7 +229,7 @@ describe('redact.ts - Redaction', () => {
       { x: 100, y: 100, width: 100, height: 0, reason: 'test', source: 'vision' },
     ];
 
-    const result = redactSync(mockCanvas as any, rects);
+    redactSync(mockCanvas as any, rects);
     expect(mockFillRect).not.toHaveBeenCalled();
   });
 

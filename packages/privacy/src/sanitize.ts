@@ -31,14 +31,14 @@ export interface PerceptionSource {
    * The regions this source is the account for. When `run()` throws or hangs,
    * sanitize() marks these unexplained so a dead source costs utility, never privacy.
    */
-  coverage?(ctx: PerceptionContext): Array<{ rect: [number, number, number, number]; reason: string }>;
+  coverage?(ctx: PerceptionContext): { rect: [number, number, number, number]; reason: string }[];
 }
 
 export interface SourceOutput {
   evidence: Evidence[];
   degraded?: string[];
   /** Regions the source could not read: masked, never assumed clean. */
-  unexplained?: Array<{ rect: [number, number, number, number]; reason: string }>;
+  unexplained?: { rect: [number, number, number, number]; reason: string }[];
 }
 
 export interface PerceptionContext {
@@ -149,8 +149,8 @@ export async function sanitize(input: SanitizeInput): Promise<SanitizeResult> {
   const detections: Detection[] = [];
   const decisions: PolicyDecision[] = [];
   const redactions: RedactionReason[] = [];
-  const substitutions: Array<{ value: string; handle: string }> = [];
-  const sourceUnexplained: Array<{ rect: [number, number, number, number]; reason: string }> = [];
+  const substitutions: { value: string; handle: string }[] = [];
+  const sourceUnexplained: { rect: [number, number, number, number]; reason: string }[] = [];
   /** Element id → the PII type its rules say it will hold (autocomplete, type=password). */
   const elementClass = new Map<string, PiiType>();
 
@@ -177,7 +177,7 @@ export async function sanitize(input: SanitizeInput): Promise<SanitizeResult> {
       const started = Date.now();
       const ctx: PerceptionContext = { raw, frame, registry, tokenizer, policyProfile: policy.name, screenshotEnabled: policy.screenshot.enabled };
       const result = await runWithTimeout(source.run(ctx), source.timeout_ms, source.id);
-      const key = (source.id === 'ner' || source.id === 'ocr' || source.id === 'vision' ? source.id : null) as 'ner' | 'ocr' | 'vision' | null;
+      const key = (source.id === 'ner' || source.id === 'ocr' || source.id === 'vision' ? source.id : null);
       if (key) timings[key] += Date.now() - started;
 
       if (!result.ok) {

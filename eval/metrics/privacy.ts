@@ -142,7 +142,7 @@ export function scoreHandleConsistency(payloads: unknown[]): HandleConsistencySc
   const signatures: string[] = [];
 
   for (const payload of payloads) {
-    const p = payload as { handles?: Array<{ handle: string; type: string }> };
+    const p = payload as { handles?: { handle: string; type: string }[] };
     const declared = new Set((p.handles ?? []).map(h => h.handle));
     const referenced = new Set(JSON.stringify(payload).match(HANDLE_RE) ?? []);
 

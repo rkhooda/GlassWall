@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { RawObservation } from '@glasswall/schema/observation';
 import { recognizeByContext } from './context';
 
-function raw(texts: Array<[string, number]>): RawObservation {
+function raw(texts: [string, number][]): RawObservation {
   return {
     observation_id: 'o', session_id: 's', step: 0,
     page: { origin_class: 'benchmark', url_template: '/', title_raw: '', type_hint: 'other', modal_active: false, stability: 'stable' },
@@ -32,7 +32,7 @@ describe('recognizeByContext', () => {
 
 describe('table columns', () => {
   it('classifies cells under a label-like header by horizontal overlap', () => {
-    const rows: Array<[string, number, number]> = [['Name', 10, 0], ['MRN', 200, 0], ['Phone', 320, 0], ['Priya Patel', 10, 30], ['MRN-000002', 200, 30], ['+918765432109', 320, 30], ['Arjun Singh', 10, 60], ['MRN-000003', 200, 60], ['+919876501234', 320, 60]];
+    const rows: [string, number, number][] = [['Name', 10, 0], ['MRN', 200, 0], ['Phone', 320, 0], ['Priya Patel', 10, 30], ['MRN-000002', 200, 30], ['+918765432109', 320, 30], ['Arjun Singh', 10, 60], ['MRN-000003', 200, 60], ['+919876501234', 320, 60]];
     const raw: RawObservation = { ...rawBase(), text_nodes: rows.map(([text, x, y], i) => ({ id: `t${i}`, rect: [x, y, 100, 18], text, owner_element_id: null, source: 'dom' as const })) };
     const hits = recognizeByContext(raw).map(h => `${h.type}:${h.value}`).sort();
     expect(hits).toEqual(['MRN:MRN-000002', 'MRN:MRN-000003', 'PERSON_NAME:Arjun Singh', 'PERSON_NAME:Priya Patel', 'PHONE:+918765432109', 'PHONE:+919876501234']);
@@ -40,7 +40,7 @@ describe('table columns', () => {
 
   it('does not treat a form row of side-by-side labels as a header row', () => {
     // <label>City</label><input> beside <label>Postal code</label><input>, then card fields and a button.
-    const rows: Array<[string, number, number]> = [['City', 10, 0], ['Postal code', 300, 0], ['Card number', 10, 60], ['Expiry', 10, 100], ['CVC', 300, 100], ['Place order', 10, 160]];
+    const rows: [string, number, number][] = [['City', 10, 0], ['Postal code', 300, 0], ['Card number', 10, 60], ['Expiry', 10, 100], ['CVC', 300, 100], ['Place order', 10, 160]];
     const raw: RawObservation = { ...rawBase(), text_nodes: rows.map(([text, x, y], i) => ({ id: `t${i}`, rect: [x, y, text.length * 8, 18], text, owner_element_id: null, source: 'dom' as const })) };
     expect(recognizeByContext(raw)).toEqual([]);
   });
@@ -48,7 +48,7 @@ describe('table columns', () => {
   it('does not treat two unrelated labels on one line as a header row', () => {
     // A profile card's <dt>PAN</dt> beside a wizard's step chip "Address": the buttons
     // and headings below the chip are UI copy, not address cells.
-    const rows: Array<[string, number, number]> = [['PAN', 10, 0], ['JHWKJ5637Y', 60, 0], ['2.', 400, 0], ['Address', 420, 0], ['3.', 500, 0], ['Personal information', 400, 40], ['Back', 400, 200], ['Submit application', 440, 200]];
+    const rows: [string, number, number][] = [['PAN', 10, 0], ['JHWKJ5637Y', 60, 0], ['2.', 400, 0], ['Address', 420, 0], ['3.', 500, 0], ['Personal information', 400, 40], ['Back', 400, 200], ['Submit application', 440, 200]];
     const raw: RawObservation = { ...rawBase(), text_nodes: rows.map(([text, x, y], i) => ({ id: `t${i}`, rect: [x, y, text.length * 8, 18], text, owner_element_id: null, source: 'dom' as const })) };
     expect(recognizeByContext(raw).map(h => `${h.type}:${h.value}`)).toEqual(['PAN:JHWKJ5637Y']);
   });

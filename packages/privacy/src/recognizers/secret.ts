@@ -1,4 +1,5 @@
-import { Recognizer, Span, getTier } from './types';
+import type { Recognizer, Span} from './types';
+import { getTier } from './types';
 import { calculateShannonEntropy } from './utils';
 import { incrementConstructionCount } from './types';
 
@@ -26,7 +27,7 @@ function looksLikeSecret(value: string): boolean {
   if (!/[A-Za-z0-9\-_=]/.test(value)) return false;
   const entropy = calculateShannonEntropy(value);
   if (entropy < MIN_ENTROPY) return false;
-  if (/^[\d\s\-\.]+$/.test(value)) return false;
+  if (/^[\d\s.-]+$/.test(value)) return false;
   if (/^(test|example|demo|sample|placeholder|dummy|fake)/i.test(value)) return false;
   return true;
 }
@@ -36,7 +37,7 @@ export const secretRecognizer: Recognizer = {
   tier: getTier('SECRET'),
   detect(text: string): Span[] {
     const spans: Span[] = [];
-    const prefixRegex = /(?<![\w\-_=])(?:sk[_\-]|pk[_\-]|api[_\-]|token[_\-]|secret[_\-]|key[_\-]|Bearer\s|bearer\s|ghp_|gho_|ghu_|ghs_|ghr_|xoxb-|xoxp-|xoxa-|sk-live-|sk-test-|rk_live_|rk_test_|AKIA|ASIA|AROA|AIDA|eyJ)[\w\-_=]{16,}(?![\w\-_=])/g;
+    const prefixRegex = /(?<![\w=-])(?:sk[_-]|pk[_-]|api[_-]|token[_-]|secret[_-]|key[_-]|Bearer\s|bearer\s|ghp_|gho_|ghu_|ghs_|ghr_|xoxb-|xoxp-|xoxa-|sk-live-|sk-test-|rk_live_|rk_test_|AKIA|ASIA|AROA|AIDA|eyJ)[\w=-]{16,}(?![\w=-])/g;
     let match: RegExpExecArray | null;
 
     while ((match = prefixRegex.exec(text)) !== null) {
@@ -59,7 +60,7 @@ export const secretRecognizer: Recognizer = {
       });
     }
 
-    const entropyRegex = /(?<![\w\-_=])[\w\-_=]{24,}(?![\w\-_=])/g;
+    const entropyRegex = /(?<![\w=-])[\w\-_=]{24,}(?![\w\-_=])/g;
     while ((match = entropyRegex.exec(text)) !== null) {
       const value = match[0];
       const start = match.index;

@@ -1,4 +1,5 @@
-import { Recognizer, Span, getTier } from './types';
+import type { Recognizer, Span} from './types';
+import { getTier } from './types';
 import { incrementConstructionCount } from './types';
 
 const PAN_REGEX = /\b[A-Z]{5}[0-9]{4}[A-Z]\b/g;

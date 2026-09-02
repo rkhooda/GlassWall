@@ -42,8 +42,8 @@ describe('P11 ablation', () => {
       expect(by(rows, 'A8').piiRecall).toBeGreaterThan(by(rows, 'A9').piiRecall);
 
       // The channel nothing in the detection stack can read.
-      expect(by(rows, 'A6').recallByChannel['canvas_opaque']).toBe(0);
-      expect(by(rows, 'A8').recallByChannel['canvas_opaque']).toBe(1);
+      expect(by(rows, 'A6').recallByChannel.canvas_opaque).toBe(0);
+      expect(by(rows, 'A8').recallByChannel.canvas_opaque).toBe(1);
     }
   });
 

@@ -38,7 +38,7 @@ export interface PerceiveSourceOutput {
   id: SourceId;
   evidence: PerceiveEvidence[];
   degraded: string[];
-  unexplained: Array<{ rect: [number, number, number, number]; reason: string }>;
+  unexplained: { rect: [number, number, number, number]; reason: string }[];
   ms: number;
   /** The source threw or hung; the worker applies its declared coverage. */
   failed?: boolean;
@@ -53,7 +53,7 @@ export interface RedactRequest {
   target: 'offscreen';
   observationId: string;
   /** Regions to black out, in viewport CSS pixels. */
-  rects: Array<{ rect: [number, number, number, number]; reason: string; source: string }>;
+  rects: { rect: [number, number, number, number]; reason: string; source: string }[];
 }
 
 export type RedactResponse = { ok: true; image: RedactedImagePayload; ms: number } | { ok: false; error: string };

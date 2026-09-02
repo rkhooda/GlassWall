@@ -1,4 +1,5 @@
-import { Recognizer, Span, getTier } from './types';
+import type { Recognizer, Span} from './types';
+import { getTier } from './types';
 import { verifyLuhn } from './utils';
 import { incrementConstructionCount } from './types';
 

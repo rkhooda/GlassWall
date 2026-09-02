@@ -1,5 +1,5 @@
-import { Rect } from '@glasswall/perception';
-import { DecodedFrame } from './decode';
+import type { Rect } from '@glasswall/perception';
+import type { DecodedFrame } from './decode';
 
 export interface DebugRect extends Rect {
   color?: string;           // Default: 'rgba(255, 0, 0, 0.5)'

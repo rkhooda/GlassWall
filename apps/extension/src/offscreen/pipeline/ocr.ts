@@ -92,7 +92,7 @@ export const ocrSource: PerceptionSource = {
       return unreadable([...crops, ...deferred], `${OCR_UNAVAILABLE}:${workerError}`);
     }
 
-    let prepared: Array<{ image: Blob; geometry: CropGeometry }>;
+    let prepared: { image: Blob; geometry: CropGeometry }[];
     try {
       prepared = await renderCrops(crops, ctx.frame);
     } catch (e) {
@@ -164,7 +164,7 @@ function unreadable(regions: UnexplainedRegion[], reason: string): SourceOutput 
 async function renderCrops(
   regions: UnexplainedRegion[],
   frame: CapturedFrame
-): Promise<Array<{ image: Blob; geometry: CropGeometry }>> {
+): Promise<{ image: Blob; geometry: CropGeometry }[]> {
   const page = new OffscreenCanvas(frame.viewport_w, frame.viewport_h);
   // CapturedFrame.bitmap is `unknown` in the frozen schema; at runtime it is an ImageBitmap.
   const bitmap = frame.bitmap as CanvasImageSource;

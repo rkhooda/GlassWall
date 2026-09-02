@@ -19,22 +19,12 @@ function pickWeighted<T>(rng: () => number, items: readonly T[], weights: readon
   const total = weights.reduce((a, b) => a + b, 0);
   let r = rng() * total;
   for (let i = 0; i < items.length; i++) {
-    r -= weights[i] as number;
+    r -= weights[i]!;
     if (r <= 0) return items[i] as T;
   }
   return items[items.length - 1] as T;
 }
 
-function shuffle<T>(rng: () => number, arr: readonly T[]): T[] {
-  const out = [...arr] as T[];
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.floor(rng() * (i + 1));
-    const temp = out[i];
-    out[i] = out[j]!;
-    out[j] = temp!;
-  }
-  return out;
-}
 
 const D: readonly (readonly number[])[] = [
   [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
@@ -235,7 +225,7 @@ function generateUpi(rng: () => number): string {
 
 function generateCard(rng: () => number): string {
   const type = pickWeighted(rng, ['visa', 'mastercard', 'rupay', 'amex'], [0.5, 0.3, 0.15, 0.05]);
-  const prefixes = CARD_PREFIXES[type as keyof typeof CARD_PREFIXES]!;
+  const prefixes = CARD_PREFIXES[type as keyof typeof CARD_PREFIXES];
   const prefix = pick(rng, prefixes);
   const length = type === 'amex' ? 15 : 16;
   const remaining = length - prefix.length - 1;
@@ -379,7 +369,7 @@ function generateDecoysInternal(rng: () => number): PersonaValue[] {
   let cardDecoy: string;
   do {
     const type = pickWeighted(rng, ['visa', 'mastercard', 'rupay', 'amex'], [0.5, 0.3, 0.15, 0.05]);
-    const prefixes = CARD_PREFIXES[type as keyof typeof CARD_PREFIXES]!;
+    const prefixes = CARD_PREFIXES[type as keyof typeof CARD_PREFIXES];
     const prefix = pick(rng, prefixes);
     const length = type === 'amex' ? 15 : 16;
     const remaining = length - prefix.length - 1;
@@ -409,24 +399,3 @@ export function generateDecoys(seed: number): PersonaValue[] {
 }
 
 export { verifyVerhoeff, verifyLuhn, verifyGstin };
-
-export function exportGroundTruth(seed: number, outDir: string = 'eval/fixtures'): void {
-  const fs = require('fs');
-  const path = require('path');
-  const persona = generatePersona(seed);
-  const allValues = [...persona.values, ...persona.decoys];
-  const groundTruth = {
-    seed,
-    values: allValues.map(v => ({
-      value: v.value,
-      type: v.type,
-      tier: v.tier,
-      value_id: v.value_id,
-      decoy: v.decoy || false,
-    })),
-    clinicalParagraph: persona.clinicalParagraph,
-  };
-  const outPath = path.join(outDir, `ground-truth-${seed}.json`);
-  fs.mkdirSync(outDir, { recursive: true });
-  fs.writeFileSync(outPath, JSON.stringify(groundTruth, null, 2));
-}

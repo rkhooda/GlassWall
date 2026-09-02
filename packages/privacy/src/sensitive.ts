@@ -22,7 +22,6 @@ export function createSensitive<T>(value: T): Sensitive<T> {
     configurable: false,
   });
   if (typeof Symbol !== 'undefined' && Symbol.for) {
-    const inspectSymbol = Symbol.for('nodejs.util.inspect.custom');
     Object.defineProperty(obj, Symbol.for('nodejs.util.inspect.custom'), {
       value: () => '[redacted]',
       writable: false,

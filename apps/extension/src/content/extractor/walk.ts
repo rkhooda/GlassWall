@@ -250,7 +250,7 @@ function walkIframe(iframe: HTMLIFrameElement, parentFrame: number, ctx: WalkCon
   }
   const origin: 'same' | 'cross' = doc ? 'same' : 'cross';
   ctx.frames.push({ id: frameId, origin, rect: quantizeRect(rect) });
-  if (!doc || !doc.body) {
+  if (!doc?.body) {
     // Cross-origin: the region exists but nothing inside can be explained.
     ctx.out.push({
       element: iframe,

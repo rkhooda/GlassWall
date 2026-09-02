@@ -13,20 +13,20 @@ export interface TaskDefinition {
   entry: string;
   instruction: string;
   max_steps: number;
-  policies?: Array<'STRICT' | 'BALANCED'>;
+  policies?: ('STRICT' | 'BALANCED')[];
   success: Predicate[];
 }
 
 export interface GroundTruthSnapshot {
   step: number;
   /** Visible interactive controls on the page, by tag and viewport rect. */
-  controls: Array<{ tag: string; rect: [number, number, number, number] }>;
+  controls: { tag: string; rect: [number, number, number, number] }[];
   /** PII values on screen with their type and rect. */
-  pii: Array<{ type: string; value: string; rect: [number, number, number, number]; decoy: boolean }>;
+  pii: { type: string; value: string; rect: [number, number, number, number]; decoy: boolean }[];
   /** Pixel regions inside canvases/images that hold PII, in viewport px. */
-  regions: Array<{ type: string; rect: [number, number, number, number] }>;
+  regions: { type: string; rect: [number, number, number, number] }[];
   /** Inputs that will hold PII (autocomplete / password): redacting them is anticipatory shielding, not a false positive. */
-  fields: Array<{ rect: [number, number, number, number] }>;
+  fields: { rect: [number, number, number, number] }[];
 }
 
 export interface RunRecord {
@@ -47,7 +47,7 @@ export interface SuiteOptions {
   baseUrl: string;
   tasks: TaskDefinition[];
   seeds: number[];
-  policies: Array<'STRICT' | 'BALANCED'>;
+  policies: ('STRICT' | 'BALANCED')[];
   headless?: boolean;
   timeoutMs?: number;
   log?: (line: string) => void;
@@ -86,7 +86,7 @@ const SNAPSHOT_JS = `(step) => {
 }`;
 
 export async function snapshotTruth(h: Harness, step: number): Promise<GroundTruthSnapshot> {
-  return h.page.evaluate(`(${SNAPSHOT_JS})(${step})`) as Promise<GroundTruthSnapshot>;
+  return h.page.evaluate(`(${SNAPSHOT_JS})(${step})`);
 }
 
 export async function runTask(task: TaskDefinition, seed: number, policy: 'STRICT' | 'BALANCED', opts: SuiteOptions): Promise<RunRecord> {

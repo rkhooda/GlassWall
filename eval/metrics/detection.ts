@@ -30,7 +30,7 @@ export interface PrfScore {
 export function spanF1(
   predicted: LabelledSpan[],
   gold: LabelledSpan[],
-  minOverlap: number = 0.5
+  minOverlap = 0.5
 ): PrfScore {
   const unmatched = [...gold];
   let truePositives = 0;
@@ -60,7 +60,7 @@ export function spanF1(
 export function prfByType(
   predicted: LabelledSpan[],
   gold: LabelledSpan[],
-  minOverlap: number = 0.5
+  minOverlap = 0.5
 ): Record<string, PrfScore> {
   const types = new Set([...gold, ...predicted].map(s => s.type));
   const out: Record<string, PrfScore> = {};

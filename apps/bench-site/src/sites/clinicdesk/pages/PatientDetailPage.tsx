@@ -1,6 +1,7 @@
 import { useParams } from 'react-router-dom';
 import { generatePersona } from '../../../data/generator';
-import { piiAttrs, piiAttrsSpan, piiAttrsCanvas, piiAttrsImage, piiAttrsTextBlock, Region } from '../../../instrument';
+import type { Region } from '../../../instrument';
+import { piiAttrs, piiAttrsSpan, piiAttrsCanvas, piiAttrsImage, piiAttrsTextBlock } from '../../../instrument';
 import { useEffect, useRef, useState } from 'react';
 
 interface PatientDetailPageProps {
@@ -24,9 +25,7 @@ const PatientDetailPage = ({ seed }: PatientDetailPageProps) => {
   const aadhaar = getVal('AADHAAR');
   const aadhaarId = getId('AADHAAR');
   const mrn = getVal('MRN');
-  const mrnId = getId('MRN');
   const dob = getVal('DOB');
-  const dobId = getId('DOB');
   const address = getVal('STREET_ADDRESS');
   const addressId = getId('STREET_ADDRESS');
   const city = persona.values.find(v => v.type === 'STREET_ADDRESS' && v.value_id !== addressId)?.value || 'Bangalore';
@@ -35,10 +34,6 @@ const PatientDetailPage = ({ seed }: PatientDetailPageProps) => {
   const stateId = persona.values.find(v => v.type === 'STREET_ADDRESS' && v.value_id !== addressId && v.value_id !== cityId)?.value_id || 'v_0';
   const pin = getVal('POSTAL_CODE');
   const pinId = getId('POSTAL_CODE');
-  const pan = getVal('PAN');
-  const panId = getId('PAN');
-  const secret = getVal('SECRET');
-  const secretId = getId('SECRET');
 
   // Canvas regions for lab report
   const labRegions: Region[] = [
@@ -306,7 +301,7 @@ const PatientDetailPage = ({ seed }: PatientDetailPageProps) => {
               const addressParts = address.split(' ');
               const phoneParts = phone.split(/[\s-]+/);
 
-              let piiType: string = 'NONE';
+              let piiType = 'NONE';
               let tier: 1 | 2 | 3 = 3;
               let valueId = 'v_0';
 

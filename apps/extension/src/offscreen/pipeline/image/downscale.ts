@@ -1,4 +1,4 @@
-import { DecodedFrame } from './decode';
+import type { DecodedFrame } from './decode';
 
 export const MAX_LONG_SIDE = 640;
 

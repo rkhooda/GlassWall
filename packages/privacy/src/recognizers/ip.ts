@@ -1,10 +1,11 @@
-import { Recognizer, Span, getTier } from './types';
+import type { Recognizer, Span} from './types';
+import { getTier } from './types';
 import { incrementConstructionCount } from './types';
 
 const IPV4_REGEX = /\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b/g;
 
 const IPV6_REGEX = /\b(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}\b/g;
-const IPV6_COMPRESSED_REGEX = /(?<=^|[\s\(\)\[\]\{\}<>,\.;:!?])(?:(?:[0-9a-fA-F]{1,4}:){1,6}:(?:[0-9a-fA-F]{1,4}:)*[0-9a-fA-F]{1,4}|::(?:[0-9a-fA-F]{1,4}:){0,6}[0-9a-fA-F]{1,4}|(?:[0-9a-fA-F]{1,4}:){1,7}::|::1)(?![:\da-fA-F])/g;
+const IPV6_COMPRESSED_REGEX = /(?<=^|[\s()[\]{}<>,.;:!?])(?:(?:[0-9a-fA-F]{1,4}:){1,6}:(?:[0-9a-fA-F]{1,4}:)*[0-9a-fA-F]{1,4}|::(?:[0-9a-fA-F]{1,4}:){0,6}[0-9a-fA-F]{1,4}|(?:[0-9a-fA-F]{1,4}:){1,7}::|::1)(?![:\da-fA-F])/g;
 
 incrementConstructionCount();
 incrementConstructionCount();
@@ -28,11 +29,6 @@ export const ipRecognizer: Recognizer = {
         continue;
       }
 
-      const octets = value.split('.').map(Number);
-      if (octets[0]! === 0 || octets[0]! === 127 || (octets[0]! === 10) ||
-          (octets[0]! === 192 && octets[1]! === 168) ||
-          (octets[0]! === 172 && octets[1]! >= 16 && octets[1]! <= 31)) {
-      }
 
       spans.push({
         start,

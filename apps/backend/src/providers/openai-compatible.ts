@@ -11,7 +11,7 @@ import { assemblePrompt, SYSTEM_PROMPT } from '../prompt/assemble';
 
 interface ChatMessage {
   role: 'system' | 'user';
-  content: string | Array<{ type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } }>;
+  content: string | ({ type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } })[];
 }
 
 function extractJson(text: string): unknown {
@@ -68,7 +68,7 @@ export function createOpenAiCompatibleProvider(env: NodeJS.ProcessEnv = process.
           body: JSON.stringify({ model, messages, temperature: 0, max_tokens: 800, response_format: { type: 'json_object' } }),
         });
         if (!res.ok) throw new Error(`${baseUrl}/chat/completions → ${res.status} ${(await res.text()).slice(0, 200)}`);
-        const data = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
+        const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
         const text = data.choices?.[0]?.message?.content;
         if (!text) throw new Error('empty completion');
         return extractJson(text);

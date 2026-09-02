@@ -24,11 +24,11 @@ export interface ImagePipelineOutput {
   debugCanvas?: OffscreenCanvas;
 }
 
-import { RedactedImage } from '@glasswall/schema';
+import type { RedactedImage } from '@glasswall/schema';
 import { normalizeDpr } from './dpr';
 import { decodeBitmap } from './decode';
 import { downscaleFrame } from './downscale';
-import { redact } from './redact';
+import { redact, type RedactionRect } from './redact';
 import { paintDebugRects } from './debug-align';
 
 /**
@@ -41,10 +41,10 @@ import { paintDebugRects } from './debug-align';
  */
 export async function processImagePipeline(
   input: ImagePipelineInput,
-  redactionRects: Array<import('./redact').RedactionRect>,
-  debug: boolean = false
+  redactionRects: RedactionRect[],
+  debug = false
 ): Promise<ImagePipelineOutput> {
-  const { bitmap, dpr, viewportWidth, viewportHeight } = input;
+  const { bitmap, dpr } = input;
 
   // Step 1: DPR normalization (MUST be first)
   const { cssWidth, cssHeight } = normalizeDpr(bitmap.width, bitmap.height, dpr);

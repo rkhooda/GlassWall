@@ -9,7 +9,7 @@ export function ResetDemoButton({ onReset }: { onReset: () => Promise<void> | vo
       <button
         type="button"
         disabled={busy}
-        onClick={async () => {
+        onClick={() => void (async () => {
           setBusy(true);
           try {
             await onReset();
@@ -17,7 +17,7 @@ export function ResetDemoButton({ onReset }: { onReset: () => Promise<void> | vo
           } finally {
             setBusy(false);
           }
-        }}
+        })()}
       >
         {busy ? 'Resetting…' : 'Reset demo'}
       </button>

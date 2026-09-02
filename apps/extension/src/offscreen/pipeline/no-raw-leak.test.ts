@@ -8,11 +8,11 @@ const loadNerModel = vi.fn().mockResolvedValue({ ms: 1, ep: 'wasm' });
 const runNer = vi.fn();
 
 vi.mock('@glasswall/inference/ocr', async () => {
-  const actual = await vi.importActual<typeof import('@glasswall/inference/ocr')>('@glasswall/inference/ocr');
+  const actual = await vi.importActual<Record<string, unknown>>('@glasswall/inference/ocr');
   return { ...actual, initOcrWorker, runOcrOnCrops };
 });
 vi.mock('@glasswall/inference/ner', async () => {
-  const actual = await vi.importActual<typeof import('@glasswall/inference/ner')>('@glasswall/inference/ner');
+  const actual = await vi.importActual<Record<string, unknown>>('@glasswall/inference/ner');
   return { ...actual, loadNerModel, runNer };
 });
 

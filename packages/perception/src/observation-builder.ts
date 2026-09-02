@@ -1,4 +1,4 @@
-import {
+import type {
   RawObservation,
   SanitizedObservation,
   SanitizedElement,
@@ -9,8 +9,8 @@ import {
   PageInfo,
   Rect,
 } from '@glasswall/schema/observation';
-import { PolicyConfig } from '@glasswall/schema/policy';
-import { quantizeRect, Rect as GeoRect } from './geometry';
+import type { PolicyConfig } from '@glasswall/schema/policy';
+import { quantizeRect } from './geometry';
 
 export interface TokenizedText {
   text: string;
@@ -31,27 +31,20 @@ export interface TextNodeProjectionInput {
   tokenizedText: string;
 }
 
-function tupleToRect(t: Rect): { x: number; y: number; width: number; height: number } {
-  return { x: t[0], y: t[1], width: t[2], height: t[3] };
-}
-
-function rectToTuple(rect: { x: number; y: number; width: number; height: number }): Rect {
-  return [rect.x, rect.y, rect.width, rect.height];
-}
 
 export function buildSanitizedObservation(input: {
   raw: RawObservation;
-  tokenizedElements: Array<{
+  tokenizedElements: {
     rawElement: RawObservation['elements'][0];
     tokenizedLabel: string;
     tokenizedPlaceholder: string | undefined;
     sensitivityClass: string | undefined;
     availableActions: string[];
-  }>;
-  tokenizedTextNodes: Array<{
+  }[];
+  tokenizedTextNodes: {
     rawTextNode: RawObservation['text_nodes'][0];
     tokenizedText: string;
-  }>;
+  }[];
   handles: Handle[];
   budget: Budget;
 }): SanitizedObservation {
@@ -130,7 +123,7 @@ export function buildSanitizedObservation(input: {
   };
 }
 
-function quantizeRectTuple(rect: Rect, gridSize: number = 4): Rect {
+function quantizeRectTuple(rect: Rect, gridSize = 4): Rect {
   const geoRect = { x: rect[0], y: rect[1], width: rect[2], height: rect[3] };
   const quantized = quantizeRect(geoRect, gridSize);
   return [quantized.x, quantized.y, quantized.width, quantized.height];
@@ -158,11 +151,8 @@ export function deriveAvailableActions(element: RawObservation['elements'][0]): 
 
 export function classifySensitivityFromRules(
   element: RawObservation['elements'][0],
-  policy: PolicyConfig
+  _policy: PolicyConfig
 ): string | undefined {
-  const type = element.type?.toLowerCase();
-  const autocomplete = element.autocomplete?.toLowerCase();
-  const role = element.role?.toLowerCase();
 
   if (element.type === 'password' || element.autocomplete?.includes('cc-') || element.autocomplete?.includes('password') || element.autocomplete?.includes('one-time-code')) {
     return 'PASSWORD';

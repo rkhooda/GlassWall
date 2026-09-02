@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import {
   generatePersona,
   generateDecoys,
-  exportGroundTruth,
   verifyVerhoeff,
   verifyLuhn,
   verifyGstin,
@@ -25,20 +24,6 @@ describe('generator — seeded determinism', () => {
     const d1 = generateDecoys(42);
     const d2 = generateDecoys(42);
     expect(d1).toEqual(d2);
-  });
-
-  it('exportGroundTruth writes valid JSON', () => {
-    const fs = require('fs');
-    const path = require('path');
-    const tmpDir = path.join(__dirname, '../../tmp-test-fixtures');
-    exportGroundTruth(999, tmpDir);
-    const file = path.join(tmpDir, 'ground-truth-999.json');
-    expect(fs.existsSync(file)).toBe(true);
-    const content = JSON.parse(fs.readFileSync(file, 'utf-8'));
-    expect(content.seed).toBe(999);
-    expect(content.values).toBeInstanceOf(Array);
-    expect(content.values.length).toBeGreaterThan(0);
-    fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 });
 
