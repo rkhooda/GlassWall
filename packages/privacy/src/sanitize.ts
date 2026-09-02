@@ -223,9 +223,13 @@ export async function sanitize(input: SanitizeInput): Promise<SanitizeResult> {
     // is substituted even when no detector fires on it there.
     const known = secrets ? secrets.knownValues() : [];
     const ordered = [...substitutions, ...known].filter(s => s.value.length >= MIN_SUBSTITUTION_LENGTH).sort((a, b) => b.value.length - a.value.length);
-    const substitute = (text: string): string => {
+    const identifierHandle = (handle: string) => (registry.get(handle)?.tier ?? 3) <= 2;
+    const substitute = (text: string, identifiersOnly = false): string => {
       let out = text;
       for (const { value, handle } of ordered) {
+        // A control's label ("Back", "Place order") only ever carries an identifier by
+        // accident; a statistical name/place hit there is a false positive.
+        if (identifiersOnly && !identifierHandle(handle)) continue;
         if (out.includes(value)) out = out.split(value).join(handle);
         else if (out.toLowerCase().includes(value.toLowerCase())) out = out.replace(new RegExp(value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), handle);
       }
@@ -242,7 +246,8 @@ export async function sanitize(input: SanitizeInput): Promise<SanitizeResult> {
       const fromRules = elementClass.get(el.id);
       const fromRegion = evidenced.length ? evidenced.reduce((m, d) => (d.confidence > m.confidence ? d : m)).pii_type : undefined;
       const sensitivityClass: PiiType | undefined = fromRules ?? fromRegion ?? (inside.length && !el.label_raw ? 'PERSONAL' : undefined) ?? (classifySensitivityFromRules(el, policy) as PiiType | undefined);
-      const tokenizedLabel = substitute(el.label_raw);
+      const isControl = INTERACTIVE_TAGS.has(el.tag) || el.role === 'button' || el.role === 'link';
+      const tokenizedLabel = substitute(el.label_raw, isControl);
       const tokenizedPlaceholder = scrubPlaceholder(el.placeholder_raw);
       // Unexplained regions with no owner (canvas, image, cross-origin frame) carry no readable label anyway.
       const masked = inside.some(r => r.evidence.length === 0) && el.unexplained;

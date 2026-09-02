@@ -69,7 +69,18 @@ export const nerSource: PerceptionSource = {
       const { spans } = await runNer(text, threshold);
 
       const evidence: Evidence[] = [];
+      const CONTROL_TAGS = new Set(['button', 'a', 'select', 'option', 'summary', 'label', 'input', 'textarea']);
+      const controlOwned = new Set(
+        ctx.raw.text_nodes
+          .filter(tn => {
+            const owner = tn.owner_element_id ? ctx.raw.elements.find(e => e.id === tn.owner_element_id) : undefined;
+            return !!owner && (CONTROL_TAGS.has(owner.tag) || owner.role === 'button' || owner.role === 'link');
+          })
+          .map(tn => tn.id),
+      );
       for (const node of mapSpansToRanges(spans, ranges)) {
+        // A control's label ("Back", "Submit application") is never a personal value.
+        if (controlOwned.has(node.id)) continue;
         const nodeText = ctx.raw.text_nodes.find(tn => tn.id === node.id)?.text ?? '';
         for (const span of node.spans) {
           // Only people and places are personal data. Organisations and MISC entities
