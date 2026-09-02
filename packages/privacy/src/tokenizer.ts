@@ -88,6 +88,10 @@ export function tokenizeAndRegister(
   piiType: string,
   tier: number
 ): string {
+  // One value, one handle: a second classification of a known value (NER calling a
+  // CITY an ADDRESS) reuses the first. ponytail: linear scan, registries stay small.
+  const normalized = normalize(value);
+  for (const entry of registry.values()) if (entry.normalized_value === normalized) return entry.handle;
   const handle = tokenizer.tokenize(value, piiType, tier);
   if (!registry.has(handle)) {
     registry.set(handle, {
