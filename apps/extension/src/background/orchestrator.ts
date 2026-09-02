@@ -348,7 +348,8 @@ export async function startRun(task: string, policy: PolicyProfile, tabIdHint?: 
         sendToPanel({ type: 'gw:trace', entry: { ...base, phase: 'blocked', timings: { ...timings, total: Math.round(performance.now() - t0) }, errorCode: invalid.code, errorMessage: invalid.message } });
         if (invalid.code === 'VAULT_TYPE_MISMATCH' || invalid.code === 'LITERAL_CONTAINS_SECRET') sendToPanel({ type: 'gw:error', code: invalid.code, message: `Blocked: ${invalid.message}`, step });
         await recordAudit({ session_id: sessionId, step, ts: Date.now(), action: action.type, provider: planned.provider, latency_ms: Math.round(performance.now() - t0), element_count: raw.elements.length, text_block_count: raw.text_nodes.length, handle_count: obs.handles?.length ?? 0, redaction_count: result.redactions.length, degraded: result.degraded, has_redacted_screenshot: !!screenshot, gate: 'accepted', validation: invalid.code, payload_bytes: payloadBytes, ...auditShape(obs, result.redactions, { ...timings, total: Math.round(performance.now() - t0) }) });
-        history.push(envelope);
+        // The planner learns it was blocked from last_result; a blocked literal must not travel back in the history.
+        history.push(action.type === 'TYPE' && action.value.kind === 'literal' ? { ...envelope, action: { ...action, value: { kind: 'literal', text: '[blocked]' } } } : envelope);
         if (++consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) { finish('error', { message: `Stopped after ${MAX_CONSECUTIVE_FAILURES} blocked actions (last: ${invalid.code})` }); return; }
         await new Promise(r => setTimeout(r, STEP_PAUSE_MS));
         continue;
