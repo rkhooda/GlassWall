@@ -31,6 +31,18 @@ const THRESHOLD_BY_PROFILE: Record<string, number> = {
 
 export const NER_UNAVAILABLE = 'ner_unavailable';
 
+/**
+ * Headings and UI copy the model likes to call places or people. A span made only
+ * of these words is a label, not a value; registering it would make the gate refuse
+ * ordinary page text later.
+ */
+const GENERIC_WORDS = new Set(['personal', 'information', 'details', 'address', 'shipping', 'billing', 'application', 'service', 'services', 'portal', 'review', 'documents', 'document', 'profile', 'record', 'records', 'account', 'orders', 'order', 'cart', 'checkout', 'search', 'products', 'product', 'home', 'about', 'contact', 'support', 'help', 'login', 'sign', 'register', 'submit', 'next', 'back', 'continue', 'confirm', 'settings', 'privacy', 'terms', 'policy', 'patient', 'patients', 'list', 'report', 'lab', 'clinic', 'desk', 'government', 'india', 'indian', 'bench', 'demo', 'reset', 'welcome', 'thank', 'you', 'the', 'and', 'for', 'your', 'my', 'of', 'to', 'in', 'on', 'city', 'state', 'name', 'phone', 'email', 'pin', 'code', 'number', 'date', 'birth', 'street', 'saved', 'form', 'step', 'page', 'total', 'price', 'status', 'view', 'track', 'tracking']);
+
+function isGenericSpan(text: string): boolean {
+  const words = text.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  return words.length === 0 || words.every(w => GENERIC_WORDS.has(w) || w.length <= 2);
+}
+
 let loadFailed = false;
 
 export const nerSource: PerceptionSource = {
@@ -65,6 +77,8 @@ export const nerSource: PerceptionSource = {
           // the gate refuse the agent's own legitimate literals.
           const piiType = nerTypeToPii(span.type);
           if (piiType !== 'PERSON_NAME' && piiType !== 'STREET_ADDRESS' && piiType !== 'NAME' && piiType !== 'ADDRESS') continue;
+          const surface = nodeText.slice(span.start, span.end);
+          if (surface.trim().length < 3 || isGenericSpan(surface)) continue;
           evidence.push({
             sourceId: 'ner',
             type: 'ner',

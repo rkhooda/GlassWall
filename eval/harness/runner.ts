@@ -126,6 +126,7 @@ export async function runSuite(opts: SuiteOptions): Promise<RunRecord[]> {
         out.push(rec);
         opts.log?.(`  ${rec.success ? 'PASS' : 'FAIL'} · ${rec.result.audit.length} steps · ${(rec.result.totalMs / 1000).toFixed(1)}s · ${rec.result.state.status}${rec.result.state.outcome ? '/' + rec.result.state.outcome : ''}${rec.result.state.message ? ` · ${rec.result.state.message}` : ''}${rec.errors.length ? ` · ${rec.errors.length} console errors` : ''}`);
         for (const p of rec.predicates) if (!p.passed) opts.log?.(`    ✗ ${p.kind}: ${p.message}`);
+        if (!rec.success) for (const a of rec.result.audit) opts.log?.(`      step ${a.step}: ${a.action} · ${a.validation} · ${a.latency_ms}ms${a.degraded.length ? ` · ${a.degraded.join(',')}` : ''}`);
       }
     }
   }

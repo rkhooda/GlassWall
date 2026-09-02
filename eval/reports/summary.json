@@ -3,102 +3,63 @@
     "Hardware": "Apple M1 · 8 cores · 8 GB",
     "OS": "Darwin 25.5.0 (arm64)",
     "Node": "v24.20.0",
-    "Commit": "9cb746c",
-    "Measured": "2026-09-02T06:05:06.341Z",
+    "Commit": "f769890",
+    "Measured": "2026-09-02T06:13:52.554Z",
     "Seeds": "1337",
     "Policies": "STRICT"
   },
   "metrics": {
     "runs": [
       {
-        "taskId": "T1",
+        "taskId": "T4",
         "seed": 1337,
         "policy": "STRICT",
-        "success": true,
-        "steps": 10,
+        "success": false,
+        "steps": 12,
         "visual": {
-          "recall": 0.88,
-          "precision": 0.9821428571428571,
-          "matched": 110,
-          "truth": 125,
-          "observed": 112
+          "recall": 1,
+          "precision": 1,
+          "matched": 60,
+          "truth": 60,
+          "observed": 60
         },
         "detection": {
           "recall": 1,
           "precision": 1,
-          "tp": 6,
+          "tp": 8,
           "fn": 0,
           "fp": 0,
           "leakedValues": []
         },
         "redaction": {
-          "precision": 0.9120879120879121,
-          "total": 91,
-          "justified": 83
+          "precision": 0.8451612903225807,
+          "total": 155,
+          "justified": 131
         },
         "resources": {
-          "localMsPerStep": 1006,
-          "payloadBytesP50": 17448,
+          "localMsPerStep": 1508,
+          "payloadBytesP50": 17532,
           "screenshotBytesP50": 0,
-          "steps": 10
+          "steps": 12
         },
         "latency": {
-          "totalMs": 13872,
-          "stepP50": 1142,
-          "stepP95": 1777,
-          "reasonerMsPerStep": 7
-        }
-      },
-      {
-        "taskId": "T3",
-        "seed": 1337,
-        "policy": "STRICT",
-        "success": true,
-        "steps": 4,
-        "visual": {
-          "recall": 1,
-          "precision": 1,
-          "matched": 42,
-          "truth": 42,
-          "observed": 42
-        },
-        "detection": {
-          "recall": 1,
-          "precision": 1,
-          "tp": 0,
-          "fn": 0,
-          "fp": 0,
-          "leakedValues": []
-        },
-        "redaction": {
-          "precision": 1,
-          "total": 0,
-          "justified": 0
-        },
-        "resources": {
-          "localMsPerStep": 1210,
-          "payloadBytesP50": 15040,
-          "screenshotBytesP50": 0,
-          "steps": 4
-        },
-        "latency": {
-          "totalMs": 6894,
-          "stepP50": 1357,
-          "stepP95": 2104,
-          "reasonerMsPerStep": 4
+          "totalMs": 22472,
+          "stepP50": 1559,
+          "stepP95": 2102,
+          "reasonerMsPerStep": 10
         }
       }
     ],
-    "completion": 1,
-    "visualRecall": 0.94,
-    "visualPrecision": 0.9910714285714286,
+    "completion": 0,
+    "visualRecall": 1,
+    "visualPrecision": 1,
     "detectionRecall": 1,
     "detectionPrecision": 1,
-    "redactionPrecision": 0.956043956043956,
-    "localMsPerStep": 1108,
-    "payloadBytesP50": 16244,
-    "stepP50": 1250,
-    "stepP95": 1941,
+    "redactionPrecision": 0.8451612903225807,
+    "localMsPerStep": 1508,
+    "payloadBytesP50": 17532,
+    "stepP50": 1559,
+    "stepP95": 2102,
     "leaks": 0
   }
 }

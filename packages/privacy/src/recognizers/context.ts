@@ -64,6 +64,32 @@ function accept(rule: LabelRule, value: string): boolean {
   return rule.value ? rule.value.test(v) : true;
 }
 
+/**
+ * Table columns: a header cell that is a label ("Name", "MRN", "Phone") classifies every
+ * cell below it in the same column. Columns are matched by horizontal overlap.
+ */
+function tableHits(raw: RawObservation): ContextHit[] {
+  const nodes = raw.text_nodes;
+  const labelled = nodes.map(n => ({ n, rule: ruleFor(n.text) })).filter(h => h.rule);
+  // A header row is two or more label-like cells on one line; a lone label is not a table.
+  const headers = labelled.filter(h => labelled.some(o => o !== h && Math.abs(o.n.rect[1] - h.n.rect[1]) <= 8));
+  const hits: ContextHit[] = [];
+  const seen = new Set<string>();
+  for (const { n: header, rule } of headers) {
+    const [hx, hy, hw] = header.rect;
+    for (const cell of nodes) {
+      if (cell === header || cell.rect[1] <= hy + header.rect[3] / 2) continue; // strictly below the header
+      const [cx, , cw] = cell.rect;
+      const overlap = Math.min(hx + hw, cx + cw) - Math.max(hx, cx);
+      if (overlap < Math.min(hw, cw) * 0.6) continue;
+      if (!accept(rule!, cell.text) || seen.has(cell.id)) continue;
+      seen.add(cell.id);
+      hits.push({ value: cell.text.trim(), type: rule!.type, tier: getTier(rule!.type), confidence: 0.8, rect: cell.rect, textNodeId: cell.id });
+    }
+  }
+  return hits;
+}
+
 export function recognizeByContext(raw: RawObservation): ContextHit[] {
   const hits: ContextHit[] = [];
   const nodes = raw.text_nodes;
@@ -93,5 +119,7 @@ export function recognizeByContext(raw: RawObservation): ContextHit[] {
       }
     }
   }
+  const claimed = new Set(hits.map(h => h.textNodeId));
+  for (const hit of tableHits(raw)) if (!claimed.has(hit.textNodeId)) hits.push(hit);
   return hits;
 }

@@ -11,7 +11,7 @@ import type { PlanInput, Provider } from './types';
 type Handle = { handle: string; type: string; tier: number };
 
 const TYPEABLE = new Set(['text', 'email', 'tel', 'search', 'url', 'number', undefined]);
-const SUBMIT_RE = /place order|submit|continue|proceed|next|confirm|pay now|checkout|save|apply|sign in|log in|register|send/i;
+const SUBMIT_RE = /place order|submit|continue|proceed|next|review|confirm|pay now|checkout|save|apply|sign in|log in|register|send|finish/i;
 const FIELD_KEYWORDS: Array<{ re: RegExp; types: string[] }> = [
   { re: /e-?mail/i, types: ['EMAIL'] },
   { re: /phone|mobile|tel/i, types: ['PHONE'] },
@@ -171,7 +171,7 @@ export function planScripted(input: PlanInput): ActionEnvelope {
   }
   // A form task ends when the page reports confirmation.
   if (/fill|form|checkout|shipping|address|submit|place|apply|register/i.test(task)) {
-    if (/confirm|success|thank|placed|complete/i.test(observation(input).url_template + ' ' + observation(input).title_raw) && input.history.some(h => h.action.type === 'CLICK')) {
+    if (/confirm|success|thank|placed|complete|submitted/i.test(observation(input).url_template + ' ' + observation(input).title_raw + ' ' + input.observation.text_nodes.slice(0, 6).map(t => t.text).join(' ')) && input.history.some(h => h.action.type === 'CLICK')) {
       return envelope({ type: 'DONE', outcome: 'success' }, input, 'low', 'confirmation page reached');
     }
     const next = fillForm(input);

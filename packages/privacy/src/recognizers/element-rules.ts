@@ -98,6 +98,33 @@ function checkCvcHeuristics(element: RawElement): { type: PiiType; confidence: n
   return null;
 }
 
+/** A field's own label says what it will hold: "PAN number", "Aadhaar", "Mobile". Used when autocomplete is absent. */
+const LABEL_RULES: Array<{ re: RegExp; type: PiiType; confidence: number; rule_id: string }> = [
+  { re: /aadhaar|aadhar|\buid\b/i, type: 'AADHAAR', confidence: 0.9, rule_id: 'element-label-aadhaar-v1' },
+  { re: /\bpan\b/i, type: 'PAN', confidence: 0.9, rule_id: 'element-label-pan-v1' },
+  { re: /\bmrn\b|medical record|patient id/i, type: 'MRN', confidence: 0.85, rule_id: 'element-label-mrn-v1' },
+  { re: /e-?mail/i, type: 'EMAIL', confidence: 0.85, rule_id: 'element-label-email-v1' },
+  { re: /mobile|phone|telephone/i, type: 'PHONE', confidence: 0.85, rule_id: 'element-label-phone-v1' },
+  { re: /date of birth|\bdob\b|birth ?date/i, type: 'BDAY', confidence: 0.85, rule_id: 'element-label-dob-v1' },
+  { re: /pin ?code|pincode|postal|zip/i, type: 'POSTAL_CODE', confidence: 0.8, rule_id: 'element-label-postal-v1' },
+  { re: /^city$|\bcity\b|town/i, type: 'CITY', confidence: 0.8, rule_id: 'element-label-city-v1' },
+  { re: /^state$|\bstate\b|province/i, type: 'STATE', confidence: 0.8, rule_id: 'element-label-state-v1' },
+  { re: /address|street|house/i, type: 'STREET_ADDRESS', confidence: 0.8, rule_id: 'element-label-address-v1' },
+  { re: /full name|^name$|first name|last name|your name|applicant name/i, type: 'PERSON_NAME', confidence: 0.75, rule_id: 'element-label-name-v1' },
+  { re: /\bifsc\b/i, type: 'IFSC', confidence: 0.85, rule_id: 'element-label-ifsc-v1' },
+  { re: /\bgstin?\b/i, type: 'GSTIN', confidence: 0.85, rule_id: 'element-label-gstin-v1' },
+  { re: /\bupi\b|vpa/i, type: 'UPI', confidence: 0.85, rule_id: 'element-label-upi-v1' },
+];
+
+function checkLabelRules(element: RawElement): { type: PiiType; confidence: number; rule_id: string } | null {
+  if (!['input', 'textarea'].includes(element.tag) || element.autocomplete) return null;
+  if (['hidden', 'button', 'submit', 'reset', 'checkbox', 'radio', 'file', 'search'].includes((element.input_type ?? element.type ?? '').toLowerCase())) return null;
+  const text = `${element.label_raw || ''} ${element.placeholder_raw || ''}`;
+  if (/search/i.test(text)) return null;
+  const hit = LABEL_RULES.find(r => r.re.test(text));
+  return hit ? { type: hit.type, confidence: hit.confidence, rule_id: hit.rule_id } : null;
+}
+
 export const elementRulesRecognizer: Recognizer = {
   type: 'PASSWORD',
   tier: getTier('PASSWORD'),
@@ -156,6 +183,19 @@ export const elementRulesRecognizer: Recognizer = {
         tier: getTier(ccResult.type),
         confidence: ccResult.confidence,
         rule_id: ccResult.rule_id,
+      });
+    }
+
+    const labelResult = spans.length === 0 ? checkLabelRules(element) : null;
+    if (labelResult) {
+      spans.push({
+        start: 0,
+        end: 0,
+        value: '[element-value]',
+        type: labelResult.type,
+        tier: getTier(labelResult.type),
+        confidence: labelResult.confidence,
+        rule_id: labelResult.rule_id,
       });
     }
 

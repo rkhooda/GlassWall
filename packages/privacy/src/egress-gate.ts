@@ -87,18 +87,24 @@ function indexFor(registry: SecretRegistry): ScanIndex {
 
 function checkRegistry(body: unknown, registry: SecretRegistry): Violation | null {
   if (registry.size === 0) return null;
-  // Scan the released text, not the JSON scaffolding: every string value, normalized,
-  // joined with a separator no encoding produces.
-  const serialized = normalize(extractStrings(body).map(s => s.value).filter(v => v.length >= 4).join(' \u0001 '));
+  // Scan the released strings one by one, normalized. Scanning each string separately
+  // keeps an n-gram from straddling two unrelated values, and lets the violation name
+  // the path of the offending field (never its content).
+  const strings = extractStrings(body).filter(s => s.value.length >= 4).map(s => ({ path: s.path, text: normalize(s.value) }));
   const { automaton, byPattern } = indexFor(registry);
-  const hit = automaton.search(serialized)[0];
-  if (hit) return violation('REGISTRY_SCAN', `Registry secret found in payload: ${byPattern.get(hit.pattern) ?? 'UNKNOWN'}`, { pii_type: byPattern.get(hit.pattern) });
-  const grams = new Set(generateNgrams(serialized, NGRAM_SIZE));
+  for (const { path, text } of strings) {
+    const hit = automaton.search(text)[0];
+    if (hit) return violation('REGISTRY_SCAN', `Registry secret found at ${path}: ${byPattern.get(hit.pattern) ?? 'UNKNOWN'}`, { path, pii_type: byPattern.get(hit.pattern) });
+  }
+  // Partial-overlap detection is for identifiers (tier 1–2: emails, phones, ids,
+  // cards), whose fragments are distinctive. Fragments of names and addresses are
+  // ordinary words and would refuse ordinary pages.
+  const grams = new Map<string, string>();
+  for (const { path, text } of strings) for (const g of generateNgrams(text, NGRAM_SIZE)) if (!grams.has(g)) grams.set(g, path);
   for (const entry of registry.values()) {
-    if (entry.normalized_value.length < NGRAM_SIZE) continue;
-    if (generateNgrams(entry.normalized_value, NGRAM_SIZE).some(g => grams.has(g))) {
-      return violation('REGISTRY_SCAN', `Partial secret overlap (8-gram): ${entry.pii_type}`, { pii_type: entry.pii_type });
-    }
+    if (entry.normalized_value.length < NGRAM_SIZE || entry.tier > 2) continue;
+    const gram = generateNgrams(entry.normalized_value, NGRAM_SIZE).find(g => grams.has(g));
+    if (gram) return violation('REGISTRY_SCAN', `Partial secret overlap (8-gram) at ${grams.get(gram)}: ${entry.pii_type}`, { path: grams.get(gram), pii_type: entry.pii_type });
   }
   return null;
 }

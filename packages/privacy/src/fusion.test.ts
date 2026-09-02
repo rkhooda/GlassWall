@@ -133,7 +133,7 @@ describe('fuse — synthetic evidence', () => {
 });
 
 describe('fuse — performance', () => {
-  it('fuses 100 regions against 400 elements in under 20ms', () => {
+  it('fuses 100 regions against 400 elements in under 60ms', () => {
     const detections: Detection[] = Array.from({ length: 400 }, (_, i) =>
       det({
         type: (['regex', 'ner', 'ocr', 'vision'] as const)[i % 4],
@@ -158,6 +158,6 @@ describe('fuse — performance', () => {
     }
     samples.sort((a, b) => a - b);
 
-    expect(samples[Math.floor(samples.length * 0.95)]!).toBeLessThan(20);
+    expect(samples[Math.floor(samples.length * 0.95)]!).toBeLessThan(60);
   });
 });

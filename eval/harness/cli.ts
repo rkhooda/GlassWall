@@ -51,6 +51,7 @@ async function main() {
     fs.writeFileSync(path.join(reportsDir, 'summary.md'), summary + '\n');
     fs.writeFileSync(path.join(reportsDir, 'summary.json'), JSON.stringify({ env: env(), metrics: { ...metrics, runs: metrics.runs } }, null, 2));
     console.log('\n' + summary);
+    for (const r of metrics.runs) if (r.detection.leakedValues.length) console.log(`leaked in ${r.taskId}/${r.policy}/${r.seed}: ${r.detection.leakedValues.join(' | ')}`);
     const failed = records.filter(r => !r.success);
     const errors = records.flatMap(r => r.errors);
     if (errors.length) console.log(`\nconsole errors:\n  ${[...new Set(errors)].slice(0, 10).join('\n  ')}`);

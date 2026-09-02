@@ -29,3 +29,21 @@ describe('recognizeByContext', () => {
     expect(recognizeByContext(raw([['Price', 0], ['₹2,999', 0], ['State', 20], ['Delivered', 20]]))).toEqual([]);
   });
 });
+
+describe('table columns', () => {
+  it('classifies cells under a label-like header by horizontal overlap', () => {
+    const rows: Array<[string, number, number]> = [['Name', 10, 0], ['MRN', 200, 0], ['Phone', 320, 0], ['Priya Patel', 10, 30], ['MRN-000002', 200, 30], ['+918765432109', 320, 30], ['Arjun Singh', 10, 60], ['MRN-000003', 200, 60]];
+    const raw: RawObservation = { ...rawBase(), text_nodes: rows.map(([text, x, y], i) => ({ id: `t${i}`, rect: [x, y, 100, 18], text, owner_element_id: null, source: 'dom' as const })) };
+    const hits = recognizeByContext(raw).map(h => `${h.type}:${h.value}`).sort();
+    expect(hits).toEqual(['MRN:MRN-000002', 'MRN:MRN-000003', 'PERSON_NAME:Arjun Singh', 'PERSON_NAME:Priya Patel', 'PHONE:+918765432109']);
+  });
+});
+
+function rawBase(): RawObservation {
+  return {
+    observation_id: 'o', session_id: 's', step: 0,
+    page: { origin_class: 'benchmark', url_template: '/', title_raw: '', type_hint: 'other', modal_active: false, stability: 'stable' },
+    viewport: { w: 1280, h: 720, scroll_y_pct: 0, doc_h_ratio: 1, dpr: 1 },
+    elements: [], frames: [], truncated: false, list_virtualized: false, text_nodes: [],
+  };
+}
