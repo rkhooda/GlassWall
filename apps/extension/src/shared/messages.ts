@@ -81,7 +81,7 @@ export interface AuditEntry {
 }
 
 export type PanelToWorker =
-  | { type: 'gw:start'; task: string; policy: PolicyProfile }
+  | { type: 'gw:start'; task: string; policy: PolicyProfile; tabId?: number }
   | { type: 'gw:abort' }
   | { type: 'gw:confirm-response'; approved: boolean }
   | { type: 'gw:get-state' }

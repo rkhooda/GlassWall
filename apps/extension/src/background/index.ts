@@ -11,10 +11,13 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse: (r
   if (typeof message !== 'object' || message === null || !('type' in message)) return false;
   const m = message as PanelToWorker & { target?: string };
   if (m.target === 'offscreen') return false; // addressed to the offscreen document
-  if (sender.tab) return false; // content scripts only reply, they do not initiate
+  // Content scripts only reply; they never initiate. Extension pages opened in a tab
+  // (the harness does this with the side panel) still count as the panel.
+  const fromExtensionPage = !!sender.url && sender.url.startsWith(chrome.runtime.getURL(''));
+  if (sender.tab && !fromExtensionPage) return false;
   switch (m.type) {
     case 'gw:start':
-      startRun(m.task, m.policy).then(() => sendResponse({ ok: true }), (e: unknown) => sendResponse({ ok: false, error: e instanceof Error ? e.message : String(e) }));
+      startRun(m.task, m.policy, m.tabId).then(() => sendResponse({ ok: true }), (e: unknown) => sendResponse({ ok: false, error: e instanceof Error ? e.message : String(e) }));
       return true;
     case 'gw:abort':
       abortRun();

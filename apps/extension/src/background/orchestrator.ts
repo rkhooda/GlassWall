@@ -42,11 +42,19 @@ export function respondConfirmation(approved: boolean): void {
   pendingConfirm = null;
 }
 
-async function activeTabId(): Promise<number> {
-  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-  if (!tab?.id) throw new Error('No active tab');
-  if (!/^https?:/.test(tab.url ?? '')) throw new Error('GLASSWALL works on http(s) pages only; open a web page first');
-  return tab.id;
+const isWebUrl = (url?: string) => /^https?:/.test(url ?? '');
+
+/** The page the run acts on: the active web tab, else the most recently used one. */
+async function targetTabId(explicit?: number): Promise<number> {
+  if (explicit !== undefined) return explicit;
+  const [active] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  if (active?.id && isWebUrl(active.url)) return active.id;
+  const candidates = (await chrome.tabs.query({}))
+    .filter(t => t.id !== undefined && isWebUrl(t.url))
+    .sort((a, b) => ((b as { lastAccessed?: number }).lastAccessed ?? 0) - ((a as { lastAccessed?: number }).lastAccessed ?? 0));
+  const pick = candidates[0];
+  if (!pick?.id) throw new Error('GLASSWALL works on http(s) pages only; open a web page first');
+  return pick.id;
 }
 
 async function ensureContentScript(tabId: number): Promise<void> {
@@ -59,14 +67,14 @@ async function ensureContentScript(tabId: number): Promise<void> {
   }
 }
 
-export async function startRun(task: string, policy: PolicyProfile): Promise<void> {
+export async function startRun(task: string, policy: PolicyProfile, tabIdHint?: number): Promise<void> {
   if (state.status === 'running') throw new Error('A run is already in progress');
   aborted = false;
   const sessionId = crypto.randomUUID();
   setState({ status: 'running', sessionId, task, policy, step: 0, stepsLeft: DEFAULT_STEP_BUDGET, provider: null, outcome: undefined, message: undefined });
 
   try {
-    const tabId = await activeTabId();
+    const tabId = await targetTabId(tabIdHint);
     await ensureContentScript(tabId);
     const t0 = performance.now();
     const reply = await sendToTab(tabId, { type: 'gw:observe', observationId: `obs_${sessionId.slice(0, 8)}_0`, sessionId, step: 0 });
