@@ -12,11 +12,11 @@ command that can be re-run.
 
 | | |
 |---|---|
-| Overall completion | **~60%** |
-| Core functionality (closed observe → reason → act loop) | **~80%** — loop completes real tasks in Chromium; local vision not yet in the loop |
-| SIH requirement coverage | **~60%** — local vision/OCR (Phase 5) and measured metrics (Phase 6) outstanding |
-| Testing | **~55%** — ~540 unit tests + a Chromium e2e driver; harness not yet automated |
-| Demo readiness | **~45%** — form fill, search, injection block all run live; docs/demo script not yet rewritten |
+| Overall completion | **~85%** |
+| Core functionality (closed observe → reason → act loop) | **~95%** — 33/33 bench runs complete (T1–T5, T7 × 3 seeds × STRICT/BALANCED), 0 leaks |
+| SIH requirement coverage | **~90%** — all five PS metrics measured by `pnpm bench:all`; local OCR/NER and redacted pixels in the loop |
+| Testing | **~80%** — ~560 unit tests incl. the orchestrator error matrix; Playwright smoke, full suite and leakage canary with negative control; CI wired; `pnpm lint` still red |
+| Demo readiness | **~80%** — README, DEMO, SECURITY, PRIVACY rewritten and rehearsed via the harness; ARCHITECTURE/EVALUATION/MODEL_CARD/CONTRACTS still describe the old plan |
 
 | Phase | Status | Completion | Notes |
 |---|---|---|---|
@@ -26,28 +26,23 @@ command that can be re-run.
 | 3 — Closed loop: orchestrator, gateway, execution | ✅ COMPLETE | 100% | T1 (form fill + order) and T3 (search + add) complete in Chromium with 0 leaks; injection blocked (VAULT_TYPE_MISMATCH); gateway failover tested |
 | 4 — Side panel UI and page overlay | ✅ COMPLETE | 100% | gateway chip, run summary, trace, privacy inspector + reasons, audit export, confirm modal, page overlay; RTL tests |
 | 5 — Local vision: OCR, NER, redacted screenshot | ✅ COMPLETE | 100% | verified in Chromium: NER (WASM) on DOM text every profile; OCR reads Aadhaar/phone off the ClinicDesk canvas under BALANCED; pixel-redacted 640px PNG on the wire; STRICT never captures |
-| 6 — Bench sites, harness, PS-aligned evaluation | ⬜ NOT STARTED | 0% | |
-| 7 — Hardening, tests, reliability | ⬜ NOT STARTED | 0% | |
-| 8 — Demo and documentation | ⬜ NOT STARTED | 0% | |
+| 6 — Bench sites, harness, PS-aligned evaluation | ✅ COMPLETE | 100% | `bench:all` 33/33 runs, 0 leaks; `bench:leakage` 0 findings on 46 requests, UNSAFE control leaks 6; five PS metrics in `eval/reports/summary.md`; CI runs smoke + leakage |
+| 7 — Hardening, tests, reliability | 🟡 IN PROGRESS | 60% | orchestrator error matrix (11 tests) green; blocked-literal history leak and cross-run vault staleness fixed; lint still red (extension 53, bench-site 20, backend 7 errors) |
+| 8 — Demo and documentation | 🟡 IN PROGRESS | 50% | README, DEMO, SECURITY, PRIVACY rewritten to the current system; ARCHITECTURE, EVALUATION, MODEL_CARD, CONTRACTS pending; final audit pending |
 
-## Current Gaps (from the 2026-09-02 audit)
+## Current Gaps (as of 2026-09-02, after Phase 6)
 
-- The extension declares no content script or side panel; the built offscreen page
-  references a source file that does not exist in `dist`.
-- Panel ↔ service worker ↔ content script use mismatched channels
-  (`window.postMessage` vs `chrome.runtime`), so no step can complete.
-- `egressGate()` rejects `sanitize()` output on any real page (type-brand check) and
-  always fails the destination pin (no `gateway_origin`); `SafePayload` carries no body.
-- The vault is never written; the session registry is never populated; handles are
-  not stable across steps (new tokenizer per call).
-- The gateway request shape does not match `/v1/step`; `/v1/session` is never called.
-- Extractor emits empty `id_hash`, so every targeted action fails identity checks.
-- Two `fetch` call sites; CSP `connect-src` unpinned; extractor reads `.value`.
-- No vision/OCR runs in the browser; screenshot never processed; models never warmed.
-- Leakage harness never loads the extension; harness hooks never set;
-  `pnpm bench:leakage` finds no tests.
-- Docs overstate (README "0 leakage", "models bundled", four providers; old
-  PROGRESS "v1.0.0").
+- `pnpm lint` exits non-zero: style errors in the extension, bench-site and backend
+  (unused vars, type-only imports, array types). No correctness errors.
+- `ARCHITECTURE.md`, `EVALUATION.md`, `MODEL_CARD.md` and `docs/CONTRACTS.md` still
+  describe the two-lane plan and its numbers, not the shipped system.
+- Redaction precision is 95.6% overall and 83% on ClinicDesk: OCR crops around the
+  canvas report are slightly larger than the instrumented regions.
+- T1 visual recall is 88%: the checkout's cross-origin gift-message iframe input is
+  a truth control the extractor reports as a frame, not an element.
+- BALANCED steps cost 2–4 s on the first OCR pass per page (WASM); WebGPU is probed
+  but NER runs on WASM in the offscreen document.
+- Final evaluator-style audit not yet recorded below.
 
 ## Must Fix (before any judge demo)
 
@@ -321,9 +316,21 @@ Phases 3–5.
 `pnpm bench:smoke`, `pnpm bench:leakage`, `pnpm bench:report`.
 
 ### Definition of Done
-- [ ] `pnpm bench:smoke` passes T1 and T3
-- [ ] `pnpm bench:leakage` 0 leaks; negative control red
-- [ ] `pnpm bench:report` writes all five metrics with hardware/commit/seeds
+- [x] `pnpm bench:smoke` passes T1 and T3 (and every task passes under `bench:all`)
+- [x] `pnpm bench:leakage` 0 leaks; negative control red (6 findings on the UNSAFE build)
+- [x] `pnpm bench:report` writes all five metrics with hardware/commit/seeds
+
+### Measured (commit deb468a, Apple M1, 3 seeds × STRICT/BALANCED)
+Visual context recall 97.8% / precision 99.7% · PII recall 100% / precision 97.7%, 0 leaks ·
+redaction precision 95.6% · 1.8 s local compute per step, payload p50 41 KB ·
+step latency p50 2.1 s, p95 2.7 s · task completion 33/33.
+
+### Fixed on the way
+- Table-column context rule treated any two labels on one line as a header row and
+  registered "Back", "Submit application", "Personal information" as addresses.
+- One value could get two handles when NER re-classified a context hit.
+- NER evidence from control labels is now ignored.
+- `dist-eval` and `dist-unsafe` were tracked in git.
 
 ### SIH relevance
 All five scoring metrics, measured.
