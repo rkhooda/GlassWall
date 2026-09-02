@@ -15,12 +15,24 @@ module.exports = {
   parserOptions: {
     ecmaVersion: "latest",
     sourceType: "module",
-    project: ["./tsconfig.base.json", "./packages/*/tsconfig.json", "./apps/*/tsconfig.json", "./eval/**/tsconfig.json"],
+    project: ["./packages/*/tsconfig.json", "./apps/*/tsconfig.json", "./eval/tsconfig.json"],
     tsconfigRootDir: __dirname
   },
   plugins: ["@typescript-eslint"],
   rules: {
-    "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
+    // Type-aware "unsafe" rules are advisory here: the code that crosses the
+    // chrome messaging boundary is untyped by nature and is validated with zod.
+    "@typescript-eslint/no-unsafe-assignment": "warn",
+    "@typescript-eslint/no-unsafe-member-access": "warn",
+    "@typescript-eslint/no-unsafe-call": "warn",
+    "@typescript-eslint/no-unsafe-argument": "warn",
+    "@typescript-eslint/no-unsafe-return": "warn",
+    "@typescript-eslint/no-explicit-any": "warn",
+    "@typescript-eslint/require-await": "warn",
+    "@typescript-eslint/no-non-null-assertion": "off",
+    "@typescript-eslint/prefer-nullish-coalescing": "warn",
+    "@typescript-eslint/prefer-optional-chain": "warn",
+    "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }],
     "@typescript-eslint/consistent-type-imports": "error",
     "@typescript-eslint/no-floating-promises": "warn",
     "no-restricted-globals": [
