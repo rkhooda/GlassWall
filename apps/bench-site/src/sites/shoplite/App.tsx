@@ -1,147 +1,66 @@
-import { BrowserRouter, Routes, Route, Link, useNavigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { Routes, Route, Link, NavLink, useNavigate } from 'react-router-dom';
+import { useState, type FormEvent } from 'react';
+import { useShopLite } from './store';
+import ProductsPage from './pages/ProductsPage';
 import CartPage from './pages/CartPage';
 import CheckoutPage from './pages/CheckoutPage';
+import ConfirmPage from './pages/ConfirmPage';
 import OrdersPage from './pages/OrdersPage';
-import OrderTrackingPage from './pages/OrderTrackingPage';
-import ProductList from './components/ProductList';
-import Header from './components/Header';
-import Footer from './components/Footer';
+import TrackingPage from './pages/TrackingPage';
+import AccountPage from './pages/AccountPage';
+import InjectionPage from './pages/InjectionPage';
 import { ResetDemoButton } from '../../components/ResetDemoButton';
 
-const STORAGE_KEYS = [
-  'shoplite_cart',
-  'shoplite_orders',
-  'shoplite_form_data',
-];
-
-function resetShopLiteData() {
-  STORAGE_KEYS.forEach(key => localStorage.removeItem(key));
-  sessionStorage.clear();
-}
-
-function App() {
-  const [cart, setCart] = useState<Array<{id: number; name: string; price: number; quantity: number}>>([]);
-  const [orders, setOrders] = useState<Array<any>>([]);
+// ShopLite: an e-commerce bench site. Mounted under /shoplite by the bench shell.
+export default function ShopLiteApp() {
+  const store = useShopLite();
   const navigate = useNavigate();
+  const [query, setQuery] = useState('');
+  const cartCount = store.cart.reduce((s, i) => s + i.quantity, 0);
 
-  // Load persisted data on mount
-  useEffect(() => {
-    const savedCart = localStorage.getItem('shoplite_cart');
-    const savedOrders = localStorage.getItem('shoplite_orders');
-    if (savedCart) setCart(JSON.parse(savedCart));
-    if (savedOrders) setOrders(JSON.parse(savedOrders));
-  }, []);
-
-  const persistCart = (newCart: typeof cart) => {
-    setCart(newCart);
-    localStorage.setItem('shoplite_cart', JSON.stringify(newCart));
-  };
-
-  const persistOrders = (newOrders: typeof orders) => {
-    setOrders(newOrders);
-    localStorage.setItem('shoplite_orders', JSON.stringify(newOrders));
-  };
-
-  const addToCart = (product: {id: number; name: string; price: number}) => {
-    persistCart((prev: Array<{id: number; name: string; price: number; quantity: number}>) => {
-      const existingItem = prev.find((item) => item.id === product.id);
-      if (existingItem) {
-        return prev.map((item) =>
-          item.id === product.id
-            ? {...item, quantity: item.quantity + 1}
-            : item
-        );
-      }
-      return [...prev, {...product, quantity: 1}];
-    });
-  };
-
-  const removeFromCart = (productId: number) => {
-    persistCart((prev: Array<{id: number; name: string; price: number; quantity: number}>) => prev.filter((item) => item.id !== productId));
-  };
-
-  const updateCartItemQuantity = (productId: number, quantity: number) => {
-    if (quantity <= 0) {
-      removeFromCart(productId);
-      return;
-    }
-    persistCart((prev: Array<{id: number; name: string; price: number; quantity: number}>) =>
-      prev.map((item) =>
-        item.id === productId
-          ? {...item, quantity}
-          : item
-      )
-    );
-  };
-
-  const placeOrder = () => {
-    if (cart.length === 0) return;
-    const orderId = 'ORD-' + Date.now().toString(36).toUpperCase();
-    const newOrder = {
-      id: orderId,
-      items: [...cart],
-      total: cart.reduce((sum, item) => sum + item.price * item.quantity, 0),
-      status: 'confirmed',
-      timestamp: Date.now(),
-      shippingAddress: '',
-    };
-    persistOrders(prev => [newOrder, ...prev]);
-    persistCart([]);
-    navigate('/orders');
-  };
-
-  const handleResetDemo = async () => {
-    resetShopLiteData();
-    setCart([]);
-    setOrders([]);
-    navigate('/');
+  const onSearch = (e: FormEvent) => {
+    e.preventDefault();
+    navigate(query.trim() ? `/shoplite/?q=${encodeURIComponent(query.trim())}` : '/shoplite/');
   };
 
   return (
-    <BrowserRouter>
-      <div className="app min-h-screen flex flex-col">
-        <Header cartCount={cart.reduce((sum, item) => sum + item.quantity, 0)} />
-        <main className="flex-1">
-          <Routes>
-            <Route
-              path="/"
-              element={<ProductList onAddToCart={addToCart} />}
-            />
-            <Route
-              path="/cart"
-              element={<CartPage
-                cart={cart}
-                onRemoveFromCart={removeFromCart}
-                onUpdateQuantity={updateCartItemQuantity}
-                onCheckout={() => navigate('/checkout')}
-              />}
-            />
-            <Route
-              path="/checkout"
-              element={<CheckoutPage
-                cart={cart}
-                onPlaceOrder={placeOrder}
-              />}
-            />
-            <Route
-              path="/orders"
-              element={<OrdersPage
-                orders={orders}
-                onViewTracking={(orderId: string) => navigate(`/tracking/${orderId}`)}
-              />}
-            />
-            <Route
-              path="/tracking/:orderId"
-              element={<OrderTrackingPage orders={orders} />}
-            />
-          </Routes>
-        </main>
-        <Footer />
-        <ResetDemoButton onReset={handleResetDemo} />
-      </div>
-    </BrowserRouter>
+    <div className="site shoplite">
+      <header className="site-header">
+        <Link to="/shoplite/" className="logo">ShopLite</Link>
+        <form className="search" role="search" onSubmit={onSearch}>
+          <label htmlFor="site-search" className="sr-only">Search products</label>
+          <input
+            id="site-search"
+            type="search"
+            placeholder="Search products"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            autoComplete="off"
+          />
+          <button type="submit">Search</button>
+        </form>
+        <nav>
+          <NavLink to="/shoplite/orders">Orders</NavLink>
+          <NavLink to="/shoplite/account">Account</NavLink>
+          <NavLink to="/shoplite/cart" id="cart-link">Cart ({cartCount})</NavLink>
+        </nav>
+      </header>
+      <main className="site-main">
+        <Routes>
+          <Route index element={<ProductsPage store={store} />} />
+          <Route path="cart" element={<CartPage store={store} />} />
+          <Route path="checkout" element={<CheckoutPage store={store} />} />
+          <Route path="checkout/confirm/:orderId" element={<ConfirmPage store={store} />} />
+          <Route path="orders" element={<OrdersPage store={store} />} />
+          <Route path="tracking/:orderId" element={<TrackingPage store={store} />} />
+          <Route path="account" element={<AccountPage store={store} />} />
+          <Route path="injection" element={<InjectionPage store={store} />} />
+        </Routes>
+      </main>
+      <footer className="site-footer">
+        <span>ShopLite · GLASSWALL benchmark site · seed {store.seed}</span>
+        <ResetDemoButton onReset={async () => { store.reset(); navigate('/shoplite/'); }} />
+      </footer>
+    </div>
   );
 }
-
-export default App;

@@ -1,421 +1,157 @@
-import { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { piiAttrsSpan } from '../../../instrument';
+import type { ShopLiteStore } from '../store';
 
-const CheckoutPage = ({ cart, onPlaceOrder }: { cart: Array<{id: number; name: string; price: number; quantity: number}>; onPlaceOrder: () => void }) => {
-  const [form, setForm] = useState({
-    shipping: {
-      name: '',
-      streetAddress: '',
-      postalCode: '',
-      city: '',
-      state: '',
-      country: '',
-      email: '',
-      phone: '',
-    },
-    billing: {
-      name: '',
-      streetAddress: '',
-      postalCode: '',
-      city: '',
-      state: '',
-      country: '',
-      email: '',
-      phone: '',
-    },
-    payment: {
-      ccNumber: '',
-      ccCSC: '',
-      expiryMonth: '',
-      expiryYear: '',
-    },
-    copyShippingToBilling: true,
-  });
+interface Shipping {
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+  city: string;
+  postal: string;
+}
 
-  const [modalOpen, setModalOpen] = useState(false);
-  const shadowRef = useRef<HTMLDivElement>(null);
+const EMPTY: Shipping = { name: '', email: '', phone: '', address: '', city: '', postal: '' };
 
-  // Handle input change
-  const handleInputChange = (section: string, field: string, value: string) => {
-    setForm(prev => ({
-      ...prev,
-      [section]: {
-        ...prev[section],
-        [field]: value,
-      },
-    }));
-  };
+// The checkout page carries the hard extraction cases on purpose: a same-origin
+// iframe, an open shadow root, and a modal that occludes the form.
+export default function CheckoutPage({ store }: { store: ShopLiteStore }) {
+  const navigate = useNavigate();
+  const { profile } = store;
+  const [form, setForm] = useState<Shipping>(EMPTY);
+  const [error, setError] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const shadowHost = useRef<HTMLDivElement>(null);
 
-  // Handle copy shipping to billing
-  const handleCopyChange = (checked: boolean) => {
-    setForm(prev => ({
-      ...prev,
-      copyShippingToBilling: checked,
-    }));
-    if (checked) {
-      setForm(prev => ({
-        ...prev,
-        billing: { ...prev.shipping },
-      }));
-    }
-  };
-
-  // Handle place order
-  const handlePlaceOrder = () => {
-    // In a real app, we would validate and then process the order
-    setModalOpen(true);
-    // Call the callback to notify the parent (App) to proceed to orders
-    // But note: we are in the checkout page, and the App will handle navigation
-    // We'll call onPlaceOrder after a short delay to allow modal to show?
-    // Actually, we want to open the modal and then when the user confirms, we navigate.
-    // For simplicity, we'll open the modal and then when the user clicks "Confirm" in the modal, we call onPlaceOrder and navigate.
-    // We'll handle that in the modal.
-  };
-
-  // Shadow DOM effect
   useEffect(() => {
-    const div = shadowRef.current;
-    if (!div) return;
-
-    const shadow = div.attachShadow({ mode: 'open' });
-    const style = document.createElement('style');
-    style.textContent = `
-      .badge {
-        background-color: #4caf50;
-        color: white;
-        padding: 4px 8px;
-        border-radius: 4px;
-        font-size: 14px;
-      }
-    `;
-    const badge = document.createElement('div');
-    badge.className = 'badge';
-    badge.textContent = 'Secure Checkout';
-    shadow.appendChild(style);
+    const host = shadowHost.current;
+    if (!host || host.shadowRoot) return;
+    const shadow = host.attachShadow({ mode: 'open' });
+    const badge = document.createElement('span');
+    badge.textContent = 'Secure checkout';
+    badge.setAttribute('style', 'background:#e6f4ea;color:#137333;padding:4px 8px;border-radius:4px;font-size:13px');
     shadow.appendChild(badge);
   }, []);
 
-  // Iframe content (same-origin iframe with a form field)
-  const iframeSrcDoc = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="UTF-8">
-      <title>Iframe Form</title>
-      <style>
-        body { font-family: sans-serif; margin: 20px; }
-        .field { margin-bottom: 10px; }
-        label { display: block; margin-bottom: 5px; }
-        input { width: 100%; padding: 8px; box-sizing: border-box; }
-      </style>
-    </head>
-    <body>
-      <div class="field">
-        <label for="iframe-field">Embedded Field:</label>
-        <input type="text" id="iframe-field" placeholder="Enter something" />
-      </div>
-    </body>
-    </html>
-  `;
+  const set = (k: keyof Shipping) => (e: { target: { value: string } }) => setForm(f => ({ ...f, [k]: e.target.value }));
+
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    const missing = (Object.keys(EMPTY) as (keyof Shipping)[]).filter(k => !form[k].trim());
+    if (missing.length) {
+      setError(`Please fill: ${missing.join(', ')}`);
+      return;
+    }
+    setError(null);
+    setConfirming(true);
+  };
+
+  const confirm = () => {
+    const order = store.placeOrder();
+    setConfirming(false);
+    navigate(`/shoplite/checkout/confirm/${order.id}`);
+  };
+
+  if (store.cart.length === 0 && !confirming) {
+    return (
+      <section>
+        <h1>Checkout</h1>
+        <p>Your cart is empty. <Link to="/shoplite/">Add something first.</Link></p>
+      </section>
+    );
+  }
 
   return (
-    <div className="checkout-page">
+    <section className="checkout">
       <h1>Checkout</h1>
-      <div className="checkout-form">
-        <div className="section">
-          <h2>Shipping Information</h2>
+
+      <aside className="card saved-profile" aria-labelledby="saved-heading">
+        <h2 id="saved-heading">Your saved details</h2>
+        <dl>
+          <dt>Name</dt><dd><span {...piiAttrsSpan('PERSON_NAME', 3, profile.ids.name!)}>{profile.name}</span></dd>
+          <dt>Email</dt><dd><span {...piiAttrsSpan('EMAIL', 2, profile.ids.email!)}>{profile.email}</span></dd>
+          <dt>Phone</dt><dd><span {...piiAttrsSpan('PHONE', 2, profile.ids.phone!)}>{profile.phone}</span></dd>
+          <dt>Address</dt><dd><span {...piiAttrsSpan('STREET_ADDRESS', 3, profile.ids.street!)}>{profile.street}</span></dd>
+          <dt>City</dt><dd><span {...piiAttrsSpan('STREET_ADDRESS', 3, profile.ids.city!)}>{profile.city}</span></dd>
+          <dt>PIN</dt><dd><span {...piiAttrsSpan('POSTAL_CODE', 3, profile.ids.pin!)}>{profile.pin}</span></dd>
+        </dl>
+      </aside>
+
+      <form className="card" onSubmit={submit} aria-labelledby="shipping-heading" noValidate>
+        <h2 id="shipping-heading">Shipping address</h2>
+        <div className="field">
+          <label htmlFor="name">Full name</label>
+          <input id="name" type="text" autoComplete="name" placeholder="Full name" value={form.name} onChange={set('name')} required />
+        </div>
+        <div className="field">
+          <label htmlFor="email">Email</label>
+          <input id="email" type="email" autoComplete="email" placeholder="you@example.com" value={form.email} onChange={set('email')} required />
+        </div>
+        <div className="field">
+          <label htmlFor="phone">Phone</label>
+          <input id="phone" type="tel" autoComplete="tel" placeholder="+91 98765 43210" value={form.phone} onChange={set('phone')} required />
+        </div>
+        <div className="field">
+          <label htmlFor="address">Street address</label>
+          <input id="address" type="text" autoComplete="street-address" placeholder="House, street" value={form.address} onChange={set('address')} required />
+        </div>
+        <div className="row">
           <div className="field">
-            <label htmlFor="shipping-name">Name:</label>
-            <input
-              type="text"
-              id="shipping-name"
-              value={form.shipping.name}
-              onChange={(e) => handleInputChange('shipping', 'name', e.target.value)}
-              autocomplete="name"
-              placeholder="John Doe"
-            />
+            <label htmlFor="city">City</label>
+            <input id="city" type="text" autoComplete="address-level2" placeholder="City" value={form.city} onChange={set('city')} required />
           </div>
           <div className="field">
-            <label htmlFor="shipping-street">Street Address:</label>
-            <input
-              type="text"
-              id="shipping-street"
-              value={form.shipping.streetAddress}
-              onChange={(e) => handleInputChange('shipping', 'streetAddress', e.target.value)}
-              autocomplete="street-address"
-              placeholder="123 Main St"
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="shipping-postal">Postal Code:</label>
-            <input
-              type="text"
-              id="shipping-postal"
-              value={form.shipping.postalCode}
-              onChange={(e) => handleInputChange('shipping', 'postalCode', e.target.value)}
-              autocomplete="postal-code"
-              placeholder="123456"
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="shipping-city">City:</label>
-            <input
-              type="text"
-              id="shipping-city"
-              value={form.shipping.city}
-              onChange={(e) => handleInputChange('shipping', 'city', e.target.value)}
-              autocomplete="address-level2"
-              placeholder="New Delhi"
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="shipping-state">State:</label>
-            <input
-              type="text"
-              id="shipping-state"
-              value={form.shipping.state}
-              onChange={(e) => handleInputChange('shipping', 'state', e.target.value)}
-              autocomplete="address-level1"
-              placeholder="Delhi"
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="shipping-country">Country:</label>
-            <input
-              type="text"
-              id="shipping-country"
-              value={form.shipping.country}
-              onChange={(e) => handleInputChange('shipping', 'country', e.target.value)}
-              autocomplete="country"
-              placeholder="India"
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="shipping-email">Email:</label>
-            <input
-              type="email"
-              id="shipping-email"
-              value={form.shipping.email}
-              onChange={(e) => handleInputChange('shipping', 'email', e.target.value)}
-              autocomplete="email"
-              placeholder="john@example.com"
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="shipping-phone">Phone:</label>
-            <input
-              type="tel"
-              id="shipping-phone"
-              value={form.shipping.phone}
-              onChange={(e) => handleInputChange('shipping', 'phone', e.target.value)}
-              autocomplete="tel"
-              placeholder="+91 98765 43210"
-            />
+            <label htmlFor="postal">PIN code</label>
+            <input id="postal" type="text" inputMode="numeric" autoComplete="postal-code" placeholder="560001" value={form.postal} onChange={set('postal')} required />
           </div>
         </div>
 
-        <div className="section">
-          <h2>Billing Information</h2>
+        <h2>Payment</h2>
+        <div className="field">
+          <label htmlFor="cc-number">Card number</label>
+          <input id="cc-number" type="text" inputMode="numeric" autoComplete="cc-number" placeholder="Card number" />
+        </div>
+        <div className="row">
           <div className="field">
-            <label htmlFor="copy-shipping">
-              <input
-                type="checkbox"
-                id="copy-shipping"
-                checked={form.copyShippingToBilling}
-                onChange={(e) => handleCopyChange(e.target.checked)}
-              />
-              Ship to billing address
-            </label>
+            <label htmlFor="cc-exp">Expiry</label>
+            <input id="cc-exp" type="text" autoComplete="cc-exp" placeholder="MM/YY" />
           </div>
           <div className="field">
-            <label htmlFor="billing-name">Name:</label>
-            <input
-              type="text"
-              id="billing-name"
-              value={form.billing.name}
-              onChange={(e) => handleInputChange('billing', 'name', e.target.value)}
-              autocomplete="name"
-              placeholder="John Doe"
-              disabled={form.copyShippingToBilling}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="billing-street">Street Address:</label>
-            <input
-              type="text"
-              id="billing-street"
-              value={form.billing.streetAddress}
-              onChange={(e) => handleInputChange('billing', 'streetAddress', e.target.value)}
-              autocomplete="street-address"
-              placeholder="123 Main St"
-              disabled={form.copyShippingToBilling}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="billing-postal">Postal Code:</label>
-            <input
-              type="text"
-              id="billing-postal"
-              value={form.billing.postalCode}
-              onChange={(e) => handleInputChange('billing', 'postalCode', e.target.value)}
-              autocomplete="postal-code"
-              placeholder="123456"
-              disabled={form.copyShippingToBilling}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="billing-city">City:</label>
-            <input
-              type="text"
-              id="billing-city"
-              value={form.billing.city}
-              onChange={(e) => handleInputChange('billing', 'city', e.target.value)}
-              autocomplete="address-level2"
-              placeholder="New Delhi"
-              disabled={form.copyShippingToBilling}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="billing-state">State:</label>
-            <input
-              type="text"
-              id="billing-state"
-              value={form.billing.state}
-              onChange={(e) => handleInputChange('billing', 'state', e.target.value)}
-              autocomplete="address-level1"
-              placeholder="Delhi"
-              disabled={form.copyShippingToBilling}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="billing-country">Country:</label>
-            <input
-              type="text"
-              id="billing-country"
-              value={form.billing.country}
-              onChange={(e) => handleInputChange('billing', 'country', e.target.value)}
-              autocomplete="country"
-              placeholder="India"
-              disabled={form.copyShippingToBilling}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="billing-email">Email:</label>
-            <input
-              type="email"
-              id="billing-email"
-              value={form.billing.email}
-              onChange={(e) => handleInputChange('billing', 'email', e.target.value)}
-              autocomplete="email"
-              placeholder="john@example.com"
-              disabled={form.copyShippingToBilling}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="billing-phone">Phone:</label>
-            <input
-              type="tel"
-              id="billing-phone"
-              value={form.billing.phone}
-              onChange={(e) => handleInputChange('billing', 'phone', e.target.value)}
-              autocomplete="tel"
-              placeholder="+91 98765 43210"
-              disabled={form.copyShippingToBilling}
-            />
+            <label htmlFor="cc-csc">CVC</label>
+            <input id="cc-csc" type="password" inputMode="numeric" autoComplete="cc-csc" placeholder="CVC" />
           </div>
         </div>
 
-        <div className="section">
-          <h2>Payment Information</h2>
-          <div className="field">
-            <label htmlFor="cc-number">Card Number:</label>
-            <input
-              type="text"
-              id="cc-number"
-              value={form.payment.ccNumber}
-              onChange={(e) => handleInputChange('payment', 'ccNumber', e.target.value)}
-              autocomplete="cc-number"
-              placeholder="•••• •••• •••• ••••"
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="cc-csc">CSC:</label>
-            <input
-              type="text"
-              id="cc-csc"
-              value={form.payment.ccCSC}
-              onChange={(e) => handleInputChange('payment', 'ccCSC', e.target.value)}
-              autocomplete="cc-csc"
-              placeholder="•••"
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="cc-expiry">Expiry Date:</label>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <input
-                type="text"
-                id="cc-expiry-month"
-                value={form.payment.expiryMonth}
-                onChange={(e) => handleInputChange('payment', 'expiryMonth', e.target.value)}
-                autocomplete="cc-exp-month"
-                placeholder="MM"
-                style={{ width: '50px' }}
-              />
-              <span>/</span>
-              <input
-                type="text"
-                id="cc-expiry-year"
-                value={form.payment.expiryYear}
-                onChange={(e) => handleInputChange('payment', 'expiryYear', e.target.value)}
-                autocomplete="cc-exp-year"
-                placeholder="YY"
-                style={{ width: '50px' }}
-              />
+        {error && <p className="error" role="alert">{error}</p>}
+        <div className="actions">
+          <span ref={shadowHost} />
+          <button type="submit" className="primary" id="place-order">Place order</button>
+        </div>
+      </form>
+
+      <div className="card">
+        <h2>Gift message (embedded editor)</h2>
+        <iframe
+          title="Gift message editor"
+          className="embedded"
+          sandbox="allow-same-origin allow-scripts"
+          srcDoc={'<!doctype html><body style="font-family:system-ui;margin:12px"><label for="gift">Gift message</label><br><input id="gift" placeholder="Optional message" style="width:90%;padding:6px"></body>'}
+        />
+      </div>
+
+      {confirming && (
+        <div className="modal-backdrop" role="presentation">
+          <div className="modal" role="dialog" aria-modal="true" aria-labelledby="confirm-heading">
+            <h2 id="confirm-heading">Confirm order</h2>
+            <p>Ship to <strong>{form.name}</strong>, {form.address}, {form.city} {form.postal}?</p>
+            <div className="actions">
+              <button type="button" onClick={() => setConfirming(false)}>Back</button>
+              <button type="button" className="primary" id="confirm-order" onClick={confirm}>Confirm order</button>
             </div>
           </div>
         </div>
-
-        {/* Same-origin iframe containing a form field */}
-        <div className="section">
-          <h2>Embedded Form (Same-origin Iframe)</h2>
-          <iframe
-            title="Embedded form"
-            width="100%"
-            height="150px"
-            sandbox="allow-same-origin allow-scripts"
-            srcDoc={iframeSrcDoc}
-          />
-        </div>
-
-        {/* Open shadow DOM component */}
-        <div className="section">
-          <h2>Security Badge (Shadow DOM)</h2>
-          <div ref={shadowRef} style={{ display: 'inline-block' }}></div>
-        </div>
-
-        <button onClick={handlePlaceOrder} className="btn btn-primary">
-          Place Order
-        </button>
-      </div>
-
-      {/* Modal for occlusion testing */}
-      {modalOpen && (
-        <div className="modal-backdrop" onClick={() => setModalOpen(false)}>
-          <div className="modal-content">
-            <h2>Order Confirmation</h2>
-            <p>Thank you for your order!</p>
-            <p>We will notify you when your order ships.</p>
-            <button onClick={() => {
-              setModalOpen(false);
-              onPlaceOrder(); // Notify parent to proceed to orders
-            }} className="btn btn-primary">
-              Confirm
-            </button>
-          </div>
-        </div>
       )}
-    </div>
+    </section>
   );
-};
-
-export default CheckoutPage;
+}

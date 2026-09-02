@@ -72,7 +72,7 @@ const PatientListPage = ({ seed }: PatientListPageProps) => {
                 </span>
               </td>
               <td>
-                <Link to={`/patient/${patient.id}`} className="btn btn-sm">View</Link>
+                <Link to={`/clinicdesk/patient/${patient.id}`} className="btn btn-sm">View</Link>
               </td>
             </tr>
           ))}

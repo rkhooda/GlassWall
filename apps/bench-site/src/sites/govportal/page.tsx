@@ -47,7 +47,7 @@ export const GovPortalPage = () => {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setFormData(prev => ({ ...prev, file: e.target.files[0] }));
+      setFormData(prev => ({ ...prev, file: e.target.files?.[0] ?? null }));
     }
   };
 
@@ -72,7 +72,7 @@ export const GovPortalPage = () => {
                 value={formData.idNumber}
                 onChange={(e) => handleChange('idNumber', e.target.value)}
                 required
-                maxLength="9"
+                maxLength={9}
                 className="form-control"
               />
             </div>
@@ -159,7 +159,7 @@ export const GovPortalPage = () => {
                     value={formData.state}
                     onChange={(e) => handleChange('state', e.target.value)}
                     required
-                    maxLength="2"
+                    maxLength={2}
                     className="form-control"
                   />
                 </div>
@@ -173,7 +173,7 @@ export const GovPortalPage = () => {
                     value={formData.zipCode}
                     onChange={(e) => handleChange('zipCode', e.target.value)}
                     required
-                    maxLength="5"
+                    maxLength={5}
                     className="form-control"
                   />
                 </div>

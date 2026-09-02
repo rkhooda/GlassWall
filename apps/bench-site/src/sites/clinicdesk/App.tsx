@@ -1,41 +1,29 @@
-import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { Routes, Route, Link } from 'react-router-dom';
+import { useMemo } from 'react';
 import PatientListPage from './pages/PatientListPage';
 import PatientDetailPage from './pages/PatientDetailPage';
 import './clinicdesk.css';
 
-function App() {
-  const [seed] = useState(() => {
-    const params = new URLSearchParams(window.location.search);
-    return parseInt(params.get('seed') || '42', 10);
-  });
-  const navigate = useNavigate();
+// ClinicDesk: clinical records with PII rendered as canvas pixels, images and
+// free text. Mounted under /clinicdesk by the bench shell.
+export default function ClinicDeskApp() {
+  const seed = useMemo(() => {
+    const raw = new URLSearchParams(window.location.search).get('seed');
+    return raw && /^\d+$/.test(raw) ? parseInt(raw, 10) : 1337;
+  }, []);
 
   return (
-    <BrowserRouter>
-      <div className="clinicdesk-app">
-        <header className="clinicdesk-header">
-          <h1>ClinicDesk</h1>
-          <div className="seed-display">
-            Seed: <code>{seed}</code>
-            <button onClick={() => navigate(`?seed=${seed}`)}>Reload</button>
-          </div>
-        </header>
-        <main>
-          <Routes>
-            <Route
-              path="/"
-              element={<PatientListPage seed={seed} />}
-            />
-            <Route
-              path="/patient/:patientId"
-              element={<PatientDetailPage seed={seed} />}
-            />
-          </Routes>
-        </main>
-      </div>
-    </BrowserRouter>
+    <div className="clinicdesk-app">
+      <header className="clinicdesk-header">
+        <h1><Link to={`/clinicdesk/?seed=${seed}`}>ClinicDesk</Link></h1>
+        <div className="seed-display">Seed: <code>{seed}</code></div>
+      </header>
+      <main>
+        <Routes>
+          <Route index element={<PatientListPage seed={seed} />} />
+          <Route path="patient/:patientId" element={<PatientDetailPage seed={seed} />} />
+        </Routes>
+      </main>
+    </div>
   );
 }
-
-export default App;
