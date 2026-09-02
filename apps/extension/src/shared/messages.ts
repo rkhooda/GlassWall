@@ -13,7 +13,7 @@ import type { RawObservation, SanitizedObservation } from '@glasswall/schema/obs
 import type { RedactionReason } from '@glasswall/schema/audit';
 import type { PolicyProfile } from '@glasswall/schema/policy';
 
-export type StepPhase = 'observe' | 'perceive' | 'sanitize' | 'gate' | 'reason' | 'validate' | 'confirm' | 'execute' | 'verify';
+export type StepPhase = 'observe' | 'capture' | 'perceive' | 'sanitize' | 'redact' | 'gate' | 'reason' | 'validate' | 'confirm' | 'execute' | 'verify';
 
 export interface TraceEntry {
   step: number;
@@ -115,6 +115,7 @@ export interface HealthInfo {
   providers: string[];
   active: string | null;
   capability?: { webgpu: boolean; wasm: boolean };
+  warm?: { ner: boolean; ocr: boolean };
   modelsLoadedBytes?: number;
 }
 

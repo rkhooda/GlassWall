@@ -74,6 +74,17 @@ export default function App() {
     setTrace([]);
     setInspect(null);
     setTab('run');
+    // Screenshots need a host permission for the page's origin. Ask for exactly that
+    // origin, here, because the Start click is the user gesture Chrome requires.
+    if (policy !== 'STRICT') {
+      try {
+        const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+        const origin = tab?.url && /^https?:/.test(tab.url) ? new URL(tab.url).origin : null;
+        if (origin) await chrome.permissions.request({ origins: [`${origin}/*`] });
+      } catch {
+        /* denied or unavailable: the run degrades to structure only */
+      }
+    }
     const reply = (await send({ type: 'gw:start', task: task.trim(), policy })) as { ok: boolean; error?: string } | undefined;
     if (reply && !reply.ok) setError(reply.error ?? 'Could not start');
     refreshHealth();

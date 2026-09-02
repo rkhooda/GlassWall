@@ -19,12 +19,12 @@ import {
   checkVaultTypeMatch,
   scanLiteralAgainstRegistry,
   type SessionSecrets,
-  type PerceptionSource,
 } from '@glasswall/privacy';
 import { send } from './net';
 import { sendToPanel, sendToTab, type RunState, type TraceEntry, type AuditEntry, type HealthInfo, type ConfirmContext } from '../shared/messages';
 import { GATEWAY_ORIGIN, DEFAULT_STEP_BUDGET } from '../shared/config';
-import { perceptionSourcesFor, type PerceptionOutcome } from './perception';
+import { createStepPerception } from './perception';
+import { captureVisibleTabDataUrl, warmUpInOffscreen, statsFromOffscreen } from './capture';
 
 const MAX_CONSECUTIVE_FAILURES = 3;
 const CONFIRM_TIMEOUT_MS = 90_000;
@@ -84,12 +84,19 @@ async function gateway<T>(request: Parameters<typeof egressGate>[0], secrets: Se
 }
 
 export async function getHealth(): Promise<HealthInfo> {
+  const local = await statsFromOffscreen().catch(() => null);
+  const capability = local?.capability ? { webgpu: local.capability.webgpu, wasm: local.capability.wasm } : undefined;
   try {
     const health = await gateway({ path: GATEWAY_PATHS.health }, null, 'STRICT', b => HealthResponseSchema.parse(b));
-    return { gateway: 'ok', providers: health.providers.filter(p => p.available).map(p => p.name), active: health.active };
+    return { gateway: 'ok', providers: health.providers.filter(p => p.available).map(p => p.name), active: health.active, capability, warm: local?.warm };
   } catch {
-    return { gateway: 'unreachable', providers: [], active: null };
+    return { gateway: 'unreachable', providers: [], active: null, capability, warm: local?.warm };
   }
+}
+
+/** Load the local models before the user's first step. Never throws; failures show up as degraded sources. */
+export function warmUp(policy: PolicyProfile): void {
+  void warmUpInOffscreen({ screenshotEnabled: PROFILES[policy].policy.screenshot.enabled }).catch(() => undefined);
 }
 
 const isWebUrl = (url?: string) => /^https?:/.test(url ?? '');
@@ -242,10 +249,11 @@ export async function startRun(task: string, policy: PolicyProfile, tabIdHint?: 
     tabId = await targetTabId(tabIdHint);
     await ensureContentScript(tabId);
 
+    warmUp(policy);
     const session = await gateway({ path: GATEWAY_PATHS.session, body: { task, policy_profile: policy, site_allowlist: [] } }, secrets, policy, b => SessionResponseSchema.parse(b));
     const sessionId = session.session_id;
     setState({ sessionId, provider: session.provider, stepsLeft: session.budget.steps_left });
-    const sources: PerceptionSource[] = perceptionSourcesFor(policy);
+    const pixels = PROFILES[policy].policy.screenshot.enabled;
 
     for (let step = 0; step < session.budget.steps_left && !aborted; step++) {
       const t0 = performance.now();
@@ -253,29 +261,38 @@ export async function startRun(task: string, policy: PolicyProfile, tabIdHint?: 
       const observationId = `obs_${sessionId.slice(0, 8)}_${step}`;
       setState({ step, stepsLeft: session.budget.steps_left - step });
 
-      // Observe
+      // Observe, and under a policy that allows pixels, capture the frame right after.
       const raw = await observe(tabId, observationId, sessionId, step);
       timings.observe = Math.round(performance.now() - t0);
+      const tCap = performance.now();
+      const capture = pixels ? await captureVisibleTabDataUrl(tabId) : { dataUrl: null };
+      const frameDataUrl = capture.dataUrl;
+      if (pixels) timings.capture = Math.round(performance.now() - tCap);
 
-      // Perceive + sanitize (perception sources run inside sanitize; the frame is captured by the source adapter)
+      // Perceive (local models, offscreen) + sanitize. The frame never leaves the offscreen document.
       const t1 = performance.now();
-      let perception: PerceptionOutcome | null = null;
+      const perception = createStepPerception({ observationId, raw, frameDataUrl, policy });
       const result = await sanitize({
         raw,
         frame: null,
         task,
         step,
         session: { session_id: sessionId, policy_profile: policy, secrets },
-        perceptionSources: sources.map(s => ({ ...s, run: async ctx => { const out = await s.run(ctx); perception = (s as PerceptionSource & { outcome?: PerceptionOutcome }).outcome ?? perception; return out; } })),
+        perceptionSources: perception.sources,
         budget: { steps_left: session.budget.steps_left - step, ms_left: session.budget.ms_left },
       });
       await secrets.flush();
       const obs = result.observation as SanitizedObservation;
-      timings.sanitize = Math.round(performance.now() - t1);
+      if (pixels && !frameDataUrl) result.degraded.push(`capture_unavailable${capture.error ? ':' + capture.error.replace(/\s+/g, '_').slice(0, 80) : ''}`);
+      const local = perception.timings();
+      timings.perceive = Math.round((local.ner ?? 0) + (local.ocr ?? 0) + (local.decode ?? 0));
+      timings.sanitize = Math.round(performance.now() - t1) - timings.perceive;
       if (aborted) break;
 
       void sendToTab(tabId, { type: 'gw:overlay', observation: obs, redactions: result.redactions }, 2000).catch(() => undefined);
-      const screenshot = (perception as PerceptionOutcome | null)?.redactedImage ?? undefined;
+      const tRed = performance.now();
+      const screenshot = (await perception.redact(result.redactions)) ?? undefined;
+      if (perception.frameCaptured) timings.redact = Math.round(performance.now() - tRed);
       sendToPanel({ type: 'gw:inspect', inspect: { step, raw, payload: obs, redactions: result.redactions, degraded: result.degraded, handlesCount: obs.handles?.length ?? 0, screenshotAttached: !!screenshot } });
 
       // Gate + reason

@@ -49,7 +49,7 @@ case "$CSP" in
   *) fail "connect-src not pinned: $CSP" ;;
 esac
 
-echo "[5/8] host_permissions limited to the gateway"
+echo "[5/8] host_permissions limited to the gateway (sites are optional, requested per origin)"
 HP=$(python3 -c "import json;print(' '.join(json.load(open('$MANIFEST')).get('host_permissions',[])))")
 [ "$HP" = "$GATEWAY/*" ] && pass "host_permissions = $HP" || fail "host_permissions = '$HP'"
 

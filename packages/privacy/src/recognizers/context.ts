@@ -43,6 +43,11 @@ function cleanLabel(text: string): string {
   return text.replace(/[:：*]+\s*$/, '').trim();
 }
 
+/** True when the text is a field label ("City", "Name:"), not a value. */
+export function isLabelWord(text: string): boolean {
+  return ruleFor(text) !== undefined;
+}
+
 function ruleFor(label: string): LabelRule | undefined {
   const clean = cleanLabel(label);
   return LABELS.find(r => r.re.test(clean));

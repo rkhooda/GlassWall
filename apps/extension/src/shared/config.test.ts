@@ -7,6 +7,7 @@ describe('manifest agrees with config', () => {
     const csp = manifest.content_security_policy.extension_pages;
     expect(csp).toContain(`connect-src 'self' ${GATEWAY_ORIGIN}`);
     expect(manifest.host_permissions).toEqual([`${GATEWAY_ORIGIN}/*`]);
+    expect(manifest.optional_host_permissions).toEqual(['http://*/*', 'https://*/*']);
     expect(JSON.stringify(manifest)).not.toContain('<all_urls>');
     expect(csp).toContain("'wasm-unsafe-eval'");
   });

@@ -1,10 +1,12 @@
 // Service worker: the single message router. Owns the run (orchestrator), the
 // offscreen document, and the only network call site (net.ts).
 import type { PanelToWorker } from '../shared/messages';
-import { startRun, abortRun, respondConfirmation, getState, getAudit, getHealth } from './orchestrator';
+import { startRun, abortRun, respondConfirmation, getState, getAudit, getHealth, warmUp } from './orchestrator';
 
 chrome.runtime.onInstalled.addListener(() => {
   void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+  // Load the NER model now so the first step does not pay the cold start.
+  warmUp('STRICT');
 });
 
 chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse: (r: unknown) => void) => {

@@ -12,11 +12,19 @@ export const workspaceAliases = [
   { find: /^@glasswall\/([^/]+)$/, replacement: `${packages}/$1/src/index.ts` },
 ];
 
+// GLASSWALL_EVAL_BUILD=1 produces dist-eval: the same code with <all_urls>, so the
+// Playwright harness can capture screenshots without a toolbar click. The shipped
+// manifest keeps activeTab + an optional per-site permission requested on Start.
+const evalBuild = process.env.GLASSWALL_EVAL_BUILD === '1';
+const effectiveManifest = evalBuild
+  ? { ...manifest, name: `${manifest.name} (eval build)`, host_permissions: [...manifest.host_permissions, '<all_urls>'] }
+  : manifest;
+
 export default defineConfig({
-  plugins: [react(), crx({ manifest })],
+  plugins: [react(), crx({ manifest: effectiveManifest })],
   resolve: { alias: workspaceAliases },
   build: {
-    outDir: 'dist',
+    outDir: evalBuild ? 'dist-eval' : 'dist',
     emptyOutDir: true,
     rollupOptions: {
       // Pages that the manifest does not reference directly.

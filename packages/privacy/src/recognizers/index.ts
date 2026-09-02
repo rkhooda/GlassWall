@@ -28,7 +28,7 @@ import { elementRulesRecognizer, recognizeElementRules } from './element-rules';
 import type { RawObservation, CapturedFrame } from '@glasswall/schema/observation';
 import type { Span } from './types';
 import { recognizeByContext } from './context';
-export { recognizeByContext } from './context';
+export { recognizeByContext, isLabelWord } from './context';
 
 let _allRecognizers: Array<{ recognizer: any; recognizeFn: (text: string) => Span[] }> | null = null;
 

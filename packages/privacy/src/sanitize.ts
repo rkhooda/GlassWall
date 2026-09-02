@@ -14,7 +14,7 @@ import type { RedactionReason, SanitizeResult, Detection, PolicyDecision, Timing
 import type { PolicyConfig, PiiType } from '@glasswall/schema/policy';
 import type { SecretRegistry } from '@glasswall/schema/branded';
 
-import { recognizeAll, recognizeText } from './recognizers';
+import { recognizeAll, recognizeText, isLabelWord } from './recognizers';
 import { createTokenizer, getHandleForValue, tokenizeAndRegister, type Tokenizer } from './tokenizer';
 import { buildSanitizedObservation, deriveAvailableActions, classifySensitivityFromRules } from '@glasswall/perception/observation-builder';
 import { PROFILES, decide, tierForType, type Profile, type Transformation } from './policy';
@@ -190,6 +190,8 @@ export async function sanitize(input: SanitizeInput): Promise<SanitizeResult> {
       degraded.push(...(output.degraded ?? []));
       for (const region of output.unexplained ?? []) sourceUnexplained.push({ rect: region.rect, reason: `${source.id}: ${region.reason}` });
       for (const ev of output.evidence) {
+        // A model that flags the word "City" or "Name" found a label, not a value.
+        if (ev.textSpan && (ev.textSpan.trim().length < 3 || isLabelWord(ev.textSpan))) continue;
         const piiType = normalizePiiType(ev.piiType);
         const tier = tierForType(piiType);
         const handle = ev.textSpan ? record(ev.textSpan, piiType, tier) : undefined;

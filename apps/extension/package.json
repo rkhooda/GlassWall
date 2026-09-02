@@ -7,14 +7,16 @@
     "build": "tsc && vite build",
     "lint": "eslint src --ext .ts,.tsx",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build:eval": "GLASSWALL_EVAL_BUILD=1 vite build"
   },
   "dependencies": {
     "@glasswall/privacy": "workspace:*",
     "@glasswall/schema": "workspace:*",
     "dom-accessibility-api": "^0.7.1",
     "react": "^18.3.0",
-    "react-dom": "^18.3.0"
+    "react-dom": "^18.3.0",
+    "@glasswall/inference": "workspace:*"
   },
   "devDependencies": {
     "@crxjs/vite-plugin": "^2.0.0-beta.23",
