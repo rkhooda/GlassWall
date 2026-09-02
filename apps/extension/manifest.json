@@ -1,27 +1,44 @@
 {
   "manifest_version": 3,
-  "name": "GLASSWALL Extension",
-  "version": "0.1.0",
-  "description": "Privacy-preserving browser agent for computer-use tasks",
+  "name": "GLASSWALL",
+  "version": "0.2.0",
+  "description": "Privacy-preserving browser agent: local perception and redaction, sanitized context to the reasoner, actions executed in the page.",
+  "minimum_chrome_version": "116",
   "permissions": [
     "activeTab",
     "scripting",
     "storage",
     "sidePanel",
-    "offscreen"
+    "offscreen",
+    "tabs"
   ],
   "host_permissions": [
-    "*://localhost:5173/*",
-    "*://127.0.0.1:5173/*"
+    "http://localhost:3000/*"
   ],
   "content_security_policy": {
-    "extension_pages": "connect-src 'self'"
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src 'self' http://localhost:3000"
   },
   "action": {
     "default_title": "GLASSWALL"
   },
+  "side_panel": {
+    "default_path": "src/sidepanel/index.html"
+  },
   "background": {
     "service_worker": "src/background/index.ts",
     "type": "module"
-  }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "src/content/index.ts"
+      ],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ]
 }

@@ -1,648 +1,288 @@
-// TreeWalker-based DOM traversal for element extraction
-// Implements PLAN.md section 12.2: Element extraction
+// DOM traversal for element extraction (PLAN §12.2, archived).
+//
+// This file is the privacy boundary: it never reads `.value`, `.innerHTML`,
+// `.outerHTML`, cookies or storage. `value_state` is derived from attributes and
+// pseudo-classes only. scripts/verify-boundary.sh greps this directory for those
+// reads and fails the build if one appears.
+import { computeAccessibleNameForElement, computeRoleForElement, getElementState, isElementHidden } from './a11y';
+import { computeIdentityHash, quantizeRect, type Rect4 } from '../identity';
 
-import { createRect, area, intersects, quantizeRect } from '@glasswall/perception';
-import {
-  computeAccessibleNameForElement,
-  computeRoleForElement,
-  getElementState,
-  isElementHidden
-} from './a11y';
+const OFFSCREEN_MARGIN_PX = 50;
+const CORNER_INSET_PX = 2;
+const MAX_LABEL_CHARS = 200;
 
-// Import stability checking for validation ladder
-import { waitForFullStability } from './stability';
-
-// Import types from schema
-import type { Rect } from '@glasswall/schema';
-
-// Configuration
-const POLICY_OFFSCREEN_MARGIN = 50; // pixels outside viewport to ignore
-const INTERSECTION_CORNER_INSET = 2; // pixels inset for corner hit-tests
-
-// Frame tracking
-let frameIdCounter = 0;
-const frameMap = new Map<Window, number>(); // window -> frameId
-
-// Element ID counter for this observation
-let elementIdCounter = 0;
-
-/**
- * Get or assign a frame ID for a window
- */
-function getFrameId(window: Window): number {
-  if (window === window.top) {
-    return 0; // top-level frame
-  }
-
-  if (frameMap.has(window)) {
-    return frameMap.get(window)!;
-  }
-
-  // Assign new frame ID
-  const frameId = ++frameIdCounter;
-  frameMap.set(window, frameId);
-  return frameId;
+export interface Viewport {
+  w: number;
+  h: number;
 }
 
-/**
- * Check if two origins are same-origin
- */
-function isSameOrigin(url1: string, url2: string): boolean {
-  try {
-    const u1 = new URL(url1);
-    const u2 = new URL(url2);
-    return u1.protocol === u2.protocol &&
-           u1.host === u2.host &&
-           u1.port === u2.port;
-  } catch (e) {
-    return false;
-  }
+export interface WalkedElement {
+  element: Element;
+  id: string;
+  id_hash: string;
+  tag: string;
+  role: string;
+  type?: string;
+  label: string;
+  placeholder?: string;
+  rect: Rect4;
+  visible: boolean;
+  enabled: boolean;
+  focusable: boolean;
+  value_state: 'empty' | 'partial' | 'filled' | 'n/a';
+  options_count?: number;
+  group: string;
+  frame: number;
+  unexplained: boolean;
+  autocomplete?: string;
+  input_type?: string;
 }
 
-/**
- * Check if element is interactive per PLAN.md criteria
- */
-function isInteractiveElement(element: Element): boolean {
-  // Check for interactive tags/attributes
+export interface WalkedFrame {
+  id: number;
+  origin: 'same' | 'cross';
+  rect: Rect4;
+}
+
+export interface WalkResult {
+  elements: WalkedElement[];
+  frames: WalkedFrame[];
+  truncated: boolean;
+}
+
+const INTERACTIVE_ROLES = new Set([
+  'button', 'checkbox', 'combobox', 'link', 'menuitem', 'menuitemcheckbox', 'menuitemradio',
+  'radio', 'searchbox', 'slider', 'spinbutton', 'switch', 'tab', 'textbox', 'treeitem', 'option',
+]);
+const LANDMARK_TAGS = new Set(['header', 'footer', 'nav', 'main', 'section', 'article', 'aside', 'form', 'fieldset']);
+const LANDMARK_ROLES = new Set(['banner', 'complementary', 'contentinfo', 'form', 'main', 'navigation', 'region', 'search']);
+
+export function isInteractive(element: Element): boolean {
   const tag = element.tagName.toLowerCase();
-
-  // Interactive elements by tag
-  if (['a', 'button', 'input', 'select', 'textarea'].includes(tag)) {
-    // Special case: anchor without href is not interactive
-    if (tag === 'a' && !element.hasAttribute('href')) {
-      return false;
-    }
-    // Special case: input types that are not interactive
-    if (tag === 'input') {
-      const type = element.getAttribute('type')?.toLowerCase() || 'text';
-      if (['hidden', 'button', 'submit', 'reset', 'image'].includes(type)) {
-        return type !== 'hidden'; // hidden inputs are not interactive
-      }
-    }
-    return true;
-  }
-
-  // Elements with role attribute (if role indicates interactivity)
+  if (tag === 'a') return element.hasAttribute('href');
+  if (tag === 'input') return (element.getAttribute('type') ?? 'text').toLowerCase() !== 'hidden';
+  if (tag === 'button' || tag === 'select' || tag === 'textarea' || tag === 'summary') return true;
   const role = element.getAttribute('role');
-  if (role) {
-    const interactiveRoles = new Set([
-      'button', 'checkbox', 'combobox', 'link', 'menuitem', 'menuitemcheckbox',
-      'menuitemradio', 'radio', 'radiogroup', 'searchbox', 'slider', 'spinbutton',
-      'switch', 'tab', 'textbox', 'treeitem'
-    ]);
-    if (interactiveRoles.has(role)) {
-      return true;
-    }
-  }
-
-  // Elements with onclick handler
-  if (element.hasAttribute('onclick')) {
-    return true;
-  }
-
-  // Elements with tabindex >= 0
-  const tabindex = parseInt(element.getAttribute('tabindex') || '-1', 10);
-  if (tabindex >= 0) {
-    return true;
-  }
-
-  // Contenteditable elements
-  if ('isContentEditable' in element && (element as HTMLElement).isContentEditable) {
-    return true;
-  }
-
-  return false;
+  if (role && INTERACTIVE_ROLES.has(role)) return true;
+  if (element.hasAttribute('onclick')) return true;
+  const tabindex = parseInt(element.getAttribute('tabindex') ?? '-1', 10);
+  if (tabindex >= 0) return true;
+  return element instanceof HTMLElement && element.isContentEditable;
 }
 
-/**
- * Check if element is a text-bearing leaf with non-empty accessible text
- */
-function isTextBearingLeaf(element: Element): boolean {
-  // Must have non-empty accessible text
-  const name = computeAccessibleNameForElement(element);
-  if (!name || name.trim() === '') {
-    return false;
-  }
-
-  // Must be a leaf element (no element children)
-  // But can have text nodes
-  const children = element.children;
-  for (let i = 0; i < children.length; i++) {
-    const child = children[i];
-    if (child && child.nodeType === Node.ELEMENT_NODE) {
-      return false;
-    }
-  }
-
-  // Must have non-zero area
-  const rect = element.getBoundingClientRect();
-  return rect.width > 0 && rect.height > 0;
+function isTextLeaf(element: Element): boolean {
+  if (element.children.length > 0) return false;
+  const text = element.textContent?.trim() ?? '';
+  return text.length > 0;
 }
 
-/**
- * Check if element is a landmark/section container for group_path
- */
-function isLandmarkOrSection(element: Element): boolean {
+const MEDIA_TAGS = new Set(['canvas', 'img', 'video', 'object', 'embed', 'svg']);
+
+/** Pixels the DOM cannot explain: kept so coverage can mask or OCR them. */
+function isMedia(element: Element): boolean {
+  return MEDIA_TAGS.has(element.tagName.toLowerCase());
+}
+
+function isLandmark(element: Element): boolean {
   const tag = element.tagName.toLowerCase();
-
-  // Landmark elements
-  if (['header', 'footer', 'nav', 'main'].includes(tag)) {
-    return true;
-  }
-
-  // Sectioning elements
-  if (['section', 'article', 'aside'].includes(tag)) {
-    return true;
-  }
-
-  // Elements with role indicating landmark/region
+  if (LANDMARK_TAGS.has(tag)) return true;
   const role = element.getAttribute('role');
-  const landmarkRoles = new Set([
-    'banner', 'complementary', 'contentinfo', 'form', 'main', 'navigation',
-    'region', 'search'
-  ]);
-
-  if (role && landmarkRoles.has(role)) {
-    return true;
-  }
-
-  return false;
+  return !!role && LANDMARK_ROLES.has(role);
 }
 
-/**
- * Check inclusion criteria per PLAN.md 12.2
- */
-function meetsInclusionCriteria(element: Element): boolean {
-  return isInteractiveElement(element) ||
-         isTextBearingLeaf(element) ||
-         isLandmarkOrSection(element);
+function inViewport(rect: DOMRect, viewport: Viewport): boolean {
+  return (
+    rect.right >= -OFFSCREEN_MARGIN_PX &&
+    rect.bottom >= -OFFSCREEN_MARGIN_PX &&
+    rect.left <= viewport.w + OFFSCREEN_MARGIN_PX &&
+    rect.top <= viewport.h + OFFSCREEN_MARGIN_PX
+  );
 }
 
-/**
- * Check exclusion criteria per PLAN.md 12.2
- */
-function meetsExclusionCriteria(
-  element: Element,
-  viewport: { w: number; h: number; scroll_y_pct: number; doc_h_ratio: number }
-): boolean {
-  // Zero area
+/** Hit-test the centre and four inset corners; visible if any point reaches the element. */
+export function isOccluded(element: Element, doc: Document = document): boolean {
   const rect = element.getBoundingClientRect();
-  if (rect.width === 0 || rect.height === 0) {
-    return true;
-  }
-
-  // Check if hidden
-  if (isElementHidden(element)) {
-    return true;
-  }
-
-  // Check if outside viewport by more than offscreen margin
-  const margin = POLICY_OFFSCREEN_MARGIN;
-  const viewportRect = {
-    x: -margin,
-    y: -margin,
-    width: viewport.w + 2 * margin,
-    height: viewport.h + 2 * margin
-  };
-
-  if (!intersects(
-    createRect(viewportRect.x, viewportRect.y, viewportRect.width, viewportRect.height),
-    createRect(rect.left, rect.top, rect.width, rect.height)
-  )) {
-    return true;
-  }
-
-  // Note: overflow clipping and occlusion are handled separately
-  // in the visibility testing function
-
-  return false;
-}
-
-/**
- * Test if element is occluded using center and 4 corner hit-testing
- * Returns true if occluded (modal is above it)
- */
-function isOccluded(element: Element): boolean {
-  const rect = element.getBoundingClientRect();
-
-  // Skip if zero area
-  if (rect.width === 0 || rect.height === 0) {
-    return true;
-  }
-
-  // Test points: center and 4 corners inset by INTERSECTION_CORNER_INSET
-  const testPoints = [
-    // Center
-    { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 },
-    // Top-left corner (inset)
-    { x: rect.left + INTERSECTION_CORNER_INSET, y: rect.top + INTERSECTION_CORNER_INSET },
-    // Top-right corner (inset)
-    { x: rect.right - INTERSECTION_CORNER_INSET, y: rect.top + INTERSECTION_CORNER_INSET },
-    // Bottom-left corner (inset)
-    { x: rect.left + INTERSECTION_CORNER_INSET, y: rect.bottom - INTERSECTION_CORNER_INSET },
-    // Bottom-right corner (inset)
-    { x: rect.right - INTERSECTION_CORNER_INSET, y: rect.bottom - INTERSECTION_CORNER_INSET }
+  if (rect.width === 0 || rect.height === 0) return true;
+  const root = element.getRootNode();
+  const from = root instanceof ShadowRoot && typeof root.elementFromPoint === 'function' ? root : doc;
+  if (typeof from.elementFromPoint !== 'function') return false; // no hit-testing available (tests)
+  const points = [
+    [rect.left + rect.width / 2, rect.top + rect.height / 2],
+    [rect.left + CORNER_INSET_PX, rect.top + CORNER_INSET_PX],
+    [rect.right - CORNER_INSET_PX, rect.top + CORNER_INSET_PX],
+    [rect.left + CORNER_INSET_PX, rect.bottom - CORNER_INSET_PX],
+    [rect.right - CORNER_INSET_PX, rect.bottom - CORNER_INSET_PX],
   ];
-
-  // For each test point, check if elementFromPoint returns the element or a descendant
-  for (const point of testPoints) {
-    const hitElement = document.elementFromPoint(point.x, point.y);
-    if (hitElement && (hitElement === element || element.contains(hitElement))) {
-      // At least one point hits the element or its descendant -> not occluded
-      return false;
-    }
+  for (const [x, y] of points) {
+    const hit = from.elementFromPoint(x!, y!);
+    if (hit && (hit === element || element.contains(hit) || hit.contains(element))) return false;
   }
-
-  // None of the test points hit the element or its descendants -> occluded
   return true;
 }
 
 /**
- * Generate element ID and identity hash per PLAN.md 12.2
+ * value_state without reading the value: `:placeholder-shown` tells us a text control
+ * with a placeholder is empty; `validity.valueMissing` tells us a required control is
+ * empty; a textarea exposes `textLength`; checkboxes/radios/selects expose state.
+ * Anything else is 'n/a', and the agent re-observes after typing.
  */
-function generateElementIds(
-  element: Element,
-  index: number,
-  frameId: number,
-  quantizedRect: Rect
-): { id: string; idHash: string } {
-  // Short, model-friendly ID
-  const elementId = `e${index}`;
-
-  // For identity hash, we need:
-  // tag | role | normalized_accessible_name | dom_path_signature | quantized_rect | frame_id
-  // Since we don't have crypto.subtle in content scripts, we'll use a simple hash
-  // In production, this would be SHA-256
-
+export function valueState(element: Element): WalkedElement['value_state'] {
   const tag = element.tagName.toLowerCase();
-  const role = computeRoleForElement(element);
-  const accessibleName = computeAccessibleNameForElement(element).trim();
-  const domPath = getDomPathSignature(element);
-
-  // Simple string concatenation for hash input (in prod, use proper hashing)
-  const hashInput = `${tag}|${role}|${accessibleName}|${domPath}|${quantizedRect[0]},${quantizedRect[1]},${quantizedRect[2]},${quantizedRect[3]}|${frameId}`;
-
-  // Simple hash function (for demo - replace with real SHA-256 in prod)
-  const idHash = simpleHash(hashInput).substring(0, 12);
-
-  return { id: elementId, idHash };
-}
-
-/**
- * Get DOM path signature for an element
- * Simplified version - in prod would be more robust
- */
-function getDomPathSignature(element: Element): string {
-  const path: string[] = [];
-  let current: Element | null = element;
-
-  while (current && current.nodeType === Node.ELEMENT_NODE && current !== document.body) {
-    let selector = current.tagName.toLowerCase();
-    const id = current.getAttribute('id');
-    if (id) {
-      selector += `#${CSS.escape(id)}`;
-    } else {
-      // Use nth-of-type among siblings with same tag name
-      let sameTypeSiblings = 0;
-      let sibling = current.previousElementSibling;
-      while (sibling) {
-        if (sibling.tagName === current.tagName) {
-          sameTypeSiblings++;
-        }
-        sibling = sibling.previousElementSibling;
-      }
-      if (sameTypeSiblings > 0) {
-        selector += `:nth-of-type(${sameTypeSiblings + 1})`;
+  if (tag === 'input') {
+    const input = element as HTMLInputElement;
+    const type = (input.getAttribute('type') ?? 'text').toLowerCase();
+    if (['hidden', 'button', 'submit', 'reset', 'image', 'file', 'range', 'color'].includes(type)) return 'n/a';
+    if (type === 'checkbox' || type === 'radio') return input.checked ? 'filled' : 'empty';
+    if (input.hasAttribute('placeholder')) {
+      try {
+        return input.matches(':placeholder-shown') ? 'empty' : 'filled';
+      } catch {
+        /* jsdom may not support the pseudo-class */
       }
     }
-
-    path.unshift(selector);
-    current = current.parentElement as Element;
-  }
-
-  return path.join(' > ');
-}
-
-/**
- * Simple hash function (not crypto-secure, for demo only)
- * In production, use crypto.subtle.digest('SHA-256', ...)
- */
-function simpleHash(str: string): string {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32bit integer
-  }
-  return Math.abs(hash).toString(36);
-}
-
-/**
- * Process shadow DOM root recursively
- */
-function* processShadowRoot(root: ShadowRoot, frameId: number): any {
-  // Process all elements in the shadow root
-  const walker = document.createTreeWalker(
-    root,
-    NodeFilter.SHOW_ELEMENT,
-    {
-      acceptNode: (node) => NodeFilter.FILTER_ACCEPT
-    }
-  );
-
-  let node;
-  while ((node = walker.nextNode())) {
-    // Ensure node is an Element (TreeWalker with SHOW_ELEMENT should guarantee this)
-    if (node.nodeType !== Node.ELEMENT_NODE) {
-      continue;
-    }
-
-    const element = node as Element;
-    yield element;
-
-    // Recursively process nested shadow roots
-    if (element.shadowRoot) {
-      yield* processShadowRoot(element.shadowRoot, frameId);
-    }
-  }
-}
-
-/**
- * Process iframe content document
- * Only processes same-origin iframes (cross-origin handled elsewhere)
- */
-function* processIframe(iframe: HTMLIFrameElement, frameId: number): any {
-  try {
-    // Check if same-origin
-    if (!isSameOrigin(iframe.src, window.location.href)) {
-      // Cross-origin iframe - handled as opaque rect elsewhere
-      return;
-    }
-
-    // Access the iframe's document
-    const iframeDoc = iframe.contentDocument;
-    if (!iframeDoc) {
-      return;
-    }
-
-    // Process the iframe's body
-    const body = iframeDoc.body;
-    if (!body) {
-      return;
-    }
-
-    // Create TreeWalker for iframe document
-    const walker = document.createTreeWalker(
-      body,
-      NodeFilter.SHOW_ELEMENT,
-      {
-        acceptNode: (node) => NodeFilter.FILTER_ACCEPT
-      }
-    );
-
-    let node;
-    while ((node = walker.nextNode())) {
-      // Ensure node is an Element (TreeWalker with SHOW_ELEMENT should guarantee this)
-      if (node.nodeType !== Node.ELEMENT_NODE) {
-        continue;
-      }
-
-      const element = node as Element;
-      yield element;
-
-      // Recursively process shadow roots in iframe
-      if (element.shadowRoot) {
-        yield* processShadowRoot(element.shadowRoot, frameId);
-      }
-
-      // Process nested iframes in iframe
-      if (element.tagName === 'IFRAME' && (element as HTMLIFrameElement).contentDocument) {
-        yield* processIframe(element as HTMLIFrameElement, frameId);
-      }
-    }
-  } catch (e) {
-    // Access denied (likely cross-origin) - ignore
-    return;
-  }
-}
-
-/**
- * Main traversal function
- * Extracts elements from document.body with shadow DOM and iframe support
- */
-export function* traverseElements(
-  viewport: { w: number; h: number; scroll_y_pct: number; doc_h_ratio: number }
-) {
-  // Reset counters for this observation
-  elementIdCounter = 0;
-  frameIdCounter = 0;
-  frameMap.clear();
-
-  // Process top-level document
-  yield* processElementSubtree(document.body, 0, viewport);
-
-  // Process iframes in top-level document
-  const iframes = document.querySelectorAll('iframe');
-  const iframeArray = Array.from(iframes);
-  for (const iframe of iframeArray) {
-    yield* processIframe(iframe as HTMLIFrameElement, 0);
-  }
-}
-
-/**
- * Process a subtree of elements (used for document body and shadow roots)
- */
-function* processElementSubtree(
-  root: ParentNode,
-  frameId: number,
-  viewport: { w: number; h: number; scroll_y_pct: number; doc_h_ratio: number }
-): any {
-  // Create TreeWalker for this root
-  const walker = document.createTreeWalker(
-    root,
-    NodeFilter.SHOW_ELEMENT,
-    {
-      acceptNode: (node) => NodeFilter.FILTER_ACCEPT
-    }
-  );
-
-  let node;
-  while ((node = walker.nextNode())) {
-    const element = node as Element;
-
-    // Skip if not in our ownership (per LANE-A.md)
-    // Note: In practice, we might want to check ownership here
-    // but for now we'll process everything and filter later
-
-    // Check inclusion criteria
-    if (!meetsInclusionCriteria(element)) {
-      continue;
-    }
-
-    // Check exclusion criteria
-    if (meetsExclusionCriteria(element, viewport)) {
-      continue;
-    }
-
-    // Get bounding rect
-    const rect = element.getBoundingClientRect();
-
-    // Check occlusion/visibility
-    const visible = !isOccluded(element);
-
-    // Get element state
-    const { enabled, focusable } = getElementState(element);
-
-    // Compute role and accessible name (label)
-    const role = computeRoleForElement(element);
-    const label = computeAccessibleNameForElement(element);
-
-    // Get placeholder (for input/textarea)
-    let placeholder: string | undefined;
-    if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') {
-      const attr = element.getAttribute('placeholder');
-      placeholder = attr !== null ? attr : undefined;
-    }
-
-    // Get tag and type
-    const tag = element.tagName.toLowerCase();
-    let type: string | undefined;
-    if (tag === 'input') {
-      type = element.getAttribute('type')?.toLowerCase() || undefined;
-    }
-
-    // Get options count (for select)
-    let optionsCount: number | undefined;
-    if (tag === 'select') {
-      optionsCount = (element as HTMLSelectElement).options.length;
-    }
-
-    // Get group path (simplified - in prod would be computed properly)
-    const group = getGroupPath(element);
-
-    // Unexplained flag (set to true for cross-origin iframes, etc.)
-    let unexplained: boolean | undefined;
-    // This will be set by the caller when processing iframe elements
-
-    // Yield the element data
-    yield {
-      element,
-      index: ++elementIdCounter,
-      frameId,
-      rect,
-      visible,
-      enabled,
-      focusable,
-      valueState: getValueState(element),
-      role,
-      label,
-      placeholder,
-      tag,
-      type,
-      optionsCount,
-      group,
-      unexplained
-    };
-
-    // Recursively process shadow roots
-    if (element.shadowRoot) {
-      yield* processElementSubtree(element.shadowRoot, frameId, viewport);
-    }
-  }
-}
-
-/**
- * Get value state of form element
- */
-function getValueState(element: Element): 'empty' | 'partial' | 'filled' | 'n/a' {
-  const tag = element.tagName.toLowerCase();
-
-  // Non-form elements
-  if (!['input', 'select', 'textarea'].includes(tag)) {
+    if (input.required && typeof input.validity?.valueMissing === 'boolean') return input.validity.valueMissing ? 'empty' : 'filled';
     return 'n/a';
   }
-
-  // Check based on element type
-  switch (tag) {
-    case 'input': {
-      const type = element.getAttribute('type')?.toLowerCase() || 'text';
-      // Skip hidden inputs and button-like inputs
-      if (['hidden', 'button', 'submit', 'reset', 'image', 'file'].includes(type)) {
-        return 'n/a';
-      }
-
-      // For checkbox/radio, check checked state
-      if (type === 'checkbox' || type === 'radio') {
-        return (element as HTMLInputElement).checked ? 'filled' : 'empty';
-      }
-
-      // For text-like inputs, check value length
-      const value = (element as HTMLInputElement).value;
-      if (value.length === 0) {
-        return 'empty';
-      } else {
-        // Simplified: treat any non-empty as filled
-        // In prod, might distinguish partial based on validation
-        return 'filled';
-      }
-    }
-
-    case 'textarea': {
-      const value = (element as HTMLTextAreaElement).value;
-      return value.length === 0 ? 'empty' : 'filled';
-    }
-
-    case 'select': {
-      const select = element as HTMLSelectElement;
-      return select.selectedIndex >= 0 ? 'filled' : 'empty';
-    }
-
-    default:
-      return 'n/a';
+  if (tag === 'textarea') {
+    const ta = element as HTMLTextAreaElement;
+    if (typeof ta.textLength === 'number') return ta.textLength === 0 ? 'empty' : 'filled';
+    return 'n/a';
   }
+  if (tag === 'select') {
+    const select = element as HTMLSelectElement;
+    const selected = select.selectedIndex;
+    if (selected < 0) return 'empty';
+    const option = select.options[selected];
+    return option && option.hasAttribute('value') && option.getAttribute('value') === '' ? 'empty' : 'filled';
+  }
+  return 'n/a';
 }
 
-/**
- * Get group path for element (simplified implementation)
- * In production, this would traverse up to find form/fieldset/etc hierarchy
- */
-function getGroupPath(element: Element): string {
-  // Start with the element itself
+export function groupPath(element: Element): string {
   const parts: string[] = [];
-
-  // Traverse up to find meaningful containers
-  let current: Element | null = element;
-  let levels = 0;
-  const maxLevels = 5; // Limit depth to avoid overly long paths
-
-  while (current && current !== document.body && levels < maxLevels) {
-    // Check if this is a meaningful container for grouping
+  let current: Element | null = element.parentElement;
+  let depth = 0;
+  while (current && current !== document.body && depth < 8) {
     const tag = current.tagName.toLowerCase();
-    const id = current.getAttribute('id');
-
-    // Add form, fieldset, section, etc. with ID if present
-    if ((['form', 'fieldset', 'section', 'div'].includes(tag) ||
-         current.hasAttribute('role')) && id) {
-      parts.unshift(`${tag}#${CSS.escape(id)}`);
-    } else if (['form', 'fieldset', 'section'].includes(tag)) {
-      parts.unshift(tag);
+    if (LANDMARK_TAGS.has(tag) || current.hasAttribute('role')) {
+      const id = current.getAttribute('id');
+      parts.unshift(id ? `${tag}#${id}` : tag);
     }
-
-    current = current.parentElement as Element;
-    levels++;
+    current = current.parentElement;
+    depth++;
   }
-
-  // Add the element itself if it has an ID
-  const elementId = element.getAttribute('id');
-  const elementTag = element.tagName.toLowerCase();
-  if (elementId) {
-    parts.push(`${elementTag}#${CSS.escape(elementId)}`);
-  } else {
-    parts.push(elementTag);
-  }
-
   return parts.join(' > ');
 }
 
-// Type alias for DOMRect to avoid duplication
-type DOMRectRaw = DOMRect;
+interface WalkContext {
+  viewport: Viewport;
+  counter: number;
+  out: WalkedElement[];
+  frames: WalkedFrame[];
+  maxElements: number;
+  truncated: boolean;
+}
+
+function walkRoot(root: Document | ShadowRoot, frameId: number, unexplainedRoot: boolean, ctx: WalkContext, doc: Document): void {
+  const walker = doc.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
+  let node: Node | null;
+  while ((node = walker.nextNode())) {
+    if (ctx.out.length >= ctx.maxElements) {
+      ctx.truncated = true;
+      return;
+    }
+    const element = node as Element;
+    const tag = element.tagName.toLowerCase();
+    if (tag === 'script' || tag === 'style' || tag === 'noscript' || tag === 'template') continue;
+
+    if (element.shadowRoot) walkRoot(element.shadowRoot, frameId, unexplainedRoot, ctx, doc);
+    if (tag === 'iframe') {
+      walkIframe(element as HTMLIFrameElement, frameId, ctx);
+      continue;
+    }
+
+    const interactive = isInteractive(element);
+    const media = isMedia(element);
+    if (!interactive && !media && !isTextLeaf(element) && !isLandmark(element)) continue;
+    if (isElementHidden(element)) continue;
+    const rect = element.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) continue;
+    if (!inViewport(rect, ctx.viewport)) continue;
+
+    const id = `e${++ctx.counter}`;
+    const { enabled, focusable } = getElementState(element);
+    const type = tag === 'input' ? (element.getAttribute('type') ?? 'text').toLowerCase() : undefined;
+    const autocomplete = element.getAttribute('autocomplete') ?? undefined;
+    const placeholder = element.getAttribute('placeholder') ?? undefined;
+    ctx.out.push({
+      element,
+      id,
+      id_hash: computeIdentityHash(element, frameId),
+      tag,
+      role: computeRoleForElement(element),
+      type,
+      label: computeAccessibleNameForElement(element).trim().slice(0, MAX_LABEL_CHARS),
+      placeholder,
+      rect: quantizeRect(rect),
+      visible: !isOccluded(element, doc),
+      enabled,
+      focusable,
+      value_state: valueState(element),
+      options_count: tag === 'select' ? (element as HTMLSelectElement).options.length : undefined,
+      group: groupPath(element),
+      frame: frameId,
+      unexplained: unexplainedRoot || media,
+      autocomplete,
+      input_type: type,
+    });
+  }
+}
+
+function walkIframe(iframe: HTMLIFrameElement, parentFrame: number, ctx: WalkContext): void {
+  const rect = iframe.getBoundingClientRect();
+  if (rect.width === 0 || rect.height === 0 || !inViewport(rect, ctx.viewport)) return;
+  const frameId = ctx.frames.length + 1;
+  let doc: Document | null = null;
+  try {
+    doc = iframe.contentDocument;
+  } catch {
+    doc = null;
+  }
+  const origin: 'same' | 'cross' = doc ? 'same' : 'cross';
+  ctx.frames.push({ id: frameId, origin, rect: quantizeRect(rect) });
+  if (!doc || !doc.body) {
+    // Cross-origin: the region exists but nothing inside can be explained.
+    ctx.out.push({
+      element: iframe,
+      id: `e${++ctx.counter}`,
+      id_hash: computeIdentityHash(iframe, parentFrame),
+      tag: 'iframe',
+      role: 'document',
+      label: iframe.getAttribute('title') ?? '',
+      rect: quantizeRect(rect),
+      visible: !isOccluded(iframe),
+      enabled: false,
+      focusable: false,
+      value_state: 'n/a',
+      group: groupPath(iframe),
+      frame: parentFrame,
+      unexplained: true,
+    });
+    return;
+  }
+  // Same-origin: walk its document; rects are offset by the frame position.
+  const offsetX = rect.left;
+  const offsetY = rect.top;
+  const before = ctx.out.length;
+  walkRoot(doc, frameId, false, ctx, doc);
+  for (let i = before; i < ctx.out.length; i++) {
+    const el = ctx.out[i]!;
+    el.rect = [el.rect[0] + Math.round(offsetX), el.rect[1] + Math.round(offsetY), el.rect[2], el.rect[3]];
+  }
+}
+
+export function walkDocument(viewport: Viewport, maxElements = 400): WalkResult {
+  const ctx: WalkContext = { viewport, counter: 0, out: [], frames: [{ id: 0, origin: 'same', rect: [0, 0, viewport.w, viewport.h] }], maxElements, truncated: false };
+  walkRoot(document, 0, false, ctx, document);
+  return { elements: ctx.out, frames: ctx.frames, truncated: ctx.truncated };
+}

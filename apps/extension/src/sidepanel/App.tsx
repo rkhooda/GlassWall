@@ -1,242 +1,138 @@
-// App.tsx - Main side panel UI with task input, Trace, and Confirm
+// Side panel: task input, run state, step trace, and the privacy inspector.
+import { useEffect, useState, type FormEvent } from 'react';
+import type { PolicyProfile } from '@glasswall/schema/policy';
+import type { WorkerToPanel, RunState, TraceEntry, InspectPayload, ConfirmContext, PanelToWorker } from '../shared/messages';
+import { Inspector } from './privacy';
+import './styles.css';
 
-import { useState, useEffect, useRef } from 'react';
-import { Confirm, type ConfirmationContext } from './Confirm';
-import { Trace, type TraceEntry } from './Trace';
-import { ErrorBanner, getErrorInfo, type ErrorAction } from './ErrorState';
+const IDLE: RunState = { status: 'idle', sessionId: null, task: '', policy: 'STRICT', step: 0, stepsLeft: 0, provider: null };
 
-interface SessionInfo {
-  sessionId: string;
-  stepIndex: number;
-  budget: { stepsLeft: number; msLeft: number };
-  consecutiveFailures: number;
-  progress: { fieldsFilled: number; fieldsRemaining: number; pageTypeSequence: string[] };
+function send(message: PanelToWorker): Promise<unknown> {
+  return chrome.runtime.sendMessage(message);
 }
 
-// Message types from orchestrator
-interface TraceEntryMessage {
-  type: 'extension:trace-entry';
-  payload: TraceEntry;
-}
+export default function App() {
+  const [task, setTask] = useState('Fill the shipping form with my saved details and place the order');
+  const [policy, setPolicy] = useState<PolicyProfile>('STRICT');
+  const [state, setState] = useState<RunState>(IDLE);
+  const [trace, setTrace] = useState<TraceEntry[]>([]);
+  const [inspect, setInspect] = useState<InspectPayload | null>(null);
+  const [confirm, setConfirm] = useState<ConfirmContext | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<'run' | 'privacy'>('run');
 
-interface TraceCompleteMessage {
-  type: 'extension:trace-complete';
-  payload: { sessionId: string };
-}
-
-interface SessionInfoMessage {
-  type: 'extension:session-info';
-  payload: SessionInfo;
-}
-
-interface SessionRecoveredMessage {
-  type: 'extension:session-recovered';
-  payload: { message: string; stepIndex: number };
-}
-
-interface ErrorMessage {
-  type: 'extension:error';
-  payload: { code: string; stepIndex?: number };
-}
-
-type OrchestratorMessage = TraceEntryMessage | TraceCompleteMessage | SessionInfoMessage | SessionRecoveredMessage | ErrorMessage;
-
-const App: React.FC = () => {
-  const [task, setTask] = useState('');
-  const [traceEntries, setTraceEntries] = useState<TraceEntry[]>([]);
-  const [isRunning, setIsRunning] = useState(false);
-  const [confirmationContext, setConfirmationContext] = useState<ConfirmationContext | null>(null);
-  const [sessionInfo, setSessionInfo] = useState<SessionInfo | null>(null);
-  const [currentError, setCurrentError] = useState<string | null>(null);
-  const [recoveryMessage, setRecoveryMessage] = useState<string | null>(null);
-
-  // Listen for messages from background script (orchestrator)
   useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      const message = event.data as OrchestratorMessage;
-      
-      if (message.type === 'extension:trace-entry') {
-        setTraceEntries(prev => [...prev, message.payload]);
-      } else if (message.type === 'extension:trace-complete') {
-        setIsRunning(false);
-      } else if (message.type === 'extension:session-info') {
-        setSessionInfo(message.payload);
-      } else if (message.type === 'extension:session-recovered') {
-        setRecoveryMessage(message.payload.message);
-        setTimeout(() => setRecoveryMessage(null), 5000);
-      } else if (message.type === 'extension:error') {
-        setCurrentError(message.payload.code);
+    const listener = (message: unknown) => {
+      const m = message as WorkerToPanel;
+      if (typeof m !== 'object' || m === null || !('type' in m)) return;
+      switch (m.type) {
+        case 'gw:state': setState(m.state); if (m.state.status === 'running' && m.state.step === 0) { setTrace([]); setError(null); } break;
+        case 'gw:trace': setTrace(prev => [...prev, m.entry]); break;
+        case 'gw:inspect': setInspect(m.inspect); break;
+        case 'gw:confirm-request': setConfirm(m.context); break;
+        case 'gw:error': setError(m.message); break;
       }
     };
-
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
+    chrome.runtime.onMessage.addListener(listener);
+    void send({ type: 'gw:get-state' }).then(s => { if (s) setState(s as RunState); });
+    return () => chrome.runtime.onMessage.removeListener(listener);
   }, []);
 
-  // Listen for confirmation requests (from background via postMessage)
-  useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data.type === 'extension:confirmation-request') {
-        setConfirmationContext({
-          ...event.data.payload,
-          onApprove: handleApprove,
-          onDeny: handleDeny,
-        });
-      }
-    };
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, []);
+  const running = state.status === 'running' || state.status === 'waiting_confirmation';
 
-  const handleApprove = () => {
-    if (confirmationContext) {
-      window.postMessage({
-        type: 'extension:confirmation-response',
-        payload: { approved: true }
-      }, '*');
-      setConfirmationContext(null);
-    }
-  };
-
-  const handleDeny = () => {
-    if (confirmationContext) {
-      window.postMessage({
-        type: 'extension:confirmation-response',
-        payload: { approved: false }
-      }, '*');
-      setConfirmationContext(null);
-    }
-  };
-
-  const handleErrorAction = (action: ErrorAction) => {
-    switch (action.action) {
-      case 'retry':
-        handleSubmit(new Event('submit') as any);
-        break;
-      case 'reobserve':
-        // Trigger re-observe by sending a message to background
-        window.postMessage({ type: 'extension:reobserve' }, '*');
-        break;
-      case 'abort':
-        handleAbort();
-        break;
-      case 'settings':
-        // Open settings (not implemented yet)
-        break;
-      case 'report':
-        // View audit log (not implemented yet)
-        break;
-      case 'dismiss':
-        setCurrentError(null);
-        break;
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const onStart = async (e: FormEvent) => {
     e.preventDefault();
-    if (!task.trim()) return;
-
-    setIsRunning(true);
-    setTraceEntries([]);
-    setSessionInfo(null);
-    setCurrentError(null);
-
-    // Send task to background script to start the orchestrator
-    try {
-      await chrome.runtime.sendMessage({
-        type: 'extension:start-task',
-        payload: {
-          task: task.trim(),
-          policy_profile: 'STRICT',
-          site_allowlist: [],
-        },
-      });
-    } catch (error) {
-      console.error('Failed to start task:', error);
-      setIsRunning(false);
-    }
+    if (!task.trim() || running) return;
+    setError(null);
+    setTrace([]);
+    setInspect(null);
+    const reply = (await send({ type: 'gw:start', task: task.trim(), policy })) as { ok: boolean; error?: string } | undefined;
+    if (reply && !reply.ok) setError(reply.error ?? 'Could not start');
   };
 
-  const handleAbort = () => {
-    // Send abort to background
-    window.postMessage({ type: 'extension:abort' }, '*');
-    setIsRunning(false);
+  const answer = (approved: boolean) => {
+    setConfirm(null);
+    void send({ type: 'gw:confirm-response', approved });
   };
 
   return (
-    <div className="side-panel flex flex-col h-full bg-white">
-      <div className="panel-header px-4 py-3 border-b border-gray-200 bg-gray-50">
-        <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-          <span className="text-xl">🛡️</span>
-          GLASSWALL Agent
-        </h2>
-      </div>
+    <div className="panel">
+      <header className="panel-header">
+        <h1>GLASSWALL</h1>
+        <span className={`status status-${state.status}`}>{state.status.replace('_', ' ')}</span>
+      </header>
 
-      <div className="panel-body flex-1 overflow-hidden flex flex-col">
-        {/* Task Form */}
-        <form onSubmit={handleSubmit} className="task-form p-4 border-b border-gray-100 bg-white flex-shrink-0">
-          <div className="mb-3">
-            <label htmlFor="task-input" className="block text-sm font-medium text-gray-700 mb-1">
-              Task
-            </label>
-            <input
-              type="text"
-              id="task-input"
-              value={task}
-              onChange={(e) => setTask(e.target.value)}
-              placeholder="e.g., Fill the shipping form and submit"
-              disabled={isRunning}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
-            />
+      <form className="task" onSubmit={onStart}>
+        <label htmlFor="task">Task</label>
+        <textarea id="task" rows={2} value={task} onChange={e => setTask(e.target.value)} disabled={running} />
+        <div className="task-controls">
+          <label>
+            Policy
+            <select value={policy} onChange={e => setPolicy(e.target.value as PolicyProfile)} disabled={running}>
+              <option value="STRICT">STRICT (no pixels leave)</option>
+              <option value="BALANCED">BALANCED (redacted screenshot)</option>
+            </select>
+          </label>
+          {running ? (
+            <button type="button" className="danger" onClick={() => void send({ type: 'gw:abort' })}>Abort</button>
+          ) : (
+            <button type="submit" className="primary" disabled={!task.trim()}>Start</button>
+          )}
+        </div>
+      </form>
+
+      {error && <div className="banner error" role="alert">{error}</div>}
+      {state.message && !error && <div className="banner info">{state.message}</div>}
+
+      <nav className="tabs" role="tablist">
+        <button role="tab" aria-selected={tab === 'run'} onClick={() => setTab('run')}>Run</button>
+        <button role="tab" aria-selected={tab === 'privacy'} onClick={() => setTab('privacy')}>Privacy</button>
+      </nav>
+
+      {tab === 'run' && (
+        <section className="trace" aria-label="Step trace">
+          {trace.length === 0 && <p className="muted">No steps yet.</p>}
+          {trace.map(entry => (
+            <article key={`${entry.step}-${entry.at}`} className={`step step-${entry.phase}`}>
+              <header>
+                <strong>Step {entry.step}</strong>
+                <span>{entry.action ? entry.action.type : entry.phase}</span>
+                <span className="muted">{entry.timings.total} ms</span>
+              </header>
+              <dl>
+                {entry.targetLabel && <><dt>Target</dt><dd>{entry.targetLabel}</dd></>}
+                <dt>Observed</dt><dd>{entry.observedElements} elements</dd>
+                <dt>Redactions</dt><dd>{entry.redactions}</dd>
+                {entry.degraded.length > 0 && <><dt>Degraded</dt><dd>{entry.degraded.join(', ')}</dd></>}
+                <dt>Timing</dt>
+                <dd>{Object.entries(entry.timings).filter(([k]) => k !== 'total').map(([k, v]) => `${k} ${v}ms`).join(' · ')}</dd>
+                {entry.errorCode && <><dt>Error</dt><dd>{entry.errorCode}{entry.errorMessage ? ` — ${entry.errorMessage}` : ''}</dd></>}
+              </dl>
+            </article>
+          ))}
+        </section>
+      )}
+
+      {tab === 'privacy' && (
+        <section className="privacy" aria-label="Privacy inspector">
+          <Inspector raw={inspect?.raw ?? null} payload={inspect?.payload ?? null} redactions={inspect?.redactions ?? []} degraded={inspect?.degraded ?? []} />
+        </section>
+      )}
+
+      {confirm && (
+        <div className="modal-backdrop">
+          <div className="modal" role="dialog" aria-modal="true">
+            <h2>Confirm {confirm.actionType}</h2>
+            <p><strong>{confirm.targetLabel}</strong></p>
+            <p className="muted">{confirm.reason}</p>
+            {confirm.vaultRef && <p>Value: <code>{confirm.vaultRef}</code> (resolved locally)</p>}
+            <div className="modal-actions">
+              <button onClick={() => answer(false)}>Deny</button>
+              <button className="primary" onClick={() => answer(true)}>Approve</button>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <button
-              type="submit"
-              disabled={isRunning || !task.trim()}
-              className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {isRunning ? 'Running…' : 'Start Task'}
-            </button>
-            <button
-              type="button"
-              onClick={handleAbort}
-              disabled={!isRunning}
-              className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              Abort
-            </button>
-          </div>
-        </form>
-
-        {/* Recovery Notification */}
-        {recoveryMessage && (
-          <div className="px-4 py-2 bg-green-50 border-b border-green-200 text-sm text-green-800 animate-slide-down">
-            <span className="font-medium">Session Recovered:</span> {recoveryMessage}
-          </div>
-        )}
-
-        {/* Error Banner */}
-        {currentError && (
-          <ErrorBanner
-            errorCode={currentError}
-            onAction={handleErrorAction}
-          />
-        )}
-
-        {/* Trace */}
-        <Trace
-          entries={traceEntries}
-          isRunning={isRunning}
-          onAbort={handleAbort}
-          task={task}
-          session={sessionInfo ?? undefined}
-        />
-
-        {/* Confirmation Modal */}
-        <Confirm context={confirmationContext} />
-      </div>
+        </div>
+      )}
     </div>
   );
-};
-
-export default App;
+}
