@@ -47,7 +47,7 @@ const withCallback = <T,>(value: T, cb?: (v: T) => void) => { cb?.(value); retur
   scripting: { executeScript: async () => [] },
   storage: {
     session: {
-      get: (keys: string[], cb?: (r: Record<string, unknown>) => void) => withCallback(Object.fromEntries(keys.length ? keys.filter(k => k in session).map(k => [k, session[k]]) : Object.entries(session)), cb),
+      get: (keys: string[] | null, cb?: (r: Record<string, unknown>) => void) => withCallback(Object.fromEntries(keys?.length ? keys.filter(k => k in session).map(k => [k, session[k]]) : Object.entries(session)), cb),
       set: (items: Record<string, unknown>, cb?: () => void) => { Object.assign(session, items); return withCallback(undefined, cb); },
       remove: (keys: string[], cb?: () => void) => { for (const k of keys) delete session[k]; return withCallback(undefined, cb); },
       clear: (cb?: () => void) => { for (const k of Object.keys(session)) delete session[k]; return withCallback(undefined, cb); },
@@ -101,6 +101,22 @@ describe('startRun', () => {
     const audit = await getAudit();
     expect(audit.map(a => [a.action, a.validation])).toEqual([['TYPE', 'ok'], ['DONE', 'ok']]);
     expect(audit[0]!.handle_count).toBeGreaterThan(0);
+  });
+
+  it('never resolves a previous run\'s value: the vault is cleared per run', async () => {
+    const typeEmail = (req: StepRequest) => envelope(req, { type: 'TYPE', target: { id: 'e1', id_hash: el(req, 'e1').id_hash }, value: { kind: 'vault_ref', handle: handleOf(req, 'EMAIL') }, clear_first: true });
+    plans = [typeEmail, done];
+    await startRun('t', 'STRICT');
+    expect(tab.find(m => m.type === 'gw:execute')!.action?.value?.text).toBe(EMAIL);
+
+    const other = 'someone.else@zmail.in';
+    observation = () => { const page = checkoutPage(0); page.text_nodes[1]!.text = `Email ${other}`; return page; };
+    tab.length = 0;
+    sendImpl = fakeGateway();
+    await startRun('t', 'STRICT');
+    expect(tab.find(m => m.type === 'gw:execute')!.action?.value?.text).toBe(other);
+    expect(Object.keys(session).filter(k => k.includes('⟦'))).toEqual([]);
+    expect(session['gw:audit']).toBeDefined(); // clearing the vault leaves the audit log alone
   });
 
   it('blocks a hijacked plan that types the Aadhaar handle into the search box', async () => {

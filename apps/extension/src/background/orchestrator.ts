@@ -254,6 +254,8 @@ export async function startRun(task: string, policy: PolicyProfile, tabIdHint?: 
   let tabId = -1;
 
   const finish = (status: RunState['status'], patch: Partial<RunState> = {}) => {
+    // Values live exactly as long as the run.
+    void vault.clear().catch(() => undefined);
     if (tabId > 0) void sendToTab(tabId, { type: 'gw:overlay-clear' }, 1000).catch(() => undefined);
     void sendToTab(tabId, { type: 'gw:eval-hook', key: 'done', value: status }, 1000).catch(() => undefined);
     setState({ status, ...patch });
@@ -262,6 +264,7 @@ export async function startRun(task: string, policy: PolicyProfile, tabIdHint?: 
   try {
     try {
       await vault.init();
+      await vault.clear(); // a previous run's values must never resolve a new run's handles
     } catch {
       /* first use */
     }

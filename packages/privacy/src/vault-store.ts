@@ -117,14 +117,14 @@ export class ChromeSessionStorageAdapter implements StorageAdapter {
     if (typeof chrome === 'undefined' || !chrome.storage?.session) {
       throw new Error('chrome.storage.session not available');
     }
+    // Only the vault's keys: the same storage area holds the audit log.
+    const all = await new Promise<Record<string, unknown>>((resolve, reject) => {
+      chrome!.storage.session.get(null, result => (chrome!.runtime.lastError ? reject(chrome!.runtime.lastError) : resolve(result)));
+    });
+    const mine = Object.keys(all).filter(k => k.startsWith(VAULT_NAMESPACE));
+    if (mine.length === 0) return;
     return new Promise((resolve, reject) => {
-      chrome!.storage.session.clear(() => {
-        if (chrome!.runtime.lastError) {
-          reject(chrome!.runtime.lastError);
-        } else {
-          resolve();
-        }
-      });
+      chrome!.storage.session.remove(mine, () => (chrome!.runtime.lastError ? reject(chrome!.runtime.lastError) : resolve()));
     });
   }
 }
