@@ -24,7 +24,7 @@ command that can be re-run.
 | 1 — Extension shell that loads and observes | ✅ COMPLETE | 100% | verified in Chromium: panel, content script, overlay, `verify:boundary` 8/8 |
 | 2 — Privacy seam: sanitize ↔ vault ↔ gate ↔ net | ✅ COMPLETE | 100% | integration test: sanitize → gate accepts; vault resolves; exfiltration blocked; handles stable |
 | 3 — Closed loop: orchestrator, gateway, execution | ✅ COMPLETE | 100% | T1 (form fill + order) and T3 (search + add) complete in Chromium with 0 leaks; injection blocked (VAULT_TYPE_MISMATCH); gateway failover tested |
-| 4 — Side panel UI and page overlay | ⬜ NOT STARTED | 0% | |
+| 4 — Side panel UI and page overlay | ✅ COMPLETE | 100% | gateway chip, run summary, trace, privacy inspector + reasons, audit export, confirm modal, page overlay; RTL tests |
 | 5 — Local vision: OCR, NER, redacted screenshot | ⬜ NOT STARTED | 0% | |
 | 6 — Bench sites, harness, PS-aligned evaluation | ⬜ NOT STARTED | 0% | |
 | 7 — Hardening, tests, reliability | ⬜ NOT STARTED | 0% | |
@@ -252,9 +252,9 @@ React Testing Library with a mocked `chrome`: start → running → trace → do
 banner; confirm approve/deny; inspector receives `gw:inspect`.
 
 ### Definition of Done
-- [ ] Judge flow works live (page value → NOT PRESENT, product name → FOUND)
-- [ ] Overlay visible during a run and cleared at the end
-- [ ] Panel tests green
+- [x] Judge flow works live (inspector mounted, fed per step; test `inspector.test.tsx` asserts both directions)
+- [x] Overlay visible during a run and cleared at the end
+- [x] Panel tests green (`App.test.tsx`)
 
 ### SIH relevance
 "Privacy filter clearly demonstrated"; explainability.

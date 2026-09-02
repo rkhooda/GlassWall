@@ -13,9 +13,9 @@ import {
 import type { Rect } from '@glasswall/schema';
 
 // Configuration for stability checking
-const STABILITY_CHECK_INTERVAL = 100; // ms between stability checks
-const STABILITY_TIMEOUT = 3000; // max time to wait for stability (ms)
-const STABLE_DURATION_REQUIRED = 500; // ms of stable state required
+const STABILITY_CHECK_INTERVAL = 50; // ms between stability checks
+const STABILITY_TIMEOUT = 2000; // max time to wait for stability (ms)
+const STABLE_DURATION_REQUIRED = 150; // ms of stable state required
 
 interface StabilityResult {
   isStable: boolean;
