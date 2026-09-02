@@ -140,7 +140,8 @@ export function resetShopLite(): void {
 export function useShopLite() {
   const seed = useMemo(resolveSeed, []);
   const profile = useMemo(() => buildProfile(seed), [seed]);
-  const [cart, setCart] = useState<CartItem[]>(() => readJson<CartItem[]>(KEY_CART, []));
+  // A fresh persona starts with one item in the cart so the checkout task has something to ship.
+  const [cart, setCart] = useState<CartItem[]>(() => readJson<CartItem[] | null>(KEY_CART, null) ?? [{ ...PRODUCTS[1]!, quantity: 1 }]);
   const [orders, setOrders] = useState<Order[]>(() => readJson<Order[] | null>(KEY_ORDERS, null) ?? seededOrders(profile));
 
   useEffect(() => { localStorage.setItem(KEY_CART, JSON.stringify(cart)); }, [cart]);
@@ -174,7 +175,7 @@ export function useShopLite() {
 
   const reset = useCallback(() => {
     resetShopLite();
-    setCart([]);
+    setCart([{ ...PRODUCTS[1]!, quantity: 1 }]);
     setOrders(seededOrders(profile));
   }, [profile]);
 

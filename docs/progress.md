@@ -20,8 +20,8 @@ command that can be re-run.
 
 | Phase | Status | Completion | Notes |
 |---|---|---|---|
-| 0 — Foundation and cleanup | 🟡 IN PROGRESS | 70% | build green, backend starts, bench sites serve; lint/docs pending |
-| 1 — Extension shell that loads and observes | ⬜ NOT STARTED | 0% | |
+| 0 — Foundation and cleanup | 🟡 IN PROGRESS | 90% | build green, backend starts, bench sites serve; `pnpm lint` still red |
+| 1 — Extension shell that loads and observes | ✅ COMPLETE | 100% | verified in Chromium: panel, content script, overlay, `verify:boundary` 8/8 |
 | 2 — Privacy seam: sanitize ↔ vault ↔ gate ↔ net | ⬜ NOT STARTED | 0% | |
 | 3 — Closed loop: orchestrator, gateway, execution | ⬜ NOT STARTED | 0% | |
 | 4 — Side panel UI and page overlay | ⬜ NOT STARTED | 0% | |
@@ -137,9 +137,9 @@ jsdom tests for the extractor (shadow root, same-origin iframe, password field,
 `.value` never read, `id_hash` stable across two walks); manual load in Chrome.
 
 ### Definition of Done
-- [ ] `verify:boundary` check 8 (no `.value` in extractor) green
-- [ ] Load unpacked: no errors in service worker, panel, content script consoles
-- [ ] Start on ShopLite → panel shows "observed N elements"
+- [x] `verify:boundary` check 8 (no `.value` in extractor) green
+- [x] Load unpacked: no errors in service worker, panel, content script consoles
+- [x] Start on ShopLite → panel shows "observed N elements"
 
 ### SIH relevance
 Client-side component running in Chrome; visual-context accuracy (structure extraction).
