@@ -11,8 +11,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  typecheck:
-    name: Typecheck
+  checks:
+    name: Typecheck, unit tests, build, boundary
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,6 +25,10 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+      - run: pnpm gen:schema && git diff --exit-code -- packages/**/generated/
+      - run: pnpm verify:boundary
 
   lint:
     name: Lint
@@ -41,9 +45,10 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
 
-  unit:
-    name: Unit Tests
+  e2e:
+    name: Smoke and leakage (real extension in Chromium)
     runs-on: ubuntu-latest
+    needs: [checks]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -54,22 +59,29 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm test --filter=./packages/...
-
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    needs: [typecheck, lint, unit]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - name: Cache vendored models
+        uses: actions/cache@v4
         with:
-          version: 9
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+          path: apps/extension/public/models
+          key: models-${{ hashFiles('ml/fetch-models.sh') }}
+      - run: bash ml/fetch-models.sh
+      - run: pnpm exec playwright install --with-deps chromium
+        working-directory: eval
       - run: pnpm build
-      - run: pnpm gen:schema
-      - run: git diff --exit-code -- packages/**/generated/
+      - run: pnpm build:eval
+      - name: Start bench sites and gateway
+        run: |
+          pnpm --filter @glasswall/bench-site dev > bench-site.log 2>&1 &
+          pnpm --filter @glasswall/backend start > backend.log 2>&1 &
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:5173/ > /dev/null && curl -sf http://localhost:3000/v1/health > /dev/null && exit 0
+            sleep 1
+          done
+          echo "servers did not start"; cat bench-site.log backend.log; exit 1
+      - run: pnpm bench:smoke
+      - run: pnpm bench:leakage
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eval-reports
+          path: eval/reports/
