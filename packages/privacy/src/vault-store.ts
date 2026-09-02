@@ -3,7 +3,7 @@ import { VaultStore, VaultEntry } from './vault';
 declare const chrome: {
   storage: {
     session: {
-      get(keys: string | string[], callback: (items: Record<string, unknown>) => void): void;
+      get(keys: string | string[] | null, callback: (items: Record<string, unknown>) => void): void;
       set(items: Record<string, unknown>, callback: () => void): void;
       remove(keys: string | string[], callback: () => void): void;
       clear(callback: () => void): void;
