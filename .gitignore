@@ -5,6 +5,8 @@ node_modules/
 
 # Build outputs
 dist/
+dist-eval/
+dist-unsafe/
 build/
 generated/
 *.tsbuildinfo
