@@ -9,6 +9,8 @@
 import type { RawObservation } from '@glasswall/schema/observation';
 import { getTier, type PiiType } from './types';
 
+type TextNode = RawObservation['text_nodes'][number];
+
 interface LabelRule {
   re: RegExp;
   type: PiiType;
@@ -65,28 +67,47 @@ function accept(rule: LabelRule, value: string): boolean {
 }
 
 /**
- * Table columns: a header cell that is a label ("Name", "MRN", "Phone") classifies every
- * cell below it in the same column. Columns are matched by horizontal overlap.
+ * Table columns: a header row of label cells ("Name", "MRN", "Phone") classifies the
+ * cells below it in the same column. A header row is a run of consecutive text nodes
+ * on one line holding two or more labels; a row below counts only when it fills the
+ * header's columns (a form's side-by-side labels have buttons and headings below
+ * them, not rows), and a column only when two or more of its rows hold a value.
  */
 function tableHits(raw: RawObservation): ContextHit[] {
   const nodes = raw.text_nodes;
-  const labelled = nodes.map((n, i) => ({ n, i, rule: ruleFor(n.text) })).filter(h => h.rule);
-  // A header row is two or more label cells that are neighbours in DOM order and sit on
-  // one line (<th><th><th>). Two labels that merely share a y coordinate (a step chip
-  // and a <dt> in another card) are not a table, and everything below them is not a column.
-  const headers = labelled.filter(h => labelled.some(o => Math.abs(o.i - h.i) === 1 && Math.abs(o.n.rect[1] - h.n.rect[1]) <= 8));
+  const sameLine = (a: TextNode, b: TextNode) => Math.abs(a.rect[1] - b.rect[1]) <= 8;
+  const underColumn = (header: TextNode, cell: TextNode) => {
+    const overlap = Math.min(header.rect[0] + header.rect[2], cell.rect[0] + cell.rect[2]) - Math.max(header.rect[0], cell.rect[0]);
+    return overlap >= Math.min(header.rect[2], cell.rect[2]) * 0.6;
+  };
   const hits: ContextHit[] = [];
   const seen = new Set<string>();
-  for (const { n: header, rule } of headers) {
-    const [hx, hy, hw] = header.rect;
-    for (const cell of nodes) {
-      if (cell === header || cell.rect[1] <= hy + header.rect[3] / 2) continue; // strictly below the header
-      const [cx, , cw] = cell.rect;
-      const overlap = Math.min(hx + hw, cx + cw) - Math.max(hx, cx);
-      if (overlap < Math.min(hw, cw) * 0.6) continue;
-      if (!accept(rule!, cell.text) || seen.has(cell.id)) continue;
-      seen.add(cell.id);
-      hits.push({ value: cell.text.trim(), type: rule!.type, tier: getTier(rule!.type), confidence: 0.8, rect: cell.rect, textNodeId: cell.id });
+  for (let i = 0; i < nodes.length; ) {
+    let j = i;
+    while (j + 1 < nodes.length && sameLine(nodes[j]!, nodes[j + 1]!)) j++;
+    const line = nodes.slice(i, j + 1);
+    i = j + 1;
+    const headers = line.map(n => ({ n, rule: ruleFor(n.text) })).filter(h => h.rule);
+    if (headers.length < 2) continue;
+
+    const top = line[0]!.rect[1] + line[0]!.rect[3] / 2;
+    const below = nodes.filter(c => c.rect[1] > top).sort((a, b) => a.rect[1] - b.rect[1]);
+    const rows: TextNode[][] = [];
+    for (const cell of below) {
+      const row = rows[rows.length - 1];
+      if (row && sameLine(row[0]!, cell)) row.push(cell);
+      else rows.push([cell]);
+    }
+    // Empty cells are allowed, but a row must fill at least two columns (and both of a two-column table).
+    const needed = Math.max(2, Math.ceil(line.length / 2));
+    const complete = rows.filter(row => line.filter(h => row.some(c => underColumn(h, c))).length >= needed);
+    for (const { n: header, rule } of headers) {
+      const cells = complete.flatMap(row => row.filter(c => underColumn(header, c)).slice(0, 1)).filter(c => !seen.has(c.id) && accept(rule!, c.text));
+      if (cells.length < 2) continue;
+      for (const cell of cells) {
+        seen.add(cell.id);
+        hits.push({ value: cell.text.trim(), type: rule!.type, tier: getTier(rule!.type), confidence: 0.8, rect: cell.rect, textNodeId: cell.id });
+      }
     }
   }
   return hits;

@@ -32,10 +32,17 @@ describe('recognizeByContext', () => {
 
 describe('table columns', () => {
   it('classifies cells under a label-like header by horizontal overlap', () => {
-    const rows: Array<[string, number, number]> = [['Name', 10, 0], ['MRN', 200, 0], ['Phone', 320, 0], ['Priya Patel', 10, 30], ['MRN-000002', 200, 30], ['+918765432109', 320, 30], ['Arjun Singh', 10, 60], ['MRN-000003', 200, 60]];
+    const rows: Array<[string, number, number]> = [['Name', 10, 0], ['MRN', 200, 0], ['Phone', 320, 0], ['Priya Patel', 10, 30], ['MRN-000002', 200, 30], ['+918765432109', 320, 30], ['Arjun Singh', 10, 60], ['MRN-000003', 200, 60], ['+919876501234', 320, 60]];
     const raw: RawObservation = { ...rawBase(), text_nodes: rows.map(([text, x, y], i) => ({ id: `t${i}`, rect: [x, y, 100, 18], text, owner_element_id: null, source: 'dom' as const })) };
     const hits = recognizeByContext(raw).map(h => `${h.type}:${h.value}`).sort();
-    expect(hits).toEqual(['MRN:MRN-000002', 'MRN:MRN-000003', 'PERSON_NAME:Arjun Singh', 'PERSON_NAME:Priya Patel', 'PHONE:+918765432109']);
+    expect(hits).toEqual(['MRN:MRN-000002', 'MRN:MRN-000003', 'PERSON_NAME:Arjun Singh', 'PERSON_NAME:Priya Patel', 'PHONE:+918765432109', 'PHONE:+919876501234']);
+  });
+
+  it('does not treat a form row of side-by-side labels as a header row', () => {
+    // <label>City</label><input> beside <label>Postal code</label><input>, then card fields and a button.
+    const rows: Array<[string, number, number]> = [['City', 10, 0], ['Postal code', 300, 0], ['Card number', 10, 60], ['Expiry', 10, 100], ['CVC', 300, 100], ['Place order', 10, 160]];
+    const raw: RawObservation = { ...rawBase(), text_nodes: rows.map(([text, x, y], i) => ({ id: `t${i}`, rect: [x, y, text.length * 8, 18], text, owner_element_id: null, source: 'dom' as const })) };
+    expect(recognizeByContext(raw)).toEqual([]);
   });
 
   it('does not treat two unrelated labels on one line as a header row', () => {
