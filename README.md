@@ -1,241 +1,166 @@
 # GLASSWALL
 
-**Privacy-preserving Runtime for Agent–Host Reasoning Interfaces**  
-SIH26171 · ISRO · Software / AI / Computer Vision
+**On-device visual perception for a light-weight browser agent, with a provable privacy boundary.**
+SIH 2026 · Problem statement 26171 · ISRO
 
-> **One-sentence thesis:** Privacy for browser agents is not a detection problem, it is an **architecture** problem: we build the agent's view of the page from an allowlist of non-sensitive facts instead of redacting a raw capture, we let the agent _reference_ sensitive values it can never read, and we prove the boundary holds with an automated canary harness rather than asserting it.
+A Chrome (MV3) extension reads the page on your device, redacts everything personal
+before anything leaves the browser, sends only anonymised structure to a server-side
+reasoner, and executes the one action it gets back. Sensitive values become typed
+handles (`⟦EMAIL#1⟧`); the agent plans with handles and the extension resolves them
+locally at execution time, so a form fills correctly while the value never reaches the
+network or the model.
 
----
+```
+page ─▶ extractor ─▶ OCR + NER (offscreen, WASM/WebGPU) ─▶ sanitize ─▶ egress gate ─▶ gateway ─▶ reasoner
+ ▲        (no .value reads)        (redacted screenshot)      (handles)   (one fetch)    (open-weights / Claude / scripted)
+ └── executor ◀── validator (freshness, identity, type-matched vault binding, literal scan) ◀── one action
+```
 
-## Quickstart (Cold Clone → Demo in 3 Commands)
+## Quickstart
+
+Requirements: Node 20 (see `.nvmrc`), pnpm 9, Chrome or Chromium.
 
 ```bash
-# 1. Clone and install
-git clone https://github.com/your-org/glasswall.git
-cd glasswall
 pnpm install
-
-# 2. Build everything
+bash ml/fetch-models.sh        # once: vendors the NER model, ONNX Runtime WASM and Tesseract (~200 MB, gitignored)
 pnpm build
-
-# 3. Start bench sites + backend (two terminals)
-# Terminal 1:
-pnpm --filter @glasswall/bench-site dev
-# Terminal 2:
-pnpm --filter @glasswall/backend dev
-
-# 4. Load extension in Chrome
-# chrome://extensions → Developer mode → Load unpacked → apps/extension/dist
-
-# 5. Open http://localhost:5173/shoplite
-# Click extension icon → Type "Fill the shipping form and submit" → Watch it work
+pnpm dev                       # bench sites on :5173 and the gateway on :3000
 ```
 
-**That's it.** No API keys, no cloud accounts, no model downloads (models bundled). Works offline.
+Load the extension: `chrome://extensions` → Developer mode → Load unpacked →
+`apps/extension/dist`. Click the toolbar icon to open the side panel.
 
----
+Then open `http://localhost:5173/shoplite/checkout`, type
+*Fill the shipping form with my saved details and place the order*, pick a policy,
+and press Start. The panel shows every step; the page shows numbered elements and
+redaction boxes; DevTools → Network shows requests to `localhost:3000` that carry
+handles and never values.
 
-## What This Actually Does
+No API key is needed: the gateway falls back to a scripted planner that fills forms
+and searches by field semantics. See [Reasoner providers](#reasoner-providers) to plug
+in a real model.
 
-| Capability | How | Verified |
-|------------|-----|----------|
-| **Local perception** | DOM + A11y + screenshot → structured observation | ✓ T1/T2/T3 complete |
-| **Sensitive value protection** | Allowlist construction (explain-or-redact) + vault handles | ✓ 0 leakage in CI |
-| **Deferred value binding** | Agent emits `TYPE(e17, @vault:EMAIL#1)` → extension resolves locally | ✓ Form fills, no values in payload |
-| **Egress gate** | Single `fetch` in `net.ts`, branded `SafePayload` from `egressGate()` | ✓ Compile-time enforcement |
-| **Provable boundary** | Canary harness seeds secrets → asserts absence in raw/normalized/encoded forms | ✓ Runs on every push |
+## What is in the box
 
----
+| Piece | Where | What it does |
+|---|---|---|
+| Content script | `apps/extension/src/content` | Extracts DOM/A11y structure without reading input values, cookies or storage; draws the overlay; executes validated actions with a stable identity hash per element. |
+| Service worker | `apps/extension/src/background` | The run loop: observe → capture → perceive → sanitize → gate → reason → validate → confirm → execute → audit. `net.ts` is the only `fetch` in the extension and accepts a `SafePayload` only. |
+| Offscreen document | `apps/extension/src/offscreen` | Runs Tesseract OCR and a BERT NER model (int8 ONNX, WASM or WebGPU) on device, and black-boxes the screenshot before it can leave. |
+| Side panel | `apps/extension/src/sidepanel` | Task, policy, provider and model status, step trace with local/network timings, confirmation modal, Privacy tab with raw-vs-outbound inspector and a "find any value across nine encodings" search, audit export. |
+| Privacy library | `packages/privacy` | Recognizers (checksummed identifiers, label context, element rules), NER/OCR fusion, explain-or-redact, session secrets and vault, policy profiles, the egress gate. |
+| Gateway | `apps/backend` | Fastify server: `/v1/session`, `/v1/step`, `/v1/health`. Assembles the prompt with the redaction scheme, asks providers in order with failover and one repair retry, validates the action against the observation. |
+| Bench sites | `apps/bench-site` | ShopLite (checkout, search, orders, injection page), GovPortal (four-step application), ClinicDesk (canvas-rendered PII). Instrumented with ground truth the extension never reads. |
+| Evaluation | `eval` | Playwright harness that drives the real extension in Chromium, the leakage canary with a negative control, and the five problem-statement metrics. |
 
-## Architecture Overview
+## Policies
 
-```
-┌──────────────────────── USER'S DEVICE (TRUSTED) ────────────────────────┐
-│                                                                          │
-│  Page DOM · A11y tree · Raw screenshot · Raw OCR text · Input values    │
-│  Cookies · Storage · Vault (real values) · Secret registry · Audit log   │
-│                                                                          │
-│  Local models: OCR · sensitive-region detector · PII token classifier   │
-│  Policy engine · Fusion engine · Action validator · Executor             │
-│                                                                          │
-└─────────────────────────────┬────────────────────────────────────────────┘
-                              │  EGRESS GATE (single choke point, fail-closed)
-                              │  connect-src pinned in manifest CSP
-                              ▼
-┌──────────────────── NETWORK / REMOTE REASONER (UNTRUSTED) ───────────────┐
-│  Sanitized Observation (schema-validated allowlist)                       │
-│  Task string (user-authored, scanned)                                     │
-│  Redacted screenshot (optional, policy-gated, off in STRICT)              │
-│  Sanitized action history · step budget · error codes                     │
-└──────────────────────────────────────────────────────────────────────────┘
-```
+| Profile | Pixels | Text | Confirmation |
+|---|---|---|---|
+| **STRICT** | Never captured. OCR does not run. | Every recognizer plus NER; every value tokenized. | Payment, delete, navigation. |
+| **BALANCED** | Captured, redacted on device (fused regions blacked out, downscaled), sent as PNG. Needs a one-time per-origin permission that the panel requests on Start. | Same as STRICT plus OCR over canvas/image regions. | Payment, delete. |
 
-**Three ideas that carry the project:**
+## Reasoner providers
 
-1. **Explain-or-Redact** — Every pixel/text released must be explained by a DOM element with known-low sensitivity. Unexplained content (canvas, cross-origin iframe, OCR without DOM owner) is withheld by default.
-2. **Vault-Referenced Actions** — Sensitive values become typed handles (`⟦EMAIL#1⟧`). Agent plans with handles; extension resolves at execution time. Form fills correctly, value never hits network/model.
-3. **Provable Boundary** — Single egress choke point + manifest CSP `connect-src` + automated canary harness. Fail-closed. Negative control makes test go red on demand.
+Copy `apps/backend/.env.example` to `apps/backend/.env`. The chain is tried in order;
+the scripted planner is always last so a step always returns an action.
 
----
+| Provider | Configure | Notes |
+|---|---|---|
+| `openai` (any OpenAI-compatible endpoint) | `GLASSWALL_LLM_BASE_URL`, `GLASSWALL_LLM_MODEL`, optional `GLASSWALL_LLM_API_KEY`, `GLASSWALL_LLM_VISION=1` | Ollama, vLLM, Groq, OpenRouter. Open-weights, offline-deployable models as the PS prefers (`qwen2.5:7b` on Ollama works). |
+| `anthropic` | `ANTHROPIC_API_KEY`, optional `ANTHROPIC_MODEL` | Tool-use with the redacted screenshot as an image under BALANCED. |
+| `scripted` | nothing | Deterministic planner keyed on field semantics (autocomplete, type, label, vault handle types). Fills forms, searches, opens records, scrolls. |
 
-## Honest Scope Statement
+`GLASSWALL_DEMO_HIJACKED=1` puts a simulated prompt-injected planner first: it tries to
+type the Aadhaar handle into the search box and the client blocks it with
+`VAULT_TYPE_MISMATCH`. `GET /v1/health` reports which providers are live.
 
-**We are a 2-person team executing a 5–6 person, 15-day plan.** We made deliberate cuts up front rather than shipping broken features. This is the §20.3 fallback ladder applied _before_ we started:
+## Evaluation
 
-| Item | Master Plan | Our Call | Why |
-|------|-------------|----------|-----|
-| Bench sites | 4 (ShopLite, GovPortal, MailLite, ClinicDesk) | **2 + 1 stretch** — ShopLite, GovPortal, ClinicDesk if time | ClinicDesk earns place only for B's canvas/OCR proof |
-| Vision detector (P10) | Full datagen + training | **Stretch only. Cut by default.** | 3 days of B's time; explain-or-redact keeps leakage at 0 without it |
-| NER (P8) | Fine-tune DistilBERT | **Off-the-shelf ONNX NER, no training** | Training is 2.5 days B doesn't have |
-| OCR (P9) | PP-OCRv5 via raw ORT-Web | **tesseract.js first, PP-OCRv5 as upgrade** | Integration in hours instead of days |
-| Ablations | A1–A7 | **A1, A6, A7** | §20.1 already sanctions this |
-| Real-site suite | 2–3 public pages | **Cut** | Pure risk, zero demo value |
-| Full-page stitch, per-site memory, signed audit log | Stretch | **Cut, do not discuss again** | |
-
-**Never cut** (these four _are_ the project):
-- Egress gate
-- Canary harness
-- Deferred value binding
-- Leakage-zero result
-
-**What we don't guarantee** (stated openly in `SECURITY.md`):
-- N1: Perfect recall — statistical detectors have finite recall; mitigation is allowlist-first construction
-- N2: Non-inference — sanitized observation carries structure; adversary may infer context
-- N3: Malicious-page immunity — we mitigate prompt injection; we don't solve it
-- N4: Malicious reasoner — validator is defense-in-depth, not a proof
-- N5: Side channels — payload size, step counts, timing carry information; out of scope
-
----
-
-## Repository Structure
-
-```
-glasswall/
-├── apps/
-│   ├── extension/          # MV3 Chromium extension (A owns)
-│   │   ├── src/
-│   │   │   ├── background/     # Orchestrator, step loop, net.ts, recovery, circuit-breaker, persist
-│   │   │   ├── content/        # Extractor, executor, overlay
-│   │   │   ├── offscreen/      # Offscreen document host (A), pipeline handlers (B)
-│   │   │   ├── sidepanel/      # React UI: Trace, Confirm, ErrorState, ResetDemoButton
-│   │   │   └── shared/         # Message bus, types
-│   │   └── manifest.json
-│   ├── backend/            # Fastify gateway (A owns)
-│   │   ├── src/
-│   │   │   ├── gateway/        # HTTP routes
-│   │   │   ├── prompt/         # Prompt assembly
-│   │   │   ├── providers/      # Anthropic, OpenAI, Ollama, ScriptedPlanner
-│   │   │   ├── guard/          # Response validation, retry-with-repair
-│   │   │   └── schema/         # Shared Zod schemas
-│   │   └── package.json
-│   └── bench-site/         # Local benchmark sites (A owns ShopLite/GovPortal)
-│       └── src/sites/
-│           ├── shoplite/     # E-commerce: cart, checkout, orders, tracking
-│           ├── govportal/    # Multi-step government form
-│           └── clinicdesk/   # Canvas-rendered PII (B's test surface)
-├── packages/
-│   ├── schema/             # Zod schemas → JSON Schema (A owns, contract: PRs only)
-│   ├── perception/         # Geometry, spatial index (A: geometry, B: spatial-index)
-│   ├── privacy/            # Recognizers, vault, tokenizer, policy, egress gate (B owns)
-│   └── inference/          # ORT-Web wrappers, model registry (B owns)
-├── eval/
-│   ├── harness/            # Playwright driver, runner, predicates (A owns)
-│   ├── tasks/              # T1–T3 YAML tasks (A owns)
-│   ├── metrics/
-│   │   ├── utility.ts      # Completion rate, step efficiency, semantic fidelity (A)
-│   │   └── performance.ts  # Latency p50/p95/p99, NFR checks, baseline diff (A)
-│   └── package.json
-├── docs/
-│   ├── CONTRACTS.md        # C1–C10 interface contracts (canonical)
-│   ├── PROGRESS.md         # Phase status tracking
-│   └── decisions/          # ADRs for irreversible choices
-├── PLAN.md                 # Full architecture + phase specs (authoritative)
-├── PLAN-A-AGENT-CONTROL.md # Lane A ownership, sequencing, review checklist
-├── PLAN-B-PERCEPTION-PRIVACY.md # Lane B reference only
-├── turbo.json
-├── package.json
-└── pnpm-workspace.yaml
-```
-
----
-
-## Running the Benchmarks
+The bench sites and gateway must be running (`pnpm dev`), and the extension needs the
+evaluation build once (`pnpm build:eval`, which adds `<all_urls>` so the harness can
+capture the service worker's requests, plus an unsafe build for the negative control).
 
 ```bash
-# Smoke suite (CI): T1 + T3 × seed 1337 (~3 min)
-pnpm --filter @glasswall/eval bench:smoke
-
-# Full suite: all tasks × seeds (unattended)
-pnpm --filter @glasswall/eval bench:all
-
-# Leakage test (required check): seeds known secrets, asserts 0 leaks
-pnpm --filter @glasswall/eval bench:leakage
-
-# Ablation study: runs A1, A6, A7 across policies
-pnpm --filter @glasswall/eval bench:ablation
-
-# Performance: NFR targets (NFR-01 perception ≤400ms p50 WebGPU)
-pnpm --filter @glasswall/eval bench:perf
+pnpm bench:smoke      # T1 and T3, one seed, STRICT: must pass
+pnpm bench:all        # T1–T5 and T7 × three seeds × STRICT and BALANCED → eval/reports/summary.md
+pnpm bench:leakage    # every persona value on the wire in nine encodings = a leak; then the UNSAFE build must leak
+pnpm bench:report     # same as bench:all
 ```
 
-**Tiered suites:** smoke runs in CI on every push; full runs locally before tagging.  
-**Flaky runs:** 3 retries at same seed, flake rate reported as metric (not hidden).  
-**Headless note:** uses `--headless=new` (classic headless fails to load extensions).
+`eval/reports/summary.md` holds the last measured numbers for the five PS metrics
+(visual-context accuracy, PII precision/recall, redaction precision, client resource
+use, end-to-end latency) with hardware, commit and seeds. `EVALUATION.md` explains how
+each number is computed.
 
----
+## The boundary, and how to check it
 
-## Key Commands
+`pnpm verify:boundary` greps the source and the built bundle for the hard rules:
+
+1. one `fetch` in the extension, in `net.ts`; no `XMLHttpRequest`, `sendBeacon`, `WebSocket`;
+2. no `eval`, `Function`, `innerHTML`, `insertAdjacentHTML`;
+3. bench instrumentation attributes absent from the bundle; negative-control code compiled out;
+4. CSP `connect-src` pinned to the gateway origin;
+5. `host_permissions` limited to the gateway (sites are optional, per origin);
+6. vault only in `chrome.storage.session`;
+7. `net.ts` accepts `SafePayload` only, which only `egressGate()` constructs;
+8. the extractor never reads `.value`, `innerHTML`, cookies or storage.
+
+`SECURITY.md` states what is and is not guaranteed. `PRIVACY.md` states what leaves the
+device, what is retained and when it is erased.
+
+## Everyday commands
 
 ```bash
-# Build everything
-pnpm build
-
-# Typecheck all packages
-pnpm typecheck
-
-# Lint all packages
-pnpm lint
-
-# Run unit tests
-pnpm test
-
-# Verify boundary (CI gate: CSP pinned, one fetch, no eval, no bench attrs in bundle)
+pnpm build && pnpm typecheck && pnpm test && pnpm lint
 pnpm verify:boundary
-
-# Regenerate schema JSON (after contract: PR merge)
-pnpm gen:schema
+pnpm gen:schema                 # regenerate JSON Schema after a contract change
+pnpm --filter @glasswall/extension build      # dist/
 ```
 
----
+## Repository layout
 
-## Documentation
+```
+apps/extension     MV3 extension (content, background, offscreen, sidepanel)
+apps/backend       Fastify gateway and providers
+apps/bench-site    ShopLite, GovPortal, ClinicDesk (Vite + React)
+packages/schema    Zod schemas: observation, action, policy, transport, audit (source of truth)
+packages/privacy   recognizers, fusion, sanitize, session secrets, vault, egress gate
+packages/inference NER and OCR wrappers (transformers.js, tesseract.js), crop policy
+packages/perception geometry helpers and the observation builder
+eval               harness, tasks, leakage canary, PS metrics, reports
+ml                 fetch-models.sh, quantization sweep notes
+docs               progress.md (single source of truth), CONTRACTS.md, archive/
+```
 
-| File | Contents | Owner |
-|------|----------|-------|
-| `PLAN.md` | Full architecture + phase specs | Lead |
-| `PLAN-A-AGENT-CONTROL.md` | Lane A ownership, sequencing, review checklist | A |
-| `PLAN-B-PERCEPTION-PRIVACY.md` | Lane B reference only | B |
-| `docs/CONTRACTS.md` | C1–C10 interface contracts (canonical) | Both |
-| `ARCHITECTURE.md` | Component map, data flow, ADR index | A |
-| `DEMO.md` | Beat-by-beat script with timings | A |
-| `SECURITY.md` | Threat model, guarantees, non-guarantees, failure matrix | B |
-| `PRIVACY.md` | PII taxonomy, detection pipeline, policy profiles | B |
-| `EVALUATION.md` | Methodology, metrics, ablation tables, frontier chart | B |
-| `MODEL_CARD.md` | Per model: task, arch, params, license, bias notes | B |
+## Troubleshooting
 
----
+- **"Gateway unreachable"** in the panel: start `pnpm dev`; the extension only talks to `http://localhost:3000`.
+- **"GLASSWALL works on http(s) pages only"**: the active tab is a `chrome://` or extension page; open a web page.
+- **Screenshot missing under BALANCED**: accept the per-origin permission prompt on Start, or use STRICT.
+- **NER/OCR shown as cold or degraded**: run `bash ml/fetch-models.sh` and rebuild; the run still completes, with more redaction.
+- **Harness cannot capture requests**: build with `pnpm build:eval`; the shipped `dist` has no site permissions.
+
+## Scope
+
+Chrome/Chromium only (Firefox has no offscreen document; noted as a non-goal). No
+trained face or visual-PII detector: image regions without a DOM owner are masked
+wholesale, and a detector is a listed extension point (`MODEL_CARD.md`). No signed audit
+log, no full-page stitching. MailLite exists as a site but has no task.
+
+## Documents
+
+| File | Contents |
+|---|---|
+| `docs/progress.md` | Phase status, gaps, definition of done, final audit |
+| `ARCHITECTURE.md` | Components, data flow, what crosses the boundary |
+| `SECURITY.md` | Threat model, guarantees, non-guarantees, failure matrix |
+| `PRIVACY.md` | What leaves the device, retention, controls |
+| `EVALUATION.md` | Metrics, harness, how to reproduce |
+| `MODEL_CARD.md` | The models that run on device |
+| `DEMO.md` | The rehearsed demo script |
+| `docs/CONTRACTS.md` | Interfaces between the pieces |
 
 ## License
 
-Apache-2.0 — see `LICENSE` file.
-
----
-
-## Acknowledgments
-
-- **WebPII / WebRedact** (Zhao, ICLR 2026) — baseline visual PII detection, cited as prior work
-- **OmniParser** (Microsoft) — set-of-mark methodology, referenced
-- **ONNX Runtime Web** / **Transformers.js** — in-browser inference runtime
-- **Presidio** / **GLiNER** — text PII detection baselines
-
-We stand on the shoulders of this work. Our contribution is the _system_ that closes the loop inside the browser with a verified boundary.
+Apache-2.0.
