@@ -1,5 +1,7 @@
 import type { CapturedFrame } from '@glasswall/schema/observation';
 import type { Evidence, PerceptionContext, PerceptionSource, SourceOutput } from '@glasswall/privacy';
+import { recognizeText, recognizeByContext } from '@glasswall/privacy';
+import { isNerAvailable, runNer, nerTypeToPii } from '@glasswall/inference/ner';
 import {
   MAX_CROPS_PER_STEP,
   NO_UNEXPLAINED_CROPS,
@@ -33,7 +35,10 @@ export const OCR_TIMEOUT = 'ocr_timeout';
 export const SCREENSHOT_DISABLED = 'screenshot_disabled';
 
 let workerFailed = false;
+/** Why the worker refused to start, for the trace. Names a class of failure, never page content. */
+let workerError: string | null = null;
 const stats = { runs: 0, skipped: 0, lastSkipReason: null as string | null };
+const describe = (e: unknown) => (e instanceof Error ? e.message : String(e)).replace(/\s+/g, '_').slice(0, 100);
 
 /** Skip rate for the D6 headline claim: OCR does nothing on most steps. */
 export function getOcrStats(): { runs: number; skipped: number; skipRate: number; lastSkipReason: string | null } {
@@ -42,6 +47,7 @@ export function getOcrStats(): { runs: number; skipped: number; skipRate: number
 
 export function resetOcrState(): void {
   workerFailed = false;
+  workerError = null;
   stats.runs = 0;
   stats.skipped = 0;
   stats.lastSkipReason = null;
@@ -76,36 +82,53 @@ export const ocrSource: PerceptionSource = {
     // Over-budget regions are masked, not passed — the budget costs utility, never privacy.
     const unexplained = deferred.map(r => ({ rect: r.rect, reason: 'crop_budget_exceeded' }));
 
-    if (workerFailed) return unreadable([...crops, ...deferred], OCR_UNAVAILABLE);
+    if (workerFailed) return unreadable([...crops, ...deferred], `${OCR_UNAVAILABLE}:${workerError ?? 'worker'}`);
 
     try {
       await initOcrWorker();
-    } catch {
+    } catch (e) {
       workerFailed = true;
-      return unreadable([...crops, ...deferred], OCR_UNAVAILABLE);
+      workerError = describe(e);
+      return unreadable([...crops, ...deferred], `${OCR_UNAVAILABLE}:${workerError}`);
     }
 
-    let prepared: Array<{ image: ImageData; geometry: CropGeometry }>;
+    let prepared: Array<{ image: Blob; geometry: CropGeometry }>;
     try {
       prepared = await renderCrops(crops, ctx.frame);
-    } catch {
-      return unreadable([...crops, ...deferred], OCR_UNAVAILABLE);
+    } catch (e) {
+      return unreadable([...crops, ...deferred], `${OCR_UNAVAILABLE}:render_${describe(e)}`);
     }
 
     try {
       const { regions: read, timedOut } = await runOcrOnCrops(prepared, RECOGNITION_BUDGET_MS);
 
+      // Recovered text stays local. It is fed to the same detectors the DOM text gets:
+      // checksum recognizers, label context, and NER when it is loaded. Only their
+      // hits become evidence; the region itself stays unexplained (masked in pixels)
+      // unless a detector explained it.
       const evidence: Evidence[] = [];
       for (const region of read) {
-        if (!region.text.trim()) continue;
-        evidence.push({
-          sourceId: 'ocr',
-          type: 'ocr',
-          piiType: 'PERSONAL',
-          confidence: region.confidence,
-          rect: region.rect,
-          textSpan: region.text,
-        });
+        const text = region.text.trim();
+        if (!text) continue;
+        const seen = new Set<string>();
+        const push = (value: string, piiType: string, confidence: number) => {
+          const key = `${piiType}:${value}`;
+          if (seen.has(key)) return;
+          seen.add(key);
+          evidence.push({ sourceId: 'ocr', type: 'ocr', piiType: piiType as Evidence['piiType'], confidence: Math.min(confidence, region.confidence || 0.8), rect: region.rect, textSpan: value });
+        };
+        for (const span of recognizeText(text)) push(span.value, span.type, span.confidence);
+        const lines = text.split(/\n+/).map(l => l.trim()).filter(Boolean);
+        const pseudoRaw = { ...ctx.raw, text_nodes: lines.map((l, i) => ({ id: `ocr${i}`, rect: region.rect, text: l, owner_element_id: null, source: 'dom' as const })) };
+        for (const hit of recognizeByContext(pseudoRaw)) push(hit.value, hit.type, hit.confidence);
+        if (isNerAvailable()) {
+          try {
+            const { spans } = await runNer(text, 0.5);
+            for (const span of spans) push(text.slice(span.start, span.end), nerTypeToPii(span.type), span.confidence);
+          } catch {
+            /* NER over OCR text is best effort; the region stays masked regardless */
+          }
+        }
       }
 
       for (const geometry of timedOut) {
@@ -117,8 +140,8 @@ export const ocrSource: PerceptionSource = {
         degraded: timedOut.length > 0 ? [OCR_TIMEOUT] : undefined,
         unexplained,
       };
-    } catch {
-      return unreadable([...crops, ...deferred], OCR_UNAVAILABLE);
+    } catch (e) {
+      return unreadable([...crops, ...deferred], `${OCR_UNAVAILABLE}:run_${describe(e)}`);
     }
   },
 };
@@ -141,13 +164,13 @@ function unreadable(regions: UnexplainedRegion[], reason: string): SourceOutput 
 async function renderCrops(
   regions: UnexplainedRegion[],
   frame: CapturedFrame
-): Promise<Array<{ image: ImageData; geometry: CropGeometry }>> {
+): Promise<Array<{ image: Blob; geometry: CropGeometry }>> {
   const page = new OffscreenCanvas(frame.viewport_w, frame.viewport_h);
   // CapturedFrame.bitmap is `unknown` in the frozen schema; at runtime it is an ImageBitmap.
   const bitmap = frame.bitmap as CanvasImageSource;
   page.getContext('2d')!.drawImage(bitmap, 0, 0, frame.viewport_w, frame.viewport_h);
 
-  return regions.map(region => {
+  return Promise.all(regions.map(async region => {
     const geometry = cropGeometry(region.rect, frame.viewport_w, frame.viewport_h);
     const [x, y, w, h] = geometry.rect;
 
@@ -157,6 +180,7 @@ async function renderCrops(
     // boxToViewport can undo it exactly.
     cropCtx.drawImage(page, x, y, w, h, 0, 0, geometry.width, geometry.height);
 
-    return { image: cropCtx.getImageData(0, 0, geometry.width, geometry.height), geometry };
-  });
+    // A PNG blob is what the tesseract worker reads; it also crosses the worker boundary cheaply.
+    return { image: await crop.convertToBlob({ type: 'image/png' }), geometry };
+  }));
 }

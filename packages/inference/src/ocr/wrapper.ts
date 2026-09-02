@@ -62,8 +62,20 @@ export async function terminateOcrWorker(): Promise<void> {
  * the deadline are reported in `timedOut` so the caller can leave them masked —
  * a timeout must never make a region look clean.
  */
+export type CropImage = ImageData | Blob | OffscreenCanvas;
+
+/** tesseract.js reads Blobs and canvases in the worker; raw ImageData must be encoded first. */
+async function toRecognizable(image: CropImage): Promise<Blob | OffscreenCanvas> {
+  if (typeof ImageData !== 'undefined' && image instanceof ImageData) {
+    const canvas = new OffscreenCanvas(image.width, image.height);
+    canvas.getContext('2d')!.putImageData(image, 0, 0);
+    return canvas.convertToBlob({ type: 'image/png' });
+  }
+  return image as Blob | OffscreenCanvas;
+}
+
 export async function runOcrOnCrops(
-  crops: { image: ImageData; geometry: CropGeometry }[],
+  crops: { image: CropImage; geometry: CropGeometry }[],
   deadlineMs: number
 ): Promise<{ regions: OcrRegion[]; timedOut: CropGeometry[]; ms: number }> {
   if (!worker) throw new Error('ocr worker not initialised');
@@ -79,7 +91,7 @@ export async function runOcrOnCrops(
       continue;
     }
 
-    const result = await withDeadline(worker.recognize(image), remaining);
+    const result = await withDeadline(toRecognizable(image).then(input => worker!.recognize(input as never)), remaining);
     if (!result) {
       timedOut.push(geometry);
       continue;

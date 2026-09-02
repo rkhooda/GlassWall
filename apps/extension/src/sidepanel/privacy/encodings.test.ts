@@ -32,12 +32,14 @@ describe('scanPayload', () => {
     expect(result.matchedEncodings).not.toContain('literal');
   });
 
-  it('reports every encoding it skipped rather than passing it silently', () => {
-    // btoa() cannot represent this, and neither can the gate. Say so.
-    const result = scanPayload({ note: 'nothing here' }, 'अनिता शर्मा');
+  it('encodes non-Latin-1 text as UTF-8 base64, the same way the gate does', () => {
+    const value = 'अनिता शर्मा';
+    const encoded = Buffer.from(value, 'utf8').toString('base64');
+    const result = scanPayload({ note: `blob ${encoded}` }, value);
     const base64 = result.probes.find(p => p.encoding === 'base64');
-    expect(base64?.skippedReason).toBeTruthy();
-    expect(result.found).toBe(false);
+    expect(base64?.skippedReason).toBeUndefined();
+    expect(base64?.found).toBe(true);
+    expect(scanPayload({ note: 'nothing here' }, value).found).toBe(false);
   });
 
   it('probes only the literal form for a query too short to encode safely', () => {

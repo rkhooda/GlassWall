@@ -9,6 +9,8 @@ vi.mock('@glasswall/inference/ocr', async () => {
   const actual = await vi.importActual<typeof import('@glasswall/inference/ocr')>('@glasswall/inference/ocr');
   return { ...actual, initOcrWorker, runOcrOnCrops };
 });
+// NER over OCR text is best effort; keep the model out of this unit test.
+vi.mock('@glasswall/inference/ner', () => ({ isNerAvailable: () => false, runNer: vi.fn(), nerTypeToPii: (t: string) => t }));
 
 const { OCR_TIMEOUT, OCR_UNAVAILABLE, SCREENSHOT_DISABLED, getOcrStats, ocrSource, resetOcrState } = await import('./ocr');
 
@@ -114,7 +116,8 @@ describe('fail closed', () => {
     const out = await ocrSource.run(context(elements));
 
     expect(out.evidence).toEqual([]);
-    expect(out.degraded).toEqual([OCR_UNAVAILABLE]);
+    expect(out.degraded).toHaveLength(1);
+    expect(out.degraded![0]).toMatch(new RegExp(`^${OCR_UNAVAILABLE}`));
     expect(out.unexplained).toHaveLength(3);
   });
 
@@ -137,18 +140,19 @@ describe('fail closed', () => {
 });
 
 describe('evidence', () => {
-  it('carries recognised text for tokenization, in viewport coordinates', async () => {
+  it('runs the detectors over recognised text and carries only their hits, in viewport coordinates', async () => {
     runOcrOnCrops.mockResolvedValue({
-      regions: [{ rect: [10, 20, 100, 50], text: 'Priya Raghunathan', confidence: 0.94, words: [] }],
+      regions: [{ rect: [10, 20, 100, 50], text: 'LAB REPORT\nAadhaar 2345 6789 0124\nName: Priya Raghunathan', confidence: 0.94, words: [] }],
       timedOut: [],
       ms: 40,
     });
 
     const out = await ocrSource.run(context([canvas('c', [10, 20, 100, 50])]));
 
-    expect(out.evidence).toEqual([
-      { sourceId: 'ocr', type: 'ocr', piiType: 'PERSONAL', confidence: 0.94, rect: [10, 20, 100, 50], textSpan: 'Priya Raghunathan' },
-    ]);
+    expect(out.evidence.map(e => `${e.piiType}:${e.textSpan}`).sort()).toEqual(['AADHAAR:2345 6789 0124', 'PERSON_NAME:Priya Raghunathan']);
+    expect(out.evidence.every(e => e.sourceId === 'ocr' && e.type === 'ocr' && e.rect?.join() === '10,20,100,50')).toBe(true);
+    // The heading is not evidence: it is neither a recognizer hit nor labelled.
+    expect(out.evidence.some(e => /LAB REPORT/i.test(e.textSpan ?? ''))).toBe(false);
   });
 
   it('drops empty recognitions', async () => {

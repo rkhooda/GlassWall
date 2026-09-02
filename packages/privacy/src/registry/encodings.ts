@@ -1,3 +1,11 @@
+/** Base64 of the UTF-8 bytes. btoa() alone throws outside Latin-1, and OCR text is not Latin-1. */
+export function base64Utf8(value: string): string {
+  const bytes = new TextEncoder().encode(value);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]!);
+  return btoa(bin);
+}
+
 export function generateEncodings(value: string): string[] {
   const encodings = new Set<string>();
   const normalized = value;
@@ -7,8 +15,9 @@ export function generateEncodings(value: string): string[] {
   encodings.add(encodeURIComponent(normalized).toLowerCase());
   encodings.add(encodeURIComponent(encodeURIComponent(normalized)).toLowerCase());
 
-  encodings.add(btoa(normalized).toLowerCase());
-  encodings.add(btoa(normalized).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '').toLowerCase());
+  const b64 = base64Utf8(normalized);
+  encodings.add(b64.toLowerCase());
+  encodings.add(b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '').toLowerCase());
 
   let hex = '';
   for (let i = 0; i < normalized.length; i++) {

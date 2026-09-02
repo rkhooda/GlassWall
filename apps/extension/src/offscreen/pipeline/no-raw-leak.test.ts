@@ -105,7 +105,7 @@ describe('raw perception output never reaches the payload', () => {
       perceptionSources: [ocrSource],
     });
 
-    expect(result.degraded).toContain('ocr_unavailable');
+    expect(result.degraded.some(d => d.startsWith('ocr_unavailable'))).toBe(true);
 
     // The canvas is withheld either way. Since P11 the region goes through fusion,
     // so the reason is the human-readable sentence the audit record carries and the

@@ -114,6 +114,11 @@ export default function App() {
           <span className={`chip ${health?.gateway === 'ok' ? 'chip-ok' : 'chip-warn'}`} title={health?.providers.join(', ')}>
             {health === null ? 'checking gateway…' : health.gateway === 'ok' ? `gateway · ${health.active ?? 'no provider'}` : 'gateway offline'}
           </span>
+          {health?.capability && (
+            <span className="chip" title="Local models run in the extension's offscreen document">
+              local · {health.capability.webgpu ? 'WebGPU' : 'WASM'}{health.warm ? ` · NER ${health.warm.ner ? 'warm' : 'cold'} · OCR ${health.warm.ocr ? 'warm' : 'cold'}` : ''}
+            </span>
+          )}
         </div>
         <span className={`status status-${state.status}`}>{state.status.replace('_', ' ')}</span>
       </header>

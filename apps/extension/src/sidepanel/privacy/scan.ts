@@ -14,7 +14,7 @@
  * Nothing here touches the vault or the registry's stored values. The only secret
  * involved is the one the judge typed, and it stays in component state.
  */
-import { normalize } from '@glasswall/privacy';
+import { normalize, base64Utf8 } from '@glasswall/privacy';
 
 /** Mirrors `generateEncodings()`; identity for every character it does not map. */
 const NAMED_ENTITIES: Record<string, string> = {
@@ -37,10 +37,10 @@ export const ENCODERS: readonly { label: string; encode: (v: string) => string }
   { label: 'literal', encode: v => v },
   { label: 'URL-encoded', encode: v => encodeURIComponent(v) },
   { label: 'double URL-encoded', encode: v => encodeURIComponent(encodeURIComponent(v)) },
-  { label: 'base64', encode: v => btoa(v) },
+  { label: 'base64', encode: v => base64Utf8(v) },
   {
     label: 'base64url',
-    encode: v => btoa(v).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, ''),
+    encode: v => base64Utf8(v).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, ''),
   },
   { label: 'hex', encode: v => perCodeUnit(v, c => c.toString(16).padStart(2, '0')) },
   { label: 'HTML numeric entities', encode: v => perCodeUnit(v, c => `&#${c};`) },

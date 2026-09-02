@@ -24,6 +24,8 @@ import type { SafePayload, Violation, Result } from '@glasswall/schema/branded';
 export {
   recognizeAll,
   recognizeText,
+  recognizeByContext,
+  isLabelWord,
   recognizeEmail,
   recognizePhone,
   recognizeAadhaar,
@@ -41,6 +43,7 @@ export {
 export {
   normalize,
   generateEncodings,
+  base64Utf8,
   SecretRegistry,
   type SecretEntry,
 } from './registry';
