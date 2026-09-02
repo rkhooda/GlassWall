@@ -48,8 +48,12 @@ export function parseProfile(json: unknown): Profile {
   return ProfileSchema.parse(json);
 }
 
+export const DEFAULT_GATEWAY_ORIGIN = 'http://localhost:3000';
+
 const SHARED = {
   url: { query: 'DROP', fragment: 'DROP', path: 'TEMPLATE' },
+  gateway_origin: DEFAULT_GATEWAY_ORIGIN,
+  max_payload_bytes: 250 * 1024,
   text_block_max_chars: 400,
   fail_mode: 'CLOSED',
   high_risk_actions: ['SUBMIT_LIKE', 'NAVIGATE_EXTERNAL', 'PAYMENT', 'DELETE'],
@@ -160,9 +164,12 @@ function say(action: Transformation, threshold: string, cause: string): Decision
   return { action, reason: `${action}: ${cause}`, threshold_matched: threshold };
 }
 
-/** Tier for a schema PII type. Tier 1 never leaves the vault, whatever the score. */
+const TIER1 = new Set<PiiType>(['PASSWORD', 'SECRET', 'API_KEY', 'TOKEN', 'CREDIT_CARD', 'CVC', 'OTP']);
+const TIER2 = new Set<PiiType>(['EMAIL', 'PHONE', 'AADHAAR', 'PAN', 'IFSC', 'GSTIN', 'UPI', 'MRN', 'SSN', 'FINANCIAL', 'HEALTH', 'NAME', 'ADDRESS']);
+
+/** Tier for a PII type. Tier 1 never leaves the vault, whatever the score. */
 export function tierForType(piiType: PiiType): number {
-  if (piiType === 'PASSWORD' || piiType === 'CREDIT_CARD' || piiType === 'SSN' || piiType === 'API_KEY' || piiType === 'TOKEN') return 1;
-  if (piiType === 'EMAIL' || piiType === 'PHONE' || piiType === 'ADDRESS' || piiType === 'NAME' || piiType === 'FINANCIAL' || piiType === 'HEALTH') return 2;
+  if (TIER1.has(piiType)) return 1;
+  if (TIER2.has(piiType)) return 2;
   return 3;
 }

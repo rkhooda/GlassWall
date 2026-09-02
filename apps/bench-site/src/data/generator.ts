@@ -325,7 +325,7 @@ export function generatePersona(seed: number): Persona {
   const firstName = pick(rng, FIRST_NAMES);
   const lastName = pick(rng, LAST_NAMES);
   const fullName = `${firstName} ${lastName}`;
-  const email = `${firstName}.${lastName}${Math.floor(rng() * 90) + 10}@example.com`.toLowerCase();
+  const email = `${firstName}.${lastName}${Math.floor(rng() * 90) + 10}@inmail.co.in`.toLowerCase();
 
   const { national: phoneNational, e164: phoneE164 } = generateIndianPhone(rng);
   const aadhaar = generateAadhaar(rng);

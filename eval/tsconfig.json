@@ -2,9 +2,7 @@
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "dist",
-    "rootDir": ".",
-    "composite": true,
-    "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo"
+    "noEmit": true
   },
   "include": [
     "harness/**/*",
@@ -13,5 +11,9 @@
     "ablations/**/*",
     "metrics/**/*"
   ],
-  "exclude": ["node_modules", "dist", "reports"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "reports"
+  ]
 }

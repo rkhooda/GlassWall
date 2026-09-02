@@ -2,7 +2,8 @@ import { Recognizer, Span, getTier } from './types';
 import { verifyVerhoeff } from './utils';
 import { incrementConstructionCount } from './types';
 
-const AADHAAR_REGEX = /\b\d{12}\b/g;
+// 12 digits, printed as 4-4-4 groups or contiguous.
+const AADHAAR_REGEX = /\b\d{4}[ -]?\d{4}[ -]?\d{4}\b/g;
 
 incrementConstructionCount();
 
@@ -24,7 +25,7 @@ export const aadhaarRecognizer: Recognizer = {
         continue;
       }
 
-      if (!verifyVerhoeff(value)) {
+      if (!verifyVerhoeff(value.replace(/[ -]/g, ''))) {
         continue;
       }
 

@@ -50,6 +50,16 @@ function getAllRecognizers() {
   return _allRecognizers;
 }
 
+/** Text recognizers only (no element rules): what the egress gate re-runs over released strings. */
+export function recognizeText(text: string): Span[] {
+  const out: Span[] = [];
+  for (const { recognizer, recognizeFn } of getAllRecognizers()) {
+    if (recognizer === elementRulesRecognizer) continue;
+    out.push(...recognizeFn(text));
+  }
+  return out;
+}
+
 export async function detectAll(text: string) {
   const recognizers = getAllRecognizers();
   const results: Array<{ type: string; tier: number; spans: Span[] }> = [];
@@ -63,14 +73,19 @@ export async function detectAll(text: string) {
 }
 
 export interface RecognizerResult {
+  /** The matched text for a value detection; '' for an element classification. */
   value: string;
   piiType: string;
   tier: number;
   rect?: [number, number, number, number];
   confidence: number;
+  /** 'value' = a secret to tokenize; 'element' = a control that will hold one (autocomplete, type=password). */
+  kind: 'value' | 'element';
+  elementId?: string;
+  textNodeId?: string;
 }
 
-export function recognizeAll(raw: RawObservation, frame: CapturedFrame | null): RecognizerResult[] {
+export function recognizeAll(raw: RawObservation, _frame: CapturedFrame | null = null): RecognizerResult[] {
   const results: RecognizerResult[] = [];
   const recognizers = getAllRecognizers();
 
@@ -80,12 +95,21 @@ export function recognizeAll(raw: RawObservation, frame: CapturedFrame | null): 
         const spans = recognizer.detectElement(element as any);
         for (const span of spans) {
           results.push({
-            value: span.value,
+            value: '',
             piiType: span.type,
             tier: span.tier,
             rect: element.rect,
             confidence: span.confidence,
+            kind: 'element',
+            elementId: element.id,
           });
+        }
+      }
+      // Labels and placeholders are page text too: a value printed as a label is a value.
+      for (const text of [element.label_raw, element.placeholder_raw ?? '']) {
+        if (!text) continue;
+        for (const span of recognizeFn(text)) {
+          results.push({ value: span.value, piiType: span.type, tier: span.tier, rect: element.rect, confidence: span.confidence, kind: 'value', elementId: element.id });
         }
       }
     }
@@ -101,6 +125,8 @@ export function recognizeAll(raw: RawObservation, frame: CapturedFrame | null): 
           tier: span.tier,
           rect: textNode.rect,
           confidence: span.confidence,
+          kind: 'value',
+          textNodeId: textNode.id,
         });
       }
     }

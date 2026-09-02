@@ -23,6 +23,7 @@ import type { SafePayload, Violation, Result } from '@glasswall/schema/branded';
 
 export {
   recognizeAll,
+  recognizeText,
   recognizeEmail,
   recognizePhone,
   recognizeAadhaar,
@@ -63,11 +64,17 @@ export {
 export {
   resolveForBinding,
   extractPiiTypeFromHandle,
+  isBindingAllowed,
+  COMPATIBILITY_MATRIX,
   type BindingTarget,
 } from './resolve';
 
+export { SessionSecrets, createSessionSecrets, type SessionSecretsSnapshot } from './session-secrets';
+
 export {
   sanitize,
+  toPiiType,
+  type SanitizeInput,
   type PerceptionSource,
   type PerceptionContext,
   type SourceOutput,
@@ -87,10 +94,11 @@ export {
   type AuditPrivacyInput,
 } from './audit';
 
-export { egressGate, type GatePolicy } from './egress-gate';
+export { egressGate, resetRateLimitForTests, lastGateTimings, type GatePolicy, type OutboundRequest } from './egress-gate';
 
 export {
   PROFILES,
+  DEFAULT_GATEWAY_ORIGIN,
   STRICT,
   BALANCED,
   PERMISSIVE,

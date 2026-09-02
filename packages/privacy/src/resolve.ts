@@ -1,5 +1,10 @@
+// Deferred value binding (C7): the agent plans with ⟦EMAIL#1⟧; the extension resolves
+// it here, locally, at execution time, and only into a field whose type accepts it.
+// A hijacked planner asking for an Aadhaar in a search box is refused.
+import type { PiiType } from '@glasswall/schema/policy';
 import type { Sensitive } from './sensitive';
 import type { VaultStore } from './vault';
+import { normalizePiiType } from './pii-types';
 
 export interface Violation {
   code: string;
@@ -7,116 +12,77 @@ export interface Violation {
   details: Record<string, unknown>;
 }
 
-export type Result<T, E> =
-  | { ok: true; value: T }
-  | { ok: false; error: E };
+export type Result<T, E> = { ok: true; value: T } | { ok: false; error: E };
 
 export function ok<T>(value: T): Result<T, never> {
   return { ok: true, value };
 }
-
 export function err<E>(error: E): Result<never, E> {
   return { ok: false, error };
 }
 
-export type PiiType =
-  | 'EMAIL'
-  | 'PHONE'
-  | 'AADHAAR'
-  | 'PAN'
-  | 'IFSC'
-  | 'GSTIN'
-  | 'UPI'
-  | 'CARD'
-  | 'IP'
-  | 'DOB'
-  | 'SECRET'
-  | 'PASSWORD'
-  | 'CREDIT_CARD'
-  | 'CVC'
-  | 'OTP'
-  | 'STREET_ADDRESS'
-  | 'POSTAL_CODE'
-  | 'BDAY'
-  | 'MRN';
-
 export interface BindingTarget {
   element_id: string;
-  sensitivity_class: PiiType | 'none';
-  accepts: PiiType[];
+  /** From the sanitized element: what the field is for, per its autocomplete/type/label. */
+  sensitivity_class: string | undefined;
+  /** Types the field may receive; empty means "unclassified free-text field". */
+  accepts: string[];
 }
 
-const COMPATIBILITY_MATRIX: Record<string, PiiType[]> = {
-  EMAIL: ['EMAIL'],
+/** handle type → field types it may be typed into. Symmetric where the field is ambiguous. */
+export const COMPATIBILITY_MATRIX: Partial<Record<PiiType, PiiType[]>> = {
+  EMAIL: ['EMAIL', 'USERNAME'],
   PHONE: ['PHONE'],
   AADHAAR: ['AADHAAR'],
   PAN: ['PAN'],
   IFSC: ['IFSC'],
   GSTIN: ['GSTIN'],
   UPI: ['UPI'],
-  CARD: ['CARD', 'CREDIT_CARD'],
-  CREDIT_CARD: ['CARD', 'CREDIT_CARD'],
+  CREDIT_CARD: ['CREDIT_CARD'],
   CVC: ['CVC'],
   OTP: ['OTP'],
   PASSWORD: ['PASSWORD'],
-  STREET_ADDRESS: ['STREET_ADDRESS', 'POSTAL_CODE'],
+  SECRET: ['SECRET', 'PASSWORD'],
+  PERSON_NAME: ['PERSON_NAME', 'NAME'],
+  NAME: ['PERSON_NAME', 'NAME'],
+  STREET_ADDRESS: ['STREET_ADDRESS', 'ADDRESS', 'POSTAL_CODE'],
+  ADDRESS: ['STREET_ADDRESS', 'ADDRESS'],
   POSTAL_CODE: ['POSTAL_CODE', 'STREET_ADDRESS'],
-  BDAY: ['BDAY', 'DOB'],
-  DOB: ['DOB', 'BDAY'],
+  DOB: ['DOB'],
   IP: ['IP'],
-  SECRET: ['SECRET'],
   MRN: ['MRN'],
+  ORGANIZATION: ['ORGANIZATION'],
 };
 
-export async function resolveForBinding(
-  handle: string,
-  target: BindingTarget,
-  vault: VaultStore
-): Promise<Result<Sensitive<string>, Violation>> {
-  const entry = await vault.get(handle);
-  if (!entry) {
-    return err({
-      code: 'HANDLE_NOT_FOUND',
-      message: `Vault handle ${handle} not found`,
-      details: { handle },
-    });
-  }
+/** Free-text fields (no classification) may receive tier-3 quasi-identifiers, never identifiers or secrets. */
+const BINDABLE_INTO_UNCLASSIFIED = new Set<PiiType>(['PERSON_NAME', 'NAME', 'STREET_ADDRESS', 'ADDRESS', 'POSTAL_CODE', 'ORGANIZATION', 'PERSONAL']);
 
-  const handleType = entry.type;
-  const accepts = target.accepts;
-
-  if (accepts.length > 0 && handleType !== 'none') {
-    const allowed = COMPATIBILITY_MATRIX[handleType] ?? [handleType];
-    const hasMatch = accepts.some(a => allowed.includes(a));
-
-    if (!hasMatch) {
-      return err({
-        code: 'VAULT_TYPE_MISMATCH',
-        message: `Vault handle ${handle} type ${handleType} not accepted by target (accepts: ${accepts.join(', ')})`,
-        details: { handle, target: target.element_id, expected: accepts, actual: handleType },
-      });
-    }
-  }
-
-  const sensitiveValue: Sensitive<string> = {
-    __sensitiveBrand: '__sensitiveBrand',
-    value: entry.value,
-  };
-
-  return ok(sensitiveValue);
+export function isBindingAllowed(handleType: string, target: BindingTarget): boolean {
+  const type = normalizePiiType(handleType);
+  const raw = target.accepts.length ? target.accepts : target.sensitivity_class && target.sensitivity_class !== 'none' ? [target.sensitivity_class] : [];
+  const accepts = raw.map(a => normalizePiiType(a)).filter(a => a !== 'NONE');
+  if (accepts.length === 0) return BINDABLE_INTO_UNCLASSIFIED.has(type);
+  const allowed = COMPATIBILITY_MATRIX[type] ?? [type];
+  return accepts.some(a => allowed.includes(a));
 }
 
-/**
- * Read the type out of a handle. Both shapes must parse: `⟦EMAIL#3⟧` for Tier 2+,
- * and `⟦PASSWORD⟧` for Tier 1, which deliberately carries no index so that not even
- * cardinality leaks.
- *
- * The Tier-1 shape used to return `'PASSWORD⟧'`, which matches nothing in the
- * compatibility matrix — so a password could never be bound at all. Fail-closed, and
- * therefore silent, and therefore worth a test.
- */
+export async function resolveForBinding(handle: string, target: BindingTarget, vault: VaultStore): Promise<Result<Sensitive<string>, Violation>> {
+  const entry = await vault.get(handle);
+  if (!entry) return err({ code: 'HANDLE_NOT_FOUND', message: `Vault handle ${handle} not found`, details: { handle } });
+
+  const handleType = normalizePiiType(entry.type);
+  if (!isBindingAllowed(handleType, target)) {
+    return err({
+      code: 'VAULT_TYPE_MISMATCH',
+      message: `Vault handle ${handle} (${handleType}) is not accepted by ${target.element_id} (${target.sensitivity_class ?? 'unclassified'})`,
+      details: { handle, target: target.element_id, expected: target.accepts, actual: handleType },
+    });
+  }
+  return ok({ __sensitiveBrand: '__sensitiveBrand', value: entry.value });
+}
+
+/** Both handle shapes parse: ⟦EMAIL#3⟧ (tier 2+) and ⟦PASSWORD⟧ (tier 1, no index). */
 export function extractPiiTypeFromHandle(handle: string): PiiType {
   const match = handle.match(/⟦([^#⟧]+)[#⟧]/);
-  if (match) return match[1] as PiiType;
-  return 'NONE' as PiiType;
+  return (match ? match[1] : 'NONE') as PiiType;
 }

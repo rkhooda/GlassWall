@@ -50,6 +50,15 @@ export class Tokenizer {
   reset(): void {
     this.handleCounter.clear();
   }
+
+  /** For session persistence only (chrome.storage.session). Keys contain values. */
+  exportCounter(): Array<[string, number]> {
+    return [...this.handleCounter.entries()];
+  }
+
+  importCounter(entries: Array<[string, number]>): void {
+    this.handleCounter = new Map(entries);
+  }
 }
 
 export function createTokenizer(sessionSalt: string): Tokenizer {

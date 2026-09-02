@@ -20,6 +20,8 @@ export const emailRecognizer: Recognizer = {
       const value = match[0];
       const start = match.index;
       const end = start + value.length;
+      // RFC 2606 reserved domains are documentation placeholders, never a person.
+      if (/@(example\.(com|org|net)|[^.]+\.(test|invalid|localhost)|localhost)$/i.test(value)) continue;
       spans.push({
         start, end, value, type: 'EMAIL', tier: getTier('EMAIL'), confidence: 0.95, rule_id: 'email-regex-v1',
       });

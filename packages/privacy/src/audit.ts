@@ -51,33 +51,24 @@ export function buildAuditPrivacyFields(input: AuditPrivacyInput): AuditPrivacyF
   };
 }
 
+/**
+ * The audit record is content-free by construction; this asserts it. Only the fields
+ * that could carry page text are inspected: a text_span must be a handle, a
+ * matched_value must be a byte count, and degraded reasons are machine tokens.
+ * Error messages never include the offending string — an error message is a log.
+ */
 export function assertNoValuesInAudit(fields: AuditPrivacyFields): void {
-  const checkObject = (obj: unknown, path: string): void => {
-    if (obj === null || obj === undefined) return;
-
-    if (typeof obj === 'string') {
-      const handlePattern = /⟦[^⟧]+⟧/;
-      if (!handlePattern.test(obj) && obj.length > 0) {
-        const looksLikeValue = /[\w@.-]{6,}/.test(obj) &&
-          !['PASS', 'GENERALIZE', 'TOKENIZE', 'MASK', 'DROP', 'VAULT_ONLY', 'ANNOTATE'].includes(obj) &&
-          !['regex', 'ner', 'ocr', 'vision', 'deterministic'].includes(obj) &&
-          !['secret_registry_raw', 'secret_registry_normalized', 'secret_registry_url_encoded', 'secret_registry_base64', 'secret_registry_hex', 'secret_registry_html_entity', 'payload_size'].includes(obj) &&
-          !['EMAIL', 'PHONE', 'SSN', 'CREDIT_CARD', 'ADDRESS', 'NAME', 'USERNAME', 'PASSWORD', 'API_KEY', 'TOKEN', 'PERSONAL', 'FINANCIAL', 'HEALTH', 'NONE'].includes(obj);
-        if (looksLikeValue) {
-          // The offending string is deliberately not included: an error message is a log.
-          throw new Error(`Audit field ${path} appears to contain a raw value`);
-        }
-      }
-    } else if (Array.isArray(obj)) {
-      obj.forEach((item, idx) => checkObject(item, `${path}[${idx}]`));
-    } else if (typeof obj === 'object') {
-      for (const [key, value] of Object.entries(obj)) {
-        checkObject(value, `${path}.${key}`);
-      }
-    }
-  };
-
-  checkObject(fields, 'AuditPrivacyFields');
+  const HANDLE = /^⟦[A-Z_]+(#\d+)?⟧$/;
+  fields.detections.forEach((d, i) => {
+    if (d.text_span !== undefined && !HANDLE.test(d.text_span)) throw new Error(`Audit detections[${i}].text_span is not a handle`);
+    if (!/^[a-z0-9_-]+$/i.test(d.source_id)) throw new Error(`Audit detections[${i}].source_id is not an identifier`);
+  });
+  fields.egress.forEach((e, i) => {
+    if (e.matched_value !== undefined && !/^\d+ bytes$/.test(e.matched_value)) throw new Error(`Audit egress[${i}].matched_value carries content`);
+  });
+  fields.degraded.forEach((d, i) => {
+    if (!/^[a-z0-9_:-]+$/i.test(d)) throw new Error(`Audit degraded[${i}] is not a machine token`);
+  });
 }
 
 export function createEgressChecks(

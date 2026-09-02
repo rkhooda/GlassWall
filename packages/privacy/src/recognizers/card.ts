@@ -2,23 +2,21 @@ import { Recognizer, Span, getTier } from './types';
 import { verifyLuhn } from './utils';
 import { incrementConstructionCount } from './types';
 
-const CARD_REGEX = /\b\d{13,19}\b/g;
-
-const TEST_CARD_PATTERNS = [
-  /^4000000000000002$/, // Visa test
-  /^4242424242424242$/, // Stripe test
-  /^5555555555555555$/, // Mastercard test
-  /^4111111111111111$/, // Generic test
-];
+// Digits in groups separated by spaces or dashes, as cards are printed on pages.
+const CARD_REGEX = /\b\d(?:[ -]?\d){12,18}\b/g;
 
 incrementConstructionCount();
 
-function looksLikeCardNumber(value: string): boolean {
-  if (value.length < 13 || value.length > 19) return false;
-  if (!/^\d+$/.test(value)) return false;
-  if (!verifyLuhn(value)) return false;
-  if (TEST_CARD_PATTERNS.some(p => p.test(value))) return false;
-  return true;
+/** Canonical documentation numbers; they never belong to a person. */
+const DOC_TEST_CARDS = new Set(['4000000000000002', '4242424242424242', '5555555555555555', '4111111111111111']);
+
+function looksLikeCardNumber(surface: string): boolean {
+  const digits = surface.replace(/[ -]/g, '');
+  if (digits.length < 13 || digits.length > 19) return false;
+  // Mixed separators ("4111-1111 1111") are not how a card is printed.
+  if (surface.includes(' ') && surface.includes('-')) return false;
+  if (DOC_TEST_CARDS.has(digits)) return false;
+  return verifyLuhn(digits);
 }
 
 export const cardRecognizer: Recognizer = {

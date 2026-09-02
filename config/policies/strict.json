@@ -2,18 +2,51 @@
   "policy": {
     "name": "STRICT",
     "unexplained_prior": 0.8,
-    "screenshot": { "enabled": false },
-    "thresholds": { "tokenize": 0.35, "mask": 0.5, "drop": 0.8 },
-    "tiers": { "T1": "VAULT_ONLY", "T2": "TOKENIZE", "T3": "TOKENIZE", "T4": "ANNOTATE", "T5": "TOKENIZE" },
-    "url": { "query": "DROP", "fragment": "DROP", "path": "TEMPLATE" },
+    "screenshot": {
+      "enabled": false
+    },
+    "thresholds": {
+      "tokenize": 0.35,
+      "mask": 0.5,
+      "drop": 0.8
+    },
+    "tiers": {
+      "T1": "VAULT_ONLY",
+      "T2": "TOKENIZE",
+      "T3": "TOKENIZE",
+      "T4": "ANNOTATE",
+      "T5": "TOKENIZE"
+    },
+    "url": {
+      "query": "DROP",
+      "fragment": "DROP",
+      "path": "TEMPLATE"
+    },
     "text_block_max_chars": 400,
     "fail_mode": "CLOSED",
-    "high_risk_actions": ["SUBMIT_LIKE", "NAVIGATE_EXTERNAL", "PAYMENT", "DELETE"],
-    "require_confirmation": ["PAYMENT", "DELETE", "NAVIGATE_EXTERNAL"],
-    "max_elements": 400
+    "high_risk_actions": [
+      "SUBMIT_LIKE",
+      "NAVIGATE_EXTERNAL",
+      "PAYMENT",
+      "DELETE"
+    ],
+    "require_confirmation": [
+      "PAYMENT",
+      "DELETE",
+      "NAVIGATE_EXTERNAL"
+    ],
+    "max_elements": 400,
+    "gateway_origin": "http://localhost:3000",
+    "max_payload_bytes": 256000
   },
   "fusion": {
-    "source_weights": { "regex": 1, "ner": 0.9, "ocr": 0.8, "vision": 0.5, "deterministic": 1 },
+    "source_weights": {
+      "regex": 1,
+      "ner": 0.9,
+      "ocr": 0.8,
+      "vision": 0.5,
+      "deterministic": 1
+    },
     "min_coverage": 0.98
   }
 }

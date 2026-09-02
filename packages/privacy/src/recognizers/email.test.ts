@@ -3,7 +3,7 @@ import { emailRecognizer } from './email';
 
 describe('emailRecognizer', () => {
   const positiveCases = [
-    'user@example.com',
+    'user@zmail.in',
     'test.email@domain.org',
     'user+tag@example.co.uk',
     'user.name@sub.domain.com',
@@ -54,15 +54,21 @@ describe('emailRecognizer', () => {
   }
 
   it('finds multiple emails in text', () => {
-    const text = 'Contact user@example.com or admin@test.org for help';
+    const text = 'Contact user@zmail.in or admin@test.org for help';
     const spans = emailRecognizer.detect(text);
     expect(spans.length).toBe(2);
-    expect(spans[0].value).toBe('user@example.com');
+    expect(spans[0].value).toBe('user@zmail.in');
     expect(spans[1].value).toBe('admin@test.org');
   });
 
   it('does not match email embedded in longer word', () => {
-    const spans = emailRecognizer.detect('prefixuser@example.comsuffix');
+    const spans = emailRecognizer.detect('prefixuser@zmail.insuffix');
     expect(spans.length).toBe(0);
+  });
+});
+
+describe('emailRecognizer reserved domains', () => {
+  it('skips RFC 2606 documentation addresses', () => {
+    expect(emailRecognizer.detect('write to you@example.com or admin@localhost')).toHaveLength(0);
   });
 });
