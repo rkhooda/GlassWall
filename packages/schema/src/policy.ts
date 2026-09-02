@@ -27,6 +27,8 @@ export const PiiTypeSchema = z.enum([
   // Tier 3 — quasi-identifiers
   'PERSON_NAME',
   'STREET_ADDRESS',
+  'CITY',
+  'STATE',
   'POSTAL_CODE',
   'DOB',
   'IP',

@@ -45,9 +45,11 @@ export const COMPATIBILITY_MATRIX: Partial<Record<PiiType, PiiType[]>> = {
   SECRET: ['SECRET', 'PASSWORD'],
   PERSON_NAME: ['PERSON_NAME', 'NAME'],
   NAME: ['PERSON_NAME', 'NAME'],
-  STREET_ADDRESS: ['STREET_ADDRESS', 'ADDRESS', 'POSTAL_CODE'],
+  STREET_ADDRESS: ['STREET_ADDRESS', 'ADDRESS'],
   ADDRESS: ['STREET_ADDRESS', 'ADDRESS'],
-  POSTAL_CODE: ['POSTAL_CODE', 'STREET_ADDRESS'],
+  CITY: ['CITY', 'STREET_ADDRESS', 'ADDRESS'],
+  STATE: ['STATE', 'STREET_ADDRESS', 'ADDRESS'],
+  POSTAL_CODE: ['POSTAL_CODE'],
   DOB: ['DOB'],
   IP: ['IP'],
   MRN: ['MRN'],
@@ -55,7 +57,7 @@ export const COMPATIBILITY_MATRIX: Partial<Record<PiiType, PiiType[]>> = {
 };
 
 /** Free-text fields (no classification) may receive tier-3 quasi-identifiers, never identifiers or secrets. */
-const BINDABLE_INTO_UNCLASSIFIED = new Set<PiiType>(['PERSON_NAME', 'NAME', 'STREET_ADDRESS', 'ADDRESS', 'POSTAL_CODE', 'ORGANIZATION', 'PERSONAL']);
+const BINDABLE_INTO_UNCLASSIFIED = new Set<PiiType>(['PERSON_NAME', 'NAME', 'STREET_ADDRESS', 'ADDRESS', 'CITY', 'STATE', 'POSTAL_CODE', 'ORGANIZATION', 'PERSONAL']);
 
 export function isBindingAllowed(handleType: string, target: BindingTarget): boolean {
   const type = normalizePiiType(handleType);

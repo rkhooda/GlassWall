@@ -18,9 +18,12 @@ function checkAutocompleteTokens(autocomplete: string | undefined): Array<{ type
   const tokenMap: Array<{ tokens: string[]; type: PiiType; confidence: number; rule_id: string }> = [
     { tokens: ['cc-number', 'credit-card', 'card-number'], type: 'CREDIT_CARD', confidence: 0.99, rule_id: 'element-autocomplete-cc-number-v1' },
     { tokens: ['cc-csc', 'cc-cvc', 'cvc', 'cvv', 'security-code'], type: 'CVC', confidence: 0.99, rule_id: 'element-autocomplete-cvc-v1' },
+    { tokens: ['cc-exp', 'cc-exp-month', 'cc-exp-year', 'cc-name', 'cc-type'], type: 'CREDIT_CARD', confidence: 0.9, rule_id: 'element-autocomplete-cc-meta-v1' },
     { tokens: ['one-time-code', 'otp', 'verification-code', 'auth-code'], type: 'OTP', confidence: 0.99, rule_id: 'element-autocomplete-otp-v1' },
     { tokens: ['street-address', 'address-line1', 'address-line2', 'address-line3'], type: 'STREET_ADDRESS', confidence: 0.95, rule_id: 'element-autocomplete-street-v1' },
     { tokens: ['postal-code', 'postcode', 'zip', 'zip-code'], type: 'POSTAL_CODE', confidence: 0.95, rule_id: 'element-autocomplete-postal-v1' },
+    { tokens: ['address-level2'], type: 'CITY', confidence: 0.95, rule_id: 'element-autocomplete-city-v1' },
+    { tokens: ['address-level1'], type: 'STATE', confidence: 0.95, rule_id: 'element-autocomplete-state-v1' },
     { tokens: ['bday', 'bday-day', 'bday-month', 'bday-year', 'dob', 'date-of-birth'], type: 'BDAY', confidence: 0.95, rule_id: 'element-autocomplete-bday-v1' },
     { tokens: ['email'], type: 'EMAIL', confidence: 0.95, rule_id: 'element-autocomplete-email-v1' },
     { tokens: ['tel', 'tel-national', 'tel-country-code', 'tel-area-code', 'tel-local', 'tel-extension'], type: 'PHONE', confidence: 0.9, rule_id: 'element-autocomplete-tel-v1' },
@@ -55,7 +58,7 @@ function checkOtpHeuristics(element: RawElement): { type: PiiType; confidence: n
   const combined = label + ' ' + placeholder;
 
   const otpPatterns = [
-    /otp|one.time|verification.code|auth.code|pin.code|security.code/,
+    /\botp\b|one.time|verification.code|auth.code|security.code|\bmpin\b|login pin|transaction pin/,
     /enter.*code|code.*sent|verify.*code/,
     /^\d{4,6}$/,
   ];

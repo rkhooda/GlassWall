@@ -96,11 +96,12 @@ export default function App() {
             <article key={`${entry.step}-${entry.at}`} className={`step step-${entry.phase}`}>
               <header>
                 <strong>Step {entry.step}</strong>
-                <span>{entry.action ? entry.action.type : entry.phase}</span>
+                <span>{entry.action ? entry.action.type : entry.phase}{entry.action?.type === 'TYPE' && entry.action.value.kind === 'vault_ref' ? ` ← ${entry.action.value.handle}` : ''}{entry.action?.type === 'DONE' ? ` (${entry.action.outcome})` : ''}</span>
                 <span className="muted">{entry.timings.total} ms</span>
               </header>
               <dl>
                 {entry.targetLabel && <><dt>Target</dt><dd>{entry.targetLabel}</dd></>}
+                {entry.provider && <><dt>Planner</dt><dd>{entry.provider}</dd></>}
                 <dt>Observed</dt><dd>{entry.observedElements} elements</dd>
                 <dt>Redactions</dt><dd>{entry.redactions}</dd>
                 {entry.degraded.length > 0 && <><dt>Degraded</dt><dd>{entry.degraded.join(', ')}</dd></>}

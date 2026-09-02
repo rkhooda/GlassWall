@@ -116,9 +116,15 @@ function shannon(s: string): number {
 }
 function checkEntropy(body: unknown): Violation | null {
   for (const { value, path } of extractStrings(body)) {
-    if (value.length < ENTROPY_MIN_LENGTH || OPAQUE_FIELDS.test(path) || /\s/.test(value) || /⟦/.test(value)) continue;
+    if (OPAQUE_FIELDS.test(path) || /\s/.test(value) || /⟦/.test(value)) continue;
     if (/^https?:\/\//.test(value)) continue;
-    if (shannon(value) > ENTROPY_THRESHOLD) return violation('ENTROPY_HEURISTIC', `High-entropy token at ${path}: possible key passthrough`, { path, length: value.length });
+    // A path is judged segment by segment: "/shoplite/checkout/confirm" is words, a
+    // 40-character random segment is a token.
+    const tokens = value.includes('/') ? value.split('/') : [value];
+    for (const token of tokens) {
+      if (token.length < ENTROPY_MIN_LENGTH) continue;
+      if (shannon(token) > ENTROPY_THRESHOLD) return violation('ENTROPY_HEURISTIC', `High-entropy token at ${path}: possible key passthrough`, { path, length: token.length });
+    }
   }
   return null;
 }

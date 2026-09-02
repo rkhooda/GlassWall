@@ -20,7 +20,7 @@ function checkout(over: Partial<SanitizedObservation> = {}): SanitizedObservatio
       el('e2', 'input', 'Email', { type: 'email', autocomplete: 'email', sensitivity_class: 'EMAIL' }),
       el('e3', 'input', 'Phone', { type: 'tel', autocomplete: 'tel', sensitivity_class: 'PHONE' }),
       el('e4', 'input', 'Street address', { type: 'text', autocomplete: 'street-address', sensitivity_class: 'STREET_ADDRESS' }),
-      el('e5', 'input', 'City', { type: 'text', autocomplete: 'address-level2' }),
+      el('e5', 'input', 'City', { type: 'text', autocomplete: 'address-level2', sensitivity_class: 'CITY' }),
       el('e6', 'input', 'PIN code', { type: 'text', autocomplete: 'postal-code', sensitivity_class: 'POSTAL_CODE' }),
       el('e7', 'input', 'Card number', { type: 'text', autocomplete: 'cc-number', sensitivity_class: 'CREDIT_CARD' }),
       el('e8', 'button', 'Place order', { value_state: 'n/a' }),
@@ -34,7 +34,7 @@ function checkout(over: Partial<SanitizedObservation> = {}): SanitizedObservatio
       { handle: '⟦EMAIL#2⟧', type: 'EMAIL', tier: 2, occurrences: 1, first_seen_step: 0 },
       { handle: '⟦PHONE#3⟧', type: 'PHONE', tier: 2, occurrences: 1, first_seen_step: 0 },
       { handle: '⟦STREET_ADDRESS#4⟧', type: 'STREET_ADDRESS', tier: 3, occurrences: 1, first_seen_step: 0 },
-      { handle: '⟦STREET_ADDRESS#5⟧', type: 'STREET_ADDRESS', tier: 3, occurrences: 1, first_seen_step: 0 },
+      { handle: '⟦CITY#5⟧', type: 'CITY', tier: 3, occurrences: 1, first_seen_step: 0 },
       { handle: '⟦POSTAL_CODE#6⟧', type: 'POSTAL_CODE', tier: 3, occurrences: 1, first_seen_step: 0 },
     ],
     budget: { steps_left: 20, ms_left: 300000 },
@@ -98,7 +98,7 @@ describe('gateway', () => {
       if (history.length > 5) history.shift(); // the client sends the last five, as the schema requires
       if (action.type === 'CLICK') break;
     }
-    expect(seen).toEqual(['e1←⟦PERSON_NAME#1⟧', 'e2←⟦EMAIL#2⟧', 'e3←⟦PHONE#3⟧', 'e4←⟦STREET_ADDRESS#4⟧', 'e5←⟦STREET_ADDRESS#5⟧', 'e6←⟦POSTAL_CODE#6⟧', 'CLICK']);
+    expect(seen).toEqual(['e1←⟦PERSON_NAME#1⟧', 'e2←⟦EMAIL#2⟧', 'e3←⟦PHONE#3⟧', 'e4←⟦STREET_ADDRESS#4⟧', 'e5←⟦CITY#5⟧', 'e6←⟦POSTAL_CODE#6⟧', 'CLICK']);
     // The card field was skipped: the task said nothing about payment.
     expect(seen.some(s => s.startsWith('e7'))).toBe(false);
   });

@@ -20,6 +20,8 @@ export class SessionSecrets {
   readonly registry: SecretRegistry = new Map();
   readonly tokenizer: Tokenizer;
   private pending = new Map<string, VaultEntry>();
+  /** Every surface form seen for a handle, so a value reappearing anywhere on a later page is substituted. */
+  private surfaces = new Map<string, Set<string>>();
 
   constructor(readonly sessionId: string, readonly vault: VaultStore = createInMemoryVaultStore()) {
     this.tokenizer = createTokenizer(sessionId);
@@ -29,7 +31,17 @@ export class SessionSecrets {
   record(value: string, piiType: string, tier: number): string {
     const handle = tokenizeAndRegister(this.tokenizer, this.registry, value, piiType, tier);
     if (!this.pending.has(handle)) this.pending.set(handle, { value, type: piiType, tier, createdAt: Date.now() });
+    let forms = this.surfaces.get(handle);
+    if (!forms) this.surfaces.set(handle, (forms = new Set()));
+    forms.add(value);
     return handle;
+  }
+
+  /** Known values and their handles, for substitution in text the detectors did not flag. */
+  knownValues(): Array<{ value: string; handle: string }> {
+    const out: Array<{ value: string; handle: string }> = [];
+    for (const [handle, forms] of this.surfaces) for (const value of forms) out.push({ value, handle });
+    return out;
   }
 
   /** Persist queued values to the vault store. Call once per step after sanitize(). */
@@ -63,7 +75,10 @@ export class SessionSecrets {
     const secrets = new SessionSecrets(snapshot.session_id, vault);
     for (const entry of snapshot.registry) secrets.registry.set(entry.handle, entry);
     secrets.tokenizer.importCounter(snapshot.tokenizer);
-    for (const [handle, entry] of snapshot.vault) await vault.set(handle, entry);
+    for (const [handle, entry] of snapshot.vault) {
+      await vault.set(handle, entry);
+      secrets.surfaces.set(handle, new Set([entry.value]));
+    }
     return secrets;
   }
 }

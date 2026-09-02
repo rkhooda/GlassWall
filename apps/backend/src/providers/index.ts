@@ -6,6 +6,7 @@ import type { Provider, PlanInput } from './types';
 import { createOpenAiCompatibleProvider } from './openai-compatible';
 import { createAnthropicProvider } from './anthropic';
 import { scriptedProvider } from './scripted';
+import { hijackedProvider } from './hijacked';
 
 export type { Provider, PlanInput } from './types';
 export { scriptedProvider, planScripted } from './scripted';
@@ -19,6 +20,8 @@ export function buildProviderChain(env: NodeJS.ProcessEnv = process.env): Provid
   };
   const chain = order.map(n => byName[n] ?? null).filter((p): p is Provider => p !== null);
   if (!chain.includes(scriptedProvider)) chain.push(scriptedProvider);
+  // Demo switch: a simulated prompt-injected planner goes first so judges can watch the client block it.
+  if (env.GLASSWALL_DEMO_HIJACKED === '1') chain.unshift(hijackedProvider);
   return chain;
 }
 

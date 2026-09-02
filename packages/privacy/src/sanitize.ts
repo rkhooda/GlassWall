@@ -14,7 +14,7 @@ import type { RedactionReason, SanitizeResult, Detection, PolicyDecision, Timing
 import type { PolicyConfig, PiiType } from '@glasswall/schema/policy';
 import type { SecretRegistry } from '@glasswall/schema/branded';
 
-import { recognizeAll } from './recognizers';
+import { recognizeAll, recognizeText } from './recognizers';
 import { createTokenizer, getHandleForValue, tokenizeAndRegister, type Tokenizer } from './tokenizer';
 import { buildSanitizedObservation, deriveAvailableActions, classifySensitivityFromRules } from '@glasswall/perception/observation-builder';
 import { PROFILES, decide, tierForType, type Profile, type Transformation } from './policy';
@@ -114,6 +114,23 @@ function rectsOverlap(a: [number, number, number, number], b: [number, number, n
   return a[0] < b[0] + b[2] && a[0] + a[2] > b[0] && a[1] < b[1] + b[3] && a[1] + a[3] > b[1];
 }
 
+/** Fraction of `el` covered by `region`. */
+function overlapFraction(region: [number, number, number, number], el: [number, number, number, number]): number {
+  const w = Math.min(region[0] + region[2], el[0] + el[2]) - Math.max(region[0], el[0]);
+  const h = Math.min(region[1] + region[3], el[1] + el[3]) - Math.max(region[1], el[1]);
+  const area = el[2] * el[3];
+  return w <= 0 || h <= 0 || area <= 0 ? 0 : (w * h) / area;
+}
+
+const INTERACTIVE_TAGS = new Set(['input', 'textarea', 'select', 'button', 'a']);
+
+/** Placeholders are examples, never user data. One that looks like PII is replaced by a note, not a handle. */
+function scrubPlaceholder(text: string | undefined): string | undefined {
+  if (!text) return text;
+  const hit = recognizeText(text)[0];
+  return hit ? `[example ${hit.type.toLowerCase()}]` : text;
+}
+
 export async function sanitize(input: SanitizeInput): Promise<SanitizeResult> {
   const { raw, frame, step, session, perceptionSources = [] } = input;
   const profile: Profile = input.profile ?? PROFILES[session.policy_profile];
@@ -199,23 +216,34 @@ export async function sanitize(input: SanitizeInput): Promise<SanitizeResult> {
     // planner needs it. Elements keep their actions: sensitivity governs binding, not
     // reachability.
     const buildStart = Date.now();
-    const ordered = substitutions.filter(s => s.value.length >= MIN_SUBSTITUTION_LENGTH).sort((a, b) => b.value.length - a.value.length);
+    // This step's detections plus everything the session already knows: a value that
+    // reappears in prose on a later page (an order summary, a confirmation dialog)
+    // is substituted even when no detector fires on it there.
+    const known = secrets ? secrets.knownValues() : [];
+    const ordered = [...substitutions, ...known].filter(s => s.value.length >= MIN_SUBSTITUTION_LENGTH).sort((a, b) => b.value.length - a.value.length);
     const substitute = (text: string): string => {
       let out = text;
-      for (const { value, handle } of ordered) if (out.includes(value)) out = out.split(value).join(handle);
+      for (const { value, handle } of ordered) {
+        if (out.includes(value)) out = out.split(value).join(handle);
+        else if (out.toLowerCase().includes(value.toLowerCase())) out = out.replace(new RegExp(value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), handle);
+      }
       return out;
     };
 
     const tokenizedElements = raw.elements.map(el => {
       const covering = redacting.filter(r => rectsOverlap(r.rect, el.rect));
-      const evidenced = covering.flatMap(r => r.evidence).filter(d => d.pii_type !== 'NONE');
+      // A region classifies an element only when the element sits inside it: a
+      // container that merely encloses a redacted value is not itself sensitive,
+      // and an input's class comes from its own rules, never from a neighbour.
+      const inside = INTERACTIVE_TAGS.has(el.tag) ? [] : covering.filter(r => overlapFraction(r.rect, el.rect) >= 0.5);
+      const evidenced = inside.flatMap(r => r.evidence).filter(d => d.pii_type !== 'NONE');
       const fromRules = elementClass.get(el.id);
       const fromRegion = evidenced.length ? evidenced.reduce((m, d) => (d.confidence > m.confidence ? d : m)).pii_type : undefined;
-      const sensitivityClass: PiiType | undefined = fromRules ?? fromRegion ?? (covering.length && !el.label_raw ? 'PERSONAL' : undefined) ?? (classifySensitivityFromRules(el, policy) as PiiType | undefined);
+      const sensitivityClass: PiiType | undefined = fromRules ?? fromRegion ?? (inside.length && !el.label_raw ? 'PERSONAL' : undefined) ?? (classifySensitivityFromRules(el, policy) as PiiType | undefined);
       const tokenizedLabel = substitute(el.label_raw);
-      const tokenizedPlaceholder = el.placeholder_raw ? substitute(el.placeholder_raw) : undefined;
+      const tokenizedPlaceholder = scrubPlaceholder(el.placeholder_raw);
       // Unexplained regions with no owner (canvas, image, cross-origin frame) carry no readable label anyway.
-      const masked = covering.some(r => r.evidence.length === 0) && el.unexplained;
+      const masked = inside.some(r => r.evidence.length === 0) && el.unexplained;
       return {
         rawElement: el,
         tokenizedLabel: masked && tokenizedLabel ? getHandleForValue(tokenizer, registry, tokenizedLabel, 'PERSONAL') ?? '[REDACTED]' : tokenizedLabel,

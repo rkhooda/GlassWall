@@ -9,10 +9,19 @@ import { quantizeRect } from '../identity';
 const MAX_TEXT_NODES = 300;
 const MAX_TEXT_CHARS = 400;
 
+/** Identifiers in a path become {id}: numbers, uuids, prefixed codes (ORD-…, TRK…), long opaque tokens. */
+const ID_SEGMENT = [
+  /^\d+$/,
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+  /^[A-Z]{2,6}[-_]?[A-Z0-9]{5,}$/, // ORD-MTJNONUL, TRK12345678, INV_2024A
+  /^[A-Za-z]{1,4}[-_]?\d{2,}[A-Za-z0-9]*$/, // P001, INV-2024, U42
+  /^(?=.*\d)[A-Za-z0-9_-]{8,}$/, // mixed letters and digits, 8+
+  /^[A-Za-z0-9_-]{20,}$/, // long opaque tokens
+];
 export function templateUrl(pathname: string): string {
   return pathname
     .split('/')
-    .map(seg => (/^\d+$/.test(seg) || /^[A-Z0-9-]{8,}$/i.test(seg) && /\d/.test(seg) ? '{id}' : seg))
+    .map(seg => (ID_SEGMENT.some(re => re.test(seg)) ? '{id}' : seg))
     .join('/') || '/';
 }
 

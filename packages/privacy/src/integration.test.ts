@@ -106,6 +106,17 @@ describe('sanitize → egressGate → vault, as the orchestrator uses them', () 
     expect(secrets.handleCount()).toBe(handlesOf(a).length);
   });
 
+  it('substitutes a known value that reappears in prose on a later page', async () => {
+    const secrets = createSessionSecrets('s4');
+    await sanitize({ raw: checkoutPage(0), frame: null, task: 't', step: 0, session: { session_id: 's4', policy_profile: 'STRICT', secrets } });
+    const later = { ...checkoutPage(1), text_nodes: [{ id: 't1', rect: [0, 0, 300, 20] as [number, number, number, number], text: `Ship to ${EMAIL} today?`, owner_element_id: null, source: 'dom' as const }, { id: 't2', rect: [0, 30, 300, 20] as [number, number, number, number], text: `Contact: ${PHONE.toUpperCase()}`, owner_element_id: null, source: 'dom' as const }] };
+    const r = await sanitize({ raw: later, frame: null, task: 't', step: 1, session: { session_id: 's4', policy_profile: 'STRICT', secrets } });
+    const text = (r.observation as { text_nodes: Array<{ text: string }> }).text_nodes.map(t => t.text).join(' ');
+    expect(text).not.toContain(EMAIL);
+    expect(text).toMatch(/Ship to ⟦EMAIL#\d+⟧ today\?/);
+    expect(text).toMatch(/Contact: ⟦PHONE#\d+⟧/);
+  });
+
   it('rejects a raw secret the sanitizer somehow missed', () => {
     resetRateLimitForTests();
     const secrets = createSessionSecrets('s3');

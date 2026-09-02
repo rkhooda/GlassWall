@@ -103,6 +103,10 @@ describe('extractor', () => {
   it('templates ids out of urls and classifies checkout pages', () => {
     expect(templateUrl('/orders/12345/track')).toBe('/orders/{id}/track');
     expect(templateUrl('/shoplite/checkout')).toBe('/shoplite/checkout');
+    expect(templateUrl('/shoplite/checkout/confirm/ORD-MTJNONUL')).toBe('/shoplite/checkout/confirm/{id}');
+    expect(templateUrl('/tracking/TRK83027314')).toBe('/tracking/{id}');
+    expect(templateUrl('/patient/P001')).toBe('/patient/{id}');
+    expect(templateUrl('/api/v2/orders')).toBe('/api/v2/orders');
     expect(isInteractive(document.querySelector('button')!)).toBe(true);
     expect(classifyPage(document, [])).toBe('other');
   });

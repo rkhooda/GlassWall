@@ -27,6 +27,8 @@ import { secretRecognizer, recognizeSecret } from './secret';
 import { elementRulesRecognizer, recognizeElementRules } from './element-rules';
 import type { RawObservation, CapturedFrame } from '@glasswall/schema/observation';
 import type { Span } from './types';
+import { recognizeByContext } from './context';
+export { recognizeByContext } from './context';
 
 let _allRecognizers: Array<{ recognizer: any; recognizeFn: (text: string) => Span[] }> | null = null;
 
@@ -105,8 +107,8 @@ export function recognizeAll(raw: RawObservation, _frame: CapturedFrame | null =
           });
         }
       }
-      // Labels and placeholders are page text too: a value printed as a label is a value.
-      for (const text of [element.label_raw, element.placeholder_raw ?? '']) {
+      // A value printed as a label is a value. Placeholders are examples and are scrubbed by sanitize().
+      for (const text of [element.label_raw]) {
         if (!text) continue;
         for (const span of recognizeFn(text)) {
           results.push({ value: span.value, piiType: span.type, tier: span.tier, rect: element.rect, confidence: span.confidence, kind: 'value', elementId: element.id });
@@ -130,6 +132,10 @@ export function recognizeAll(raw: RawObservation, _frame: CapturedFrame | null =
         });
       }
     }
+  }
+
+  for (const hit of recognizeByContext(raw)) {
+    results.push({ value: hit.value, piiType: hit.type, tier: hit.tier, rect: hit.rect, confidence: hit.confidence, kind: 'value', textNodeId: hit.textNodeId });
   }
 
   return results;

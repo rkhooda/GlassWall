@@ -15,6 +15,8 @@ export type PiiType =
   | 'CVC'
   | 'OTP'
   | 'STREET_ADDRESS'
+  | 'CITY'
+  | 'STATE'
   | 'POSTAL_CODE'
   | 'BDAY'
   | 'MRN'
@@ -79,6 +81,8 @@ const tierMap: Record<PiiType, PiiTier> = {
   CVC: 1,
   OTP: 1,
   STREET_ADDRESS: 3,
+  CITY: 3,
+  STATE: 3,
   POSTAL_CODE: 3,
   BDAY: 3,
   MRN: 2,
