@@ -3,21 +3,42 @@ import { z } from 'zod';
 export const PolicyProfileSchema = z.enum(['STRICT', 'BALANCED', 'PERMISSIVE']);
 export type PolicyProfile = z.infer<typeof PolicyProfileSchema>;
 
+// One vocabulary for recognizers, tokenizer handles, vault binding and the planner.
+// India-specific identifiers are first-class so the audit can say "AADHAAR withheld".
 export const PiiTypeSchema = z.enum([
-  'EMAIL',
-  'PHONE',
-  'SSN',
-  'CREDIT_CARD',
-  'ADDRESS',
-  'NAME',
-  'USERNAME',
+  // Tier 1 — never leave the vault
   'PASSWORD',
+  'SECRET',
   'API_KEY',
   'TOKEN',
+  'CREDIT_CARD',
+  'CVC',
+  'OTP',
+  // Tier 2 — identifiers, checksum-verified where a checksum exists
+  'EMAIL',
+  'PHONE',
+  'AADHAAR',
+  'PAN',
+  'IFSC',
+  'GSTIN',
+  'UPI',
+  'MRN',
+  'SSN',
+  // Tier 3 — quasi-identifiers
+  'PERSON_NAME',
+  'STREET_ADDRESS',
+  'POSTAL_CODE',
+  'DOB',
+  'IP',
+  'ORGANIZATION',
+  'USERNAME',
+  // Coarse classes (fusion regions, legacy)
+  'NAME',
+  'ADDRESS',
   'PERSONAL',
   'FINANCIAL',
   'HEALTH',
-  'NONE'
+  'NONE',
 ]);
 export type PiiType = z.infer<typeof PiiTypeSchema>;
 
@@ -62,6 +83,9 @@ export const PolicyConfigSchema = z
     high_risk_actions: z.array(z.string()),
     require_confirmation: z.array(z.string()),
     max_elements: z.number().positive().default(400),
+    /** Only origin the egress gate will release a payload to. */
+    gateway_origin: z.string().url().optional(),
+    max_payload_bytes: z.number().positive().optional(),
   })
   .strict();
 export type PolicyConfig = z.infer<typeof PolicyConfigSchema>;

@@ -1,15 +1,21 @@
 import { z } from 'zod';
 
-// Brand for SafePayload - represents data that has passed through the egress gate
-// and is safe to send over the network
+// SafePayload: an outbound request that has passed every egress-gate check. It is
+// the only thing net.ts will send, and only egressGate() constructs it.
 export type SafePayload = {
   readonly __safePayloadBrand: '__safePayloadBrand';
+  readonly destination: string;
+  readonly path: string;
+  readonly method: 'GET' | 'POST';
+  readonly body: unknown;
 };
 
-// Zod schema for SafePayload - this is a marker interface
-// The actual payload structure will be defined by whoever creates it
 export const SafePayloadSchema = z.object({
   __safePayloadBrand: z.literal('__safePayloadBrand' as const),
+  destination: z.string().url(),
+  path: z.string().startsWith('/'),
+  method: z.enum(['GET', 'POST']),
+  body: z.unknown(),
 });
 
 // Brand for Sensitive<T> - represents data that should never be exposed in plaintext

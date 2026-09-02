@@ -17,6 +17,10 @@ import {
   AuditRecordSchema,
   AuditPrivacyFieldsSchema,
   SafePayloadSchema,
+  SessionRequestSchema,
+  StepRequestSchema,
+  StepResponseSchema,
+  HealthResponseSchema,
 } from '../src/index';
 
 // Note: PiiTypeSchema is excluded from generation due to compatibility issues with zod-to-json-schema
@@ -37,6 +41,10 @@ const SCHEMAS = [
   { name: 'AuditRecord', schema: AuditRecordSchema },
   { name: 'AuditPrivacyFields', schema: AuditPrivacyFieldsSchema },
   { name: 'SafePayload', schema: SafePayloadSchema },
+  { name: 'SessionRequest', schema: SessionRequestSchema },
+  { name: 'StepRequest', schema: StepRequestSchema },
+  { name: 'StepResponse', schema: StepResponseSchema },
+  { name: 'HealthResponse', schema: HealthResponseSchema },
 ];
 
 function main() {

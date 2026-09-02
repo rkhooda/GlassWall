@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { PiiType } from './policy';
+import { PiiTypeSchema } from './policy';
 
 export const RedactionReasonSchema = z.object({
   rect: z.tuple([z.number(), z.number(), z.number(), z.number()]),
@@ -27,22 +27,7 @@ export type SanitizeResult = z.infer<typeof SanitizeResultSchema>;
 
 export const DetectionSchema = z.object({
   type: z.enum(['regex', 'ner', 'ocr', 'vision', 'deterministic']),
-  pii_type: z.enum([
-    'EMAIL',
-    'PHONE',
-    'SSN',
-    'CREDIT_CARD',
-    'ADDRESS',
-    'NAME',
-    'USERNAME',
-    'PASSWORD',
-    'API_KEY',
-    'TOKEN',
-    'PERSONAL',
-    'FINANCIAL',
-    'HEALTH',
-    'NONE'
-  ]),
+  pii_type: PiiTypeSchema,
   confidence: z.number().min(0).max(1),
   rect: z.tuple([z.number(), z.number(), z.number(), z.number()]).optional(),
   text_span: z.string().optional(),
@@ -51,22 +36,7 @@ export const DetectionSchema = z.object({
 export type Detection = z.infer<typeof DetectionSchema>;
 
 export const PolicyDecisionSchema = z.object({
-  pii_type: z.enum([
-    'EMAIL',
-    'PHONE',
-    'SSN',
-    'CREDIT_CARD',
-    'ADDRESS',
-    'NAME',
-    'USERNAME',
-    'PASSWORD',
-    'API_KEY',
-    'TOKEN',
-    'PERSONAL',
-    'FINANCIAL',
-    'HEALTH',
-    'NONE'
-  ]),
+  pii_type: PiiTypeSchema,
   action: z.enum(['PASS', 'GENERALIZE', 'TOKENIZE', 'MASK', 'DROP', 'VAULT_ONLY']),
   threshold_matched: z.string(),
 });
