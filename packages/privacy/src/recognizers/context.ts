@@ -91,18 +91,24 @@ function tableHits(raw: RawObservation): ContextHit[] {
     if (headers.length < 2) continue;
 
     const top = line[0]!.rect[1] + line[0]!.rect[3] / 2;
-    const below = nodes.filter(c => c.rect[1] > top).sort((a, b) => a.rect[1] - b.rect[1]);
+    // A cell sits under exactly one column; text spanning several (a heading, a wide button) is not a cell.
+    const column = new Map<TextNode, TextNode>();
+    for (const c of nodes) {
+      if (c.rect[1] <= top) continue;
+      const under = line.filter(h => underColumn(h, c));
+      if (under.length === 1) column.set(c, under[0]!);
+    }
     const rows: TextNode[][] = [];
-    for (const cell of below) {
+    for (const cell of [...column.keys()].sort((a, b) => a.rect[1] - b.rect[1])) {
       const row = rows[rows.length - 1];
       if (row && sameLine(row[0]!, cell)) row.push(cell);
       else rows.push([cell]);
     }
     // Empty cells are allowed, but a row must fill at least two columns (and both of a two-column table).
     const needed = Math.max(2, Math.ceil(line.length / 2));
-    const complete = rows.filter(row => line.filter(h => row.some(c => underColumn(h, c))).length >= needed);
+    const complete = rows.filter(row => new Set(row.map(c => column.get(c))).size >= needed);
     for (const { n: header, rule } of headers) {
-      const cells = complete.flatMap(row => row.filter(c => underColumn(header, c)).slice(0, 1)).filter(c => !seen.has(c.id) && accept(rule!, c.text));
+      const cells = complete.flatMap(row => row.filter(c => column.get(c) === header).slice(0, 1)).filter(c => !seen.has(c.id) && accept(rule!, c.text));
       if (cells.length < 2) continue;
       for (const cell of cells) {
         seen.add(cell.id);
