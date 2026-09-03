@@ -398,4 +398,13 @@ export function generateDecoys(seed: number): PersonaValue[] {
   return generateDecoysInternal(rng);
 }
 
+export const PATIENT_IDS = ['P001', 'P002', 'P003'] as const;
+
+// Derives a distinct, deterministic seed per patient so list and detail
+// views stay in sync without a shared data store.
+export function patientSeed(baseSeed: number, patientId: string): number {
+  const offset = PATIENT_IDS.indexOf(patientId as (typeof PATIENT_IDS)[number]);
+  return baseSeed + Math.max(offset, 0);
+}
+
 export { verifyVerhoeff, verifyLuhn, verifyGstin };

@@ -1,5 +1,5 @@
 import { useParams } from 'react-router-dom';
-import { generatePersona } from '../../../data/generator';
+import { generatePersona, patientSeed } from '../../../data/generator';
 import type { Region } from '../../../instrument';
 import { piiAttrs, piiAttrsSpan, piiAttrsCanvas, piiAttrsImage, piiAttrsTextBlock } from '../../../instrument';
 import { useEffect, useRef, useState } from 'react';
@@ -10,7 +10,7 @@ interface PatientDetailPageProps {
 
 const PatientDetailPage = ({ seed }: PatientDetailPageProps) => {
   const { patientId } = useParams<{ patientId: string }>();
-  const persona = generatePersona(seed);
+  const persona = generatePersona(patientSeed(seed, patientId || 'P001'));
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [prescriptionDataUrl, setPrescriptionDataUrl] = useState<string>('');
 
