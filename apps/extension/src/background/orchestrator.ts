@@ -55,6 +55,14 @@ export function getState(): RunState {
 }
 
 export async function getAudit(): Promise<AuditEntry[]> {
+  // Chrome tears the worker down when idle; the panel may ask after a restart.
+  if (audit.length === 0) {
+    try {
+      audit = ((await chrome.storage.session.get(['gw:audit'])) as { 'gw:audit'?: AuditEntry[] })['gw:audit'] ?? [];
+    } catch {
+      /* storage unavailable: nothing to recover */
+    }
+  }
   return audit;
 }
 
@@ -244,6 +252,7 @@ export async function startRun(task: string, policy: PolicyProfile, tabIdHint?: 
   if (state.status === 'running' || state.status === 'waiting_confirmation') throw new Error('A run is already in progress');
   aborted = false;
   audit = [];
+  await chrome.storage.session.remove(['gw:audit']).catch(() => undefined);
   const localSessionId = crypto.randomUUID();
   setState({ status: 'running', sessionId: localSessionId, task, policy, step: 0, stepsLeft: DEFAULT_STEP_BUDGET, provider: null, outcome: undefined, message: undefined });
 

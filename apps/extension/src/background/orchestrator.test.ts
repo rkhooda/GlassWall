@@ -83,6 +83,15 @@ beforeEach(() => {
   resetRateLimitForTests();
 });
 
+describe('getAudit', () => {
+  it('recovers the log from storage.session after the worker restarts', async () => {
+    const stored = [{ step: 0, action: 'TYPE' }];
+    session['gw:audit'] = stored;
+    expect(await getAudit()).toEqual(stored);
+    delete session['gw:audit'];
+  });
+});
+
 describe('startRun', () => {
   it('fills a field from the vault: the literal reaches the tab, the wire only ever sees handles', async () => {
     plans = [
