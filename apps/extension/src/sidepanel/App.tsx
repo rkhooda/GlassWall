@@ -1,11 +1,29 @@
 // Side panel: task input, gateway status, run trace, and the privacy inspector.
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import type { PolicyProfile } from '@glasswall/schema/policy';
 import type { WorkerToPanel, RunState, TraceEntry, InspectPayload, ConfirmContext, PanelToWorker, HealthInfo, AuditEntry } from '../shared/messages';
 import { Inspector } from './privacy';
 import './styles.css';
 
 const IDLE: RunState = { status: 'idle', sessionId: null, task: '', policy: 'STRICT', step: 0, stepsLeft: 0, provider: null };
+
+/**
+ * A starting task per demo site, so the box is never empty when the panel opens on a
+ * page we know. It is only a prefill: anything typed here wins, and the planner reads
+ * whatever the box says — the site does not constrain what can be asked.
+ */
+const DEFAULT_TASKS: [RegExp, string][] = [
+  [/\/shoplite\/checkout/, 'Fill the shipping form with my saved details and place the order'],
+  [/\/shoplite\/injection/, 'Add this product to my cart'],
+  [/\/shoplite/, 'Search for wireless earbuds and add the top result to cart'],
+  [/\/govportal/, 'Fill the application form with the applicant profile on record and submit it'],
+  [/\/clinicdesk/, "Open the first patient's record"],
+];
+const GENERIC_TASK = 'Describe what you want done on this page';
+
+function defaultTaskFor(url: string | undefined): string {
+  return (url && DEFAULT_TASKS.find(([re]) => re.test(url))?.[1]) ?? '';
+}
 
 function send(message: PanelToWorker): Promise<unknown> {
   return chrome.runtime.sendMessage(message);
@@ -22,7 +40,9 @@ function describeAction(entry: TraceEntry): string {
 }
 
 export default function App() {
-  const [task, setTask] = useState('Fill the shipping form with my saved details and place the order');
+  const [task, setTask] = useState('');
+  // Once the box has been edited the prefill stops overwriting it, including on a tab switch.
+  const taskEditedRef = useRef(false);
   const [policy, setPolicy] = useState<PolicyProfile>('STRICT');
   const [state, setState] = useState<RunState>(IDLE);
   const [trace, setTrace] = useState<TraceEntry[]>([]);
@@ -53,7 +73,25 @@ export default function App() {
     chrome.runtime.onMessage.addListener(listener);
     void send({ type: 'gw:get-state' }).then(s => { if (s) setState(s as RunState); }).catch(() => undefined);
     refreshHealth();
-    return () => chrome.runtime.onMessage.removeListener(listener);
+
+    // Prefill the task from whatever tab is in front, and follow the user as they
+    // switch tabs or navigate, until they type their own task.
+    const prefill = () => {
+      void chrome.tabs
+        .query({ active: true, lastFocusedWindow: true })
+        .then(([t]) => setTask(prev => (taskEditedRef.current ? prev : defaultTaskFor(t?.url))))
+        .catch(() => undefined);
+    };
+    prefill();
+    const onActivated = () => prefill();
+    const onUpdated = (_id: number, change: chrome.tabs.TabChangeInfo) => { if (change.url) prefill(); };
+    chrome.tabs.onActivated.addListener(onActivated);
+    chrome.tabs.onUpdated.addListener(onUpdated);
+    return () => {
+      chrome.runtime.onMessage.removeListener(listener);
+      chrome.tabs.onActivated.removeListener(onActivated);
+      chrome.tabs.onUpdated.removeListener(onUpdated);
+    };
   }, []);
 
   const running = state.status === 'running' || state.status === 'waiting_confirmation';
@@ -125,7 +163,7 @@ export default function App() {
 
       <form className="task" onSubmit={e => { void onStart(e); }}>
         <label htmlFor="task">Task</label>
-        <textarea id="task" rows={2} value={task} onChange={e => setTask(e.target.value)} disabled={running} />
+        <textarea id="task" rows={2} value={task} placeholder={GENERIC_TASK} onChange={e => { taskEditedRef.current = true; setTask(e.target.value); }} disabled={running} />
         <div className="task-controls">
           <label>
             Policy

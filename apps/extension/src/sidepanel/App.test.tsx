@@ -7,10 +7,12 @@ import type { WorkerToPanel } from '../shared/messages';
 type Listener = (message: unknown) => void;
 const listeners = new Set<Listener>();
 const sent: unknown[] = [];
+let activeUrl = 'http://localhost:5173/clinicdesk/';
 
 beforeEach(() => {
   listeners.clear();
   sent.length = 0;
+  activeUrl = 'http://localhost:5173/clinicdesk/';
   (globalThis as { chrome?: unknown }).chrome = {
     runtime: {
       sendMessage: vi.fn(async (m: { type: string }) => {
@@ -23,12 +25,33 @@ beforeEach(() => {
       }),
       onMessage: { addListener: (l: Listener) => listeners.add(l), removeListener: (l: Listener) => listeners.delete(l) },
     },
+    tabs: {
+      query: vi.fn(async () => [{ url: activeUrl }]),
+      onActivated: { addListener: vi.fn(), removeListener: vi.fn() },
+      onUpdated: { addListener: vi.fn(), removeListener: vi.fn() },
+    },
   };
 });
 
 const emit = (m: WorkerToPanel) => act(() => { listeners.forEach(l => l(m)); });
 
 describe('side panel', () => {
+  it('prefills the task from the active site, and typing wins', async () => {
+    render(<App />);
+    await act(() => Promise.resolve());
+    const box = screen.getByLabelText<HTMLTextAreaElement>('Task');
+    expect(box.value).toBe("Open the first patient's record");
+    fireEvent.change(box, { target: { value: 'Open the third patient instead' } });
+    expect(screen.getByLabelText<HTMLTextAreaElement>('Task').value).toBe('Open the third patient instead');
+  });
+
+  it('leaves the task empty on a page it has no default for', async () => {
+    activeUrl = 'https://example.com/anything';
+    render(<App />);
+    await act(() => Promise.resolve());
+    expect(screen.getByLabelText<HTMLTextAreaElement>('Task').value).toBe('');
+  });
+
   it('starts a run, shows the trace, and reports completion', async () => {
     render(<App />);
     await act(() => Promise.resolve());
