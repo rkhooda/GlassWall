@@ -31,7 +31,7 @@ Action types and their required fields:
   SCROLL     {"type":"SCROLL","direction":"down","amount":1}
   SELECT     {"type":"SELECT","target":{...},"option_index":2}
   PRESS_KEY  {"type":"PRESS_KEY","key":"Enter","target":{...}}
-  NAVIGATE   {"type":"NAVIGATE","url_template":"/path"}
+  NAVIGATE   {"type":"NAVIGATE","url_template":"/path"} — only to a page you are not already on; compare against the url= on the Page line first, and if you have arrived, emit DONE instead of navigating again
   WAIT       {"type":"WAIT","condition":"stable"}
   BACK       {"type":"BACK"}
   DONE       {"type":"DONE","outcome":"success","evidence_element":"e12"}`;
