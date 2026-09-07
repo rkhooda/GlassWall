@@ -27,24 +27,32 @@ vi.mock('./capture', () => ({
 }));
 
 const session: Record<string, unknown> = {};
+/** Set to make the next gw:ping fail, as it does when a navigation tore the content script down. */
+let pingFails = false;
+const injected: string[][] = [];
 const withCallback = <T,>(value: T, cb?: (v: T) => void) => { cb?.(value); return Promise.resolve(value); };
 (globalThis as { chrome?: unknown }).chrome = {
   runtime: {
     lastError: undefined,
     sendMessage: (m: { type: string }) => { panel.push(m); return Promise.resolve(undefined); },
     getURL: (p: string) => `chrome-extension://id/${p}`,
+    // The built manifest points at the bundler's hashed asset, never the source file.
+    getManifest: () => ({ content_scripts: [{ js: ['assets/index.ts-abc123.js'] }] }),
   },
   tabs: {
     query: async () => [{ id: 7, url: 'http://localhost:5173/shoplite/checkout', active: true }],
     sendMessage: async (_id: number, m: { type: string; action?: never }) => {
       tab.push(m);
-      if (m.type === 'gw:ping') return { type: 'gw:pong' };
+      if (m.type === 'gw:ping') {
+        if (pingFails) { pingFails = false; throw new Error('Could not establish connection. Receiving end does not exist.'); }
+        return { type: 'gw:pong' };
+      }
       if (m.type === 'gw:observe') return { type: 'gw:observation', observation: observation() };
       if (m.type === 'gw:execute') return { type: 'gw:action-result', result: { ok: true, effect_observed: true, error_code: 'NONE' } };
       return { type: 'gw:ok' };
     },
   },
-  scripting: { executeScript: async () => [] },
+  scripting: { executeScript: async ({ files }: { files: string[] }) => { injected.push(files); return []; } },
   storage: {
     session: {
       get: (keys: string[] | null, cb?: (r: Record<string, unknown>) => void) => withCallback(Object.fromEntries(keys?.length ? keys.filter(k => k in session).map(k => [k, session[k]]) : Object.entries(session)), cb),
@@ -75,7 +83,7 @@ const envelope = (req: StepRequest, action: ActionEnvelope['action'], extra: Par
 const done = (req: StepRequest) => envelope(req, { type: 'DONE', outcome: 'success' });
 
 beforeEach(() => {
-  wire.length = 0; tab.length = 0; panel.length = 0;
+  wire.length = 0; tab.length = 0; panel.length = 0; injected.length = 0; pingFails = false;
   for (const k of Object.keys(session)) delete session[k];
   perceiveOk = true;
   observation = () => checkoutPage(0);
@@ -93,6 +101,14 @@ describe('getAudit', () => {
 });
 
 describe('startRun', () => {
+  it('re-injects the content script from the manifest, not the source path', async () => {
+    pingFails = true;
+    plans = [done];
+    await startRun('t', 'STRICT');
+    expect(injected).toEqual([['assets/index.ts-abc123.js']]);
+    expect(getState()).toMatchObject({ status: 'done', outcome: 'success' });
+  });
+
   it('fills a field from the vault: the literal reaches the tab, the wire only ever sees handles', async () => {
     plans = [
       req => envelope(req, { type: 'TYPE', target: { id: 'e1', id_hash: el(req, 'e1').id_hash }, value: { kind: 'vault_ref', handle: handleOf(req, 'EMAIL') }, clear_first: true }),

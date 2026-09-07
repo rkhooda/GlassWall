@@ -139,7 +139,11 @@ async function ensureContentScript(tabId: number): Promise<void> {
     await sendToTab(tabId, { type: 'gw:ping' }, 1500);
   } catch {
     // The page was open before the extension loaded, or just navigated: inject now.
-    await chrome.scripting.executeScript({ target: { tabId }, files: ['src/content/index.ts'] });
+    // The bundler rewrites the manifest path to a hashed asset, so read it back
+    // rather than hardcoding the source path — that only resolves in an unbuilt tree.
+    const files = chrome.runtime.getManifest().content_scripts?.flatMap(cs => cs.js ?? []) ?? [];
+    if (files.length === 0) throw new RunError('NO_CONTENT_SCRIPT', 'manifest declares no content script to inject');
+    await chrome.scripting.executeScript({ target: { tabId }, files });
     await sendToTab(tabId, { type: 'gw:ping' }, 3000);
   }
 }
