@@ -1,9 +1,11 @@
 // Provider registry and failover. Order (env GLASSWALL_PROVIDER_ORDER, default
 // "openai,anthropic,scripted"): try each configured provider; on transport or
-// validation failure move to the next. The scripted planner is always last, so a
-// step always returns an action even with no network and no key.
+// validation failure move to the next. "openai" expands to one provider per model
+// in GLASSWALL_LLM_MODEL, so a spent quota falls through to the next model. The
+// scripted planner is always last, so a step always returns an action even with no
+// network and no key.
 import type { Provider, PlanInput } from './types';
-import { createOpenAiCompatibleProvider } from './openai-compatible';
+import { createOpenAiCompatibleProviders } from './openai-compatible';
 import { createAnthropicProvider } from './anthropic';
 import { scriptedProvider } from './scripted';
 import { hijackedProvider } from './hijacked';
@@ -13,12 +15,12 @@ export { scriptedProvider, planScripted } from './scripted';
 
 export function buildProviderChain(env: NodeJS.ProcessEnv = process.env): Provider[] {
   const order = (env.GLASSWALL_PROVIDER_ORDER ?? 'openai,anthropic,scripted').split(',').map(s => s.trim());
-  const byName: Record<string, Provider | null> = {
-    openai: createOpenAiCompatibleProvider(env),
-    anthropic: createAnthropicProvider(env),
-    scripted: scriptedProvider,
+  const byName: Record<string, Provider[]> = {
+    openai: createOpenAiCompatibleProviders(env),
+    anthropic: [createAnthropicProvider(env)].filter((p): p is Provider => p !== null),
+    scripted: [scriptedProvider],
   };
-  const chain = order.map(n => byName[n] ?? null).filter((p): p is Provider => p !== null);
+  const chain = order.flatMap(n => byName[n] ?? []);
   if (!chain.includes(scriptedProvider)) chain.push(scriptedProvider);
   // Demo switch: a simulated prompt-injected planner goes first so judges can watch the client block it.
   if (env.GLASSWALL_DEMO_HIJACKED === '1') chain.unshift(hijackedProvider);

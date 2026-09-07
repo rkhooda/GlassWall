@@ -23,6 +23,21 @@ function extractJson(text: string): unknown {
   return JSON.parse(candidate.slice(start, end + 1));
 }
 
+/**
+ * One provider per model in GLASSWALL_LLM_MODEL (comma-separated), sharing the same
+ * endpoint and key. A second model is the cheap insurance for a live demo: when the
+ * first one's quota is spent the chain still reaches a reasoner instead of dropping
+ * to the scripted planner, which cannot handle an unrehearsed task.
+ */
+export function createOpenAiCompatibleProviders(env: NodeJS.ProcessEnv = process.env): Provider[] {
+  return (env.GLASSWALL_LLM_MODEL ?? '')
+    .split(',')
+    .map(m => m.trim())
+    .filter(Boolean)
+    .map(model => createOpenAiCompatibleProvider({ ...env, GLASSWALL_LLM_MODEL: model }))
+    .filter((p): p is Provider => p !== null);
+}
+
 export function createOpenAiCompatibleProvider(env: NodeJS.ProcessEnv = process.env): Provider | null {
   const model = env.GLASSWALL_LLM_MODEL;
   if (!model) return null;
@@ -53,6 +68,7 @@ export function createOpenAiCompatibleProvider(env: NodeJS.ProcessEnv = process.
     },
     async plan(input: PlanInput) {
       const userText = assemblePrompt(input);
+      if (process.env.GW_DUMP_PROMPT) { const fs = await import('node:fs'); fs.appendFileSync(process.env.GW_DUMP_PROMPT, `\n===== step ${input.stepIndex} =====\n${userText}\n`); }
       const content: ChatMessage['content'] =
         vision && input.screenshot
           ? [{ type: 'text', text: userText }, { type: 'image_url', image_url: { url: `data:${input.screenshot.mime};base64,${input.screenshot.data_base64}` } }]
