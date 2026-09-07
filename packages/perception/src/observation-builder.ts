@@ -141,9 +141,6 @@ export function deriveAvailableActions(element: RawObservation['elements'][0]): 
   if (element.tag === 'select') {
     actions.push('SELECT');
   }
-  if (element.role === 'button' || element.tag === 'a') {
-    actions.push('CLICK');
-  }
   actions.push('SCROLL');
   actions.push('PRESS_KEY');
   return actions;
