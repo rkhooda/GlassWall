@@ -3,9 +3,9 @@
     "Hardware": "Apple M1 · 8 cores · 8 GB",
     "OS": "Darwin 25.5.0 (arm64)",
     "Node": "v24.20.0",
-    "Commit": "2b014ce",
-    "Measured": "2026-09-02T09:42:36.762Z",
-    "Seeds": "1337, 42, 7",
+    "Commit": "a13a20d",
+    "Measured": "2026-09-07T19:47:56.974Z",
+    "Seeds": "1337",
     "Policies": "STRICT, BALANCED"
   },
   "metrics": {
@@ -37,94 +37,16 @@
           "justified": 83
         },
         "resources": {
-          "localMsPerStep": 1163,
-          "payloadBytesP50": 17333,
+          "localMsPerStep": 628,
+          "payloadBytesP50": 17307,
           "screenshotBytesP50": 0,
           "steps": 10
         },
         "latency": {
-          "totalMs": 15671,
-          "stepP50": 976,
-          "stepP95": 2755,
-          "reasonerMsPerStep": 9
-        }
-      },
-      {
-        "taskId": "T1",
-        "seed": 42,
-        "policy": "STRICT",
-        "success": true,
-        "steps": 10,
-        "visual": {
-          "recall": 0.88,
-          "precision": 0.9821428571428571,
-          "matched": 110,
-          "truth": 125,
-          "observed": 112
-        },
-        "detection": {
-          "recall": 1,
-          "precision": 1,
-          "tp": 6,
-          "fn": 0,
-          "fp": 0,
-          "leakedValues": []
-        },
-        "redaction": {
-          "precision": 0.9120879120879121,
-          "total": 91,
-          "justified": 83
-        },
-        "resources": {
-          "localMsPerStep": 936,
-          "payloadBytesP50": 17333,
-          "screenshotBytesP50": 0,
-          "steps": 10
-        },
-        "latency": {
-          "totalMs": 13064,
-          "stepP50": 1005,
-          "stepP95": 1508,
-          "reasonerMsPerStep": 8
-        }
-      },
-      {
-        "taskId": "T1",
-        "seed": 7,
-        "policy": "STRICT",
-        "success": true,
-        "steps": 10,
-        "visual": {
-          "recall": 0.88,
-          "precision": 0.9821428571428571,
-          "matched": 110,
-          "truth": 125,
-          "observed": 112
-        },
-        "detection": {
-          "recall": 1,
-          "precision": 1,
-          "tp": 6,
-          "fn": 0,
-          "fp": 0,
-          "leakedValues": []
-        },
-        "redaction": {
-          "precision": 0.9120879120879121,
-          "total": 91,
-          "justified": 83
-        },
-        "resources": {
-          "localMsPerStep": 811,
-          "payloadBytesP50": 17431,
-          "screenshotBytesP50": 0,
-          "steps": 10
-        },
-        "latency": {
-          "totalMs": 11331,
-          "stepP50": 891,
-          "stepP95": 1208,
-          "reasonerMsPerStep": 3
+          "totalMs": 44200,
+          "stepP50": 4080,
+          "stepP95": 6377,
+          "reasonerMsPerStep": 3578
         }
       },
       {
@@ -154,94 +76,16 @@
           "justified": 83
         },
         "resources": {
-          "localMsPerStep": 879,
-          "payloadBytesP50": 63869,
+          "localMsPerStep": 804,
+          "payloadBytesP50": 63804,
           "screenshotBytesP50": 48968,
           "steps": 10
         },
         "latency": {
-          "totalMs": 12084,
-          "stepP50": 936,
-          "stepP95": 1502,
-          "reasonerMsPerStep": 5
-        }
-      },
-      {
-        "taskId": "T1",
-        "seed": 42,
-        "policy": "BALANCED",
-        "success": true,
-        "steps": 10,
-        "visual": {
-          "recall": 0.88,
-          "precision": 0.9821428571428571,
-          "matched": 110,
-          "truth": 125,
-          "observed": 112
-        },
-        "detection": {
-          "recall": 1,
-          "precision": 1,
-          "tp": 6,
-          "fn": 0,
-          "fp": 0,
-          "leakedValues": []
-        },
-        "redaction": {
-          "precision": 0.9120879120879121,
-          "total": 91,
-          "justified": 83
-        },
-        "resources": {
-          "localMsPerStep": 896,
-          "payloadBytesP50": 63712,
-          "screenshotBytesP50": 48820,
-          "steps": 10
-        },
-        "latency": {
-          "totalMs": 12144,
-          "stepP50": 943,
-          "stepP95": 1478,
-          "reasonerMsPerStep": 6
-        }
-      },
-      {
-        "taskId": "T1",
-        "seed": 7,
-        "policy": "BALANCED",
-        "success": true,
-        "steps": 10,
-        "visual": {
-          "recall": 0.88,
-          "precision": 0.9821428571428571,
-          "matched": 110,
-          "truth": 125,
-          "observed": 112
-        },
-        "detection": {
-          "recall": 1,
-          "precision": 1,
-          "tp": 6,
-          "fn": 0,
-          "fp": 0,
-          "leakedValues": []
-        },
-        "redaction": {
-          "precision": 0.9120879120879121,
-          "total": 91,
-          "justified": 83
-        },
-        "resources": {
-          "localMsPerStep": 998,
-          "payloadBytesP50": 63896,
-          "screenshotBytesP50": 48896,
-          "steps": 10
-        },
-        "latency": {
-          "totalMs": 13673,
-          "stepP50": 965,
-          "stepP95": 2420,
-          "reasonerMsPerStep": 6
+          "totalMs": 42335,
+          "stepP50": 4026,
+          "stepP95": 5892,
+          "reasonerMsPerStep": 3180
         }
       },
       {
@@ -271,94 +115,16 @@
           "justified": 0
         },
         "resources": {
-          "localMsPerStep": 1454,
-          "payloadBytesP50": 15040,
+          "localMsPerStep": 849,
+          "payloadBytesP50": 14944,
           "screenshotBytesP50": 0,
           "steps": 2
         },
         "latency": {
-          "totalMs": 4543,
-          "stepP50": 1858,
-          "stepP95": 1858,
-          "reasonerMsPerStep": 4
-        }
-      },
-      {
-        "taskId": "T2",
-        "seed": 42,
-        "policy": "STRICT",
-        "success": true,
-        "steps": 2,
-        "visual": {
-          "recall": 1,
-          "precision": 1,
-          "matched": 23,
-          "truth": 23,
-          "observed": 23
-        },
-        "detection": {
-          "recall": 1,
-          "precision": 1,
-          "tp": 0,
-          "fn": 0,
-          "fp": 0,
-          "leakedValues": []
-        },
-        "redaction": {
-          "precision": 1,
-          "total": 0,
-          "justified": 0
-        },
-        "resources": {
-          "localMsPerStep": 1423,
-          "payloadBytesP50": 15039,
-          "screenshotBytesP50": 0,
-          "steps": 2
-        },
-        "latency": {
-          "totalMs": 4418,
-          "stepP50": 1819,
-          "stepP95": 1819,
-          "reasonerMsPerStep": 4
-        }
-      },
-      {
-        "taskId": "T2",
-        "seed": 7,
-        "policy": "STRICT",
-        "success": true,
-        "steps": 2,
-        "visual": {
-          "recall": 1,
-          "precision": 1,
-          "matched": 23,
-          "truth": 23,
-          "observed": 23
-        },
-        "detection": {
-          "recall": 1,
-          "precision": 1,
-          "tp": 0,
-          "fn": 0,
-          "fp": 0,
-          "leakedValues": []
-        },
-        "redaction": {
-          "precision": 1,
-          "total": 0,
-          "justified": 0
-        },
-        "resources": {
-          "localMsPerStep": 1386,
-          "payloadBytesP50": 15036,
-          "screenshotBytesP50": 0,
-          "steps": 2
-        },
-        "latency": {
-          "totalMs": 4034,
-          "stepP50": 1784,
-          "stepP95": 1784,
-          "reasonerMsPerStep": 3
+          "totalMs": 6188,
+          "stepP50": 2958,
+          "stepP95": 2958,
+          "reasonerMsPerStep": 1827
         }
       },
       {
@@ -388,94 +154,16 @@
           "justified": 0
         },
         "resources": {
-          "localMsPerStep": 2221,
-          "payloadBytesP50": 61530,
+          "localMsPerStep": 1026,
+          "payloadBytesP50": 61434,
           "screenshotBytesP50": 46348,
           "steps": 2
         },
         "latency": {
-          "totalMs": 6443,
-          "stepP50": 2401,
-          "stepP95": 2401,
-          "reasonerMsPerStep": 22
-        }
-      },
-      {
-        "taskId": "T2",
-        "seed": 42,
-        "policy": "BALANCED",
-        "success": true,
-        "steps": 2,
-        "visual": {
-          "recall": 1,
-          "precision": 1,
-          "matched": 23,
-          "truth": 23,
-          "observed": 23
-        },
-        "detection": {
-          "recall": 1,
-          "precision": 1,
-          "tp": 0,
-          "fn": 0,
-          "fp": 0,
-          "leakedValues": []
-        },
-        "redaction": {
-          "precision": 1,
-          "total": 0,
-          "justified": 0
-        },
-        "resources": {
-          "localMsPerStep": 4944,
-          "payloadBytesP50": 61529,
-          "screenshotBytesP50": 46348,
-          "steps": 2
-        },
-        "latency": {
-          "totalMs": 10823,
-          "stepP50": 8322,
-          "stepP95": 8322,
-          "reasonerMsPerStep": 25
-        }
-      },
-      {
-        "taskId": "T2",
-        "seed": 7,
-        "policy": "BALANCED",
-        "success": true,
-        "steps": 2,
-        "visual": {
-          "recall": 1,
-          "precision": 1,
-          "matched": 23,
-          "truth": 23,
-          "observed": 23
-        },
-        "detection": {
-          "recall": 1,
-          "precision": 1,
-          "tp": 0,
-          "fn": 0,
-          "fp": 0,
-          "leakedValues": []
-        },
-        "redaction": {
-          "precision": 1,
-          "total": 0,
-          "justified": 0
-        },
-        "resources": {
-          "localMsPerStep": 2326,
-          "payloadBytesP50": 61526,
-          "screenshotBytesP50": 46348,
-          "steps": 2
-        },
-        "latency": {
-          "totalMs": 7118,
-          "stepP50": 3031,
-          "stepP95": 3031,
-          "reasonerMsPerStep": 22
+          "totalMs": 6949,
+          "stepP50": 3653,
+          "stepP95": 3653,
+          "reasonerMsPerStep": 2081
         }
       },
       {
@@ -483,13 +171,13 @@
         "seed": 1337,
         "policy": "STRICT",
         "success": true,
-        "steps": 4,
+        "steps": 2,
         "visual": {
           "recall": 1,
           "precision": 1,
-          "matched": 42,
-          "truth": 42,
-          "observed": 42
+          "matched": 26,
+          "truth": 26,
+          "observed": 26
         },
         "detection": {
           "recall": 1,
@@ -505,94 +193,16 @@
           "justified": 0
         },
         "resources": {
-          "localMsPerStep": 1280,
-          "payloadBytesP50": 15040,
+          "localMsPerStep": 1248,
+          "payloadBytesP50": 15315,
           "screenshotBytesP50": 0,
-          "steps": 4
+          "steps": 2
         },
         "latency": {
-          "totalMs": 7795,
-          "stepP50": 1492,
-          "stepP95": 2268,
-          "reasonerMsPerStep": 11
-        }
-      },
-      {
-        "taskId": "T3",
-        "seed": 42,
-        "policy": "STRICT",
-        "success": true,
-        "steps": 4,
-        "visual": {
-          "recall": 1,
-          "precision": 1,
-          "matched": 42,
-          "truth": 42,
-          "observed": 42
-        },
-        "detection": {
-          "recall": 1,
-          "precision": 1,
-          "tp": 0,
-          "fn": 0,
-          "fp": 0,
-          "leakedValues": []
-        },
-        "redaction": {
-          "precision": 1,
-          "total": 0,
-          "justified": 0
-        },
-        "resources": {
-          "localMsPerStep": 1222,
-          "payloadBytesP50": 15039,
-          "screenshotBytesP50": 0,
-          "steps": 4
-        },
-        "latency": {
-          "totalMs": 7130,
-          "stepP50": 1334,
-          "stepP95": 1948,
-          "reasonerMsPerStep": 5
-        }
-      },
-      {
-        "taskId": "T3",
-        "seed": 7,
-        "policy": "STRICT",
-        "success": true,
-        "steps": 4,
-        "visual": {
-          "recall": 1,
-          "precision": 1,
-          "matched": 42,
-          "truth": 42,
-          "observed": 42
-        },
-        "detection": {
-          "recall": 1,
-          "precision": 1,
-          "tp": 0,
-          "fn": 0,
-          "fp": 0,
-          "leakedValues": []
-        },
-        "redaction": {
-          "precision": 1,
-          "total": 0,
-          "justified": 0
-        },
-        "resources": {
-          "localMsPerStep": 1450,
-          "payloadBytesP50": 15036,
-          "screenshotBytesP50": 0,
-          "steps": 4
-        },
-        "latency": {
-          "totalMs": 8461,
-          "stepP50": 1332,
-          "stepP95": 3125,
-          "reasonerMsPerStep": 4
+          "totalMs": 6217,
+          "stepP50": 3147,
+          "stepP95": 3147,
+          "reasonerMsPerStep": 1628
         }
       },
       {
@@ -600,13 +210,13 @@
         "seed": 1337,
         "policy": "BALANCED",
         "success": true,
-        "steps": 4,
+        "steps": 2,
         "visual": {
           "recall": 1,
           "precision": 1,
-          "matched": 42,
-          "truth": 42,
-          "observed": 42
+          "matched": 26,
+          "truth": 26,
+          "observed": 26
         },
         "detection": {
           "recall": 1,
@@ -622,94 +232,16 @@
           "justified": 0
         },
         "resources": {
-          "localMsPerStep": 2495,
-          "payloadBytesP50": 61530,
-          "screenshotBytesP50": 46348,
-          "steps": 4
+          "localMsPerStep": 1168,
+          "payloadBytesP50": 72482,
+          "screenshotBytesP50": 57008,
+          "steps": 2
         },
         "latency": {
-          "totalMs": 12997,
-          "stepP50": 3397,
-          "stepP95": 3615,
-          "reasonerMsPerStep": 61
-        }
-      },
-      {
-        "taskId": "T3",
-        "seed": 42,
-        "policy": "BALANCED",
-        "success": true,
-        "steps": 4,
-        "visual": {
-          "recall": 1,
-          "precision": 1,
-          "matched": 42,
-          "truth": 42,
-          "observed": 42
-        },
-        "detection": {
-          "recall": 1,
-          "precision": 1,
-          "tp": 0,
-          "fn": 0,
-          "fp": 0,
-          "leakedValues": []
-        },
-        "redaction": {
-          "precision": 1,
-          "total": 0,
-          "justified": 0
-        },
-        "resources": {
-          "localMsPerStep": 2354,
-          "payloadBytesP50": 61529,
-          "screenshotBytesP50": 46348,
-          "steps": 4
-        },
-        "latency": {
-          "totalMs": 12639,
-          "stepP50": 2760,
-          "stepP95": 3881,
-          "reasonerMsPerStep": 42
-        }
-      },
-      {
-        "taskId": "T3",
-        "seed": 7,
-        "policy": "BALANCED",
-        "success": true,
-        "steps": 4,
-        "visual": {
-          "recall": 1,
-          "precision": 1,
-          "matched": 42,
-          "truth": 42,
-          "observed": 42
-        },
-        "detection": {
-          "recall": 1,
-          "precision": 1,
-          "tp": 0,
-          "fn": 0,
-          "fp": 0,
-          "leakedValues": []
-        },
-        "redaction": {
-          "precision": 1,
-          "total": 0,
-          "justified": 0
-        },
-        "resources": {
-          "localMsPerStep": 1947,
-          "payloadBytesP50": 61526,
-          "screenshotBytesP50": 46348,
-          "steps": 4
-        },
-        "latency": {
-          "totalMs": 10672,
-          "stepP50": 2551,
-          "stepP95": 3765,
-          "reasonerMsPerStep": 22
+          "totalMs": 6385,
+          "stepP50": 3147,
+          "stepP95": 3147,
+          "reasonerMsPerStep": 1681
         }
       },
       {
@@ -739,94 +271,16 @@
           "justified": 131
         },
         "resources": {
-          "localMsPerStep": 1796,
-          "payloadBytesP50": 16555,
+          "localMsPerStep": 750,
+          "payloadBytesP50": 16530,
           "screenshotBytesP50": 0,
           "steps": 13
         },
         "latency": {
-          "totalMs": 28593,
-          "stepP50": 1866,
-          "stepP95": 4364,
-          "reasonerMsPerStep": 18
-        }
-      },
-      {
-        "taskId": "T4",
-        "seed": 42,
-        "policy": "STRICT",
-        "success": true,
-        "steps": 13,
-        "visual": {
-          "recall": 1,
-          "precision": 1,
-          "matched": 60,
-          "truth": 60,
-          "observed": 60
-        },
-        "detection": {
-          "recall": 1,
-          "precision": 1,
-          "tp": 8,
-          "fn": 0,
-          "fp": 0,
-          "leakedValues": []
-        },
-        "redaction": {
-          "precision": 0.9290780141843972,
-          "total": 141,
-          "justified": 131
-        },
-        "resources": {
-          "localMsPerStep": 1760,
-          "payloadBytesP50": 16753,
-          "screenshotBytesP50": 0,
-          "steps": 13
-        },
-        "latency": {
-          "totalMs": 28041,
-          "stepP50": 2027,
-          "stepP95": 2394,
-          "reasonerMsPerStep": 26
-        }
-      },
-      {
-        "taskId": "T4",
-        "seed": 7,
-        "policy": "STRICT",
-        "success": true,
-        "steps": 13,
-        "visual": {
-          "recall": 1,
-          "precision": 1,
-          "matched": 60,
-          "truth": 60,
-          "observed": 60
-        },
-        "detection": {
-          "recall": 1,
-          "precision": 1,
-          "tp": 8,
-          "fn": 0,
-          "fp": 0,
-          "leakedValues": []
-        },
-        "redaction": {
-          "precision": 0.9290780141843972,
-          "total": 141,
-          "justified": 131
-        },
-        "resources": {
-          "localMsPerStep": 1474,
-          "payloadBytesP50": 16544,
-          "screenshotBytesP50": 0,
-          "steps": 13
-        },
-        "latency": {
-          "totalMs": 24829,
-          "stepP50": 1363,
-          "stepP95": 3014,
-          "reasonerMsPerStep": 10
+          "totalMs": 39286,
+          "stepP50": 2524,
+          "stepP95": 4991,
+          "reasonerMsPerStep": 2082
         }
       },
       {
@@ -856,94 +310,16 @@
           "justified": 131
         },
         "resources": {
-          "localMsPerStep": 1375,
-          "payloadBytesP50": 84115,
+          "localMsPerStep": 844,
+          "payloadBytesP50": 84178,
           "screenshotBytesP50": 66804,
           "steps": 13
         },
         "latency": {
-          "totalMs": 23268,
-          "stepP50": 1216,
-          "stepP95": 2959,
-          "reasonerMsPerStep": 15
-        }
-      },
-      {
-        "taskId": "T4",
-        "seed": 42,
-        "policy": "BALANCED",
-        "success": true,
-        "steps": 13,
-        "visual": {
-          "recall": 1,
-          "precision": 1,
-          "matched": 60,
-          "truth": 60,
-          "observed": 60
-        },
-        "detection": {
-          "recall": 1,
-          "precision": 1,
-          "tp": 8,
-          "fn": 0,
-          "fp": 0,
-          "leakedValues": []
-        },
-        "redaction": {
-          "precision": 0.9290780141843972,
-          "total": 141,
-          "justified": 131
-        },
-        "resources": {
-          "localMsPerStep": 1141,
-          "payloadBytesP50": 85023,
-          "screenshotBytesP50": 67488,
-          "steps": 13
-        },
-        "latency": {
-          "totalMs": 20285,
-          "stepP50": 1178,
-          "stepP95": 2155,
-          "reasonerMsPerStep": 10
-        }
-      },
-      {
-        "taskId": "T4",
-        "seed": 7,
-        "policy": "BALANCED",
-        "success": true,
-        "steps": 13,
-        "visual": {
-          "recall": 1,
-          "precision": 1,
-          "matched": 60,
-          "truth": 60,
-          "observed": 60
-        },
-        "detection": {
-          "recall": 1,
-          "precision": 1,
-          "tp": 8,
-          "fn": 0,
-          "fp": 0,
-          "leakedValues": []
-        },
-        "redaction": {
-          "precision": 0.9290780141843972,
-          "total": 141,
-          "justified": 131
-        },
-        "resources": {
-          "localMsPerStep": 1098,
-          "payloadBytesP50": 83700,
-          "screenshotBytesP50": 66400,
-          "steps": 13
-        },
-        "latency": {
-          "totalMs": 18931,
-          "stepP50": 1091,
-          "stepP95": 1872,
-          "reasonerMsPerStep": 7
+          "totalMs": 45257,
+          "stepP50": 2670,
+          "stepP95": 9454,
+          "reasonerMsPerStep": 2398
         }
       },
       {
@@ -973,94 +349,16 @@
           "justified": 15
         },
         "resources": {
-          "localMsPerStep": 3314,
-          "payloadBytesP50": 65989,
-          "screenshotBytesP50": 53016,
+          "localMsPerStep": 1928,
+          "payloadBytesP50": 66742,
+          "screenshotBytesP50": 53532,
           "steps": 2
         },
         "latency": {
-          "totalMs": 8612,
-          "stepP50": 4039,
-          "stepP95": 4039,
-          "reasonerMsPerStep": 14
-        }
-      },
-      {
-        "taskId": "T5",
-        "seed": 42,
-        "policy": "BALANCED",
-        "success": true,
-        "steps": 2,
-        "visual": {
-          "recall": 1,
-          "precision": 1,
-          "matched": 5,
-          "truth": 5,
-          "observed": 5
-        },
-        "detection": {
-          "recall": 1,
-          "precision": 0.75,
-          "tp": 12,
-          "fn": 0,
-          "fp": 4,
-          "leakedValues": []
-        },
-        "redaction": {
-          "precision": 0.8333333333333334,
-          "total": 18,
-          "justified": 15
-        },
-        "resources": {
-          "localMsPerStep": 2672,
-          "payloadBytesP50": 65467,
-          "screenshotBytesP50": 52484,
-          "steps": 2
-        },
-        "latency": {
-          "totalMs": 7125,
-          "stepP50": 3385,
-          "stepP95": 3385,
-          "reasonerMsPerStep": 7
-        }
-      },
-      {
-        "taskId": "T5",
-        "seed": 7,
-        "policy": "BALANCED",
-        "success": true,
-        "steps": 2,
-        "visual": {
-          "recall": 1,
-          "precision": 1,
-          "matched": 5,
-          "truth": 5,
-          "observed": 5
-        },
-        "detection": {
-          "recall": 1,
-          "precision": 0.75,
-          "tp": 12,
-          "fn": 0,
-          "fp": 4,
-          "leakedValues": []
-        },
-        "redaction": {
-          "precision": 0.8235294117647058,
-          "total": 17,
-          "justified": 14
-        },
-        "resources": {
-          "localMsPerStep": 3898,
-          "payloadBytesP50": 66592,
-          "screenshotBytesP50": 53656,
-          "steps": 2
-        },
-        "latency": {
-          "totalMs": 9192,
-          "stepP50": 4034,
-          "stepP95": 4034,
-          "reasonerMsPerStep": 11
+          "totalMs": 9636,
+          "stepP50": 5412,
+          "stepP95": 5412,
+          "reasonerMsPerStep": 2604
         }
       },
       {
@@ -1090,94 +388,16 @@
           "justified": 4
         },
         "resources": {
-          "localMsPerStep": 1471,
-          "payloadBytesP50": 10288,
+          "localMsPerStep": 1144,
+          "payloadBytesP50": 10289,
           "screenshotBytesP50": 0,
           "steps": 2
         },
         "latency": {
-          "totalMs": 4422,
-          "stepP50": 1671,
-          "stepP95": 1671,
-          "reasonerMsPerStep": 4
-        }
-      },
-      {
-        "taskId": "T7",
-        "seed": 42,
-        "policy": "STRICT",
-        "success": true,
-        "steps": 2,
-        "visual": {
-          "recall": 1,
-          "precision": 1,
-          "matched": 16,
-          "truth": 16,
-          "observed": 16
-        },
-        "detection": {
-          "recall": 1,
-          "precision": 1,
-          "tp": 2,
-          "fn": 0,
-          "fp": 0,
-          "leakedValues": []
-        },
-        "redaction": {
-          "precision": 1,
-          "total": 4,
-          "justified": 4
-        },
-        "resources": {
-          "localMsPerStep": 1583,
-          "payloadBytesP50": 10385,
-          "screenshotBytesP50": 0,
-          "steps": 2
-        },
-        "latency": {
-          "totalMs": 5098,
-          "stepP50": 1805,
-          "stepP95": 1805,
-          "reasonerMsPerStep": 7
-        }
-      },
-      {
-        "taskId": "T7",
-        "seed": 7,
-        "policy": "STRICT",
-        "success": true,
-        "steps": 2,
-        "visual": {
-          "recall": 1,
-          "precision": 1,
-          "matched": 16,
-          "truth": 16,
-          "observed": 16
-        },
-        "detection": {
-          "recall": 1,
-          "precision": 1,
-          "tp": 2,
-          "fn": 0,
-          "fp": 0,
-          "leakedValues": []
-        },
-        "redaction": {
-          "precision": 1,
-          "total": 4,
-          "justified": 4
-        },
-        "resources": {
-          "localMsPerStep": 1450,
-          "payloadBytesP50": 10285,
-          "screenshotBytesP50": 0,
-          "steps": 2
-        },
-        "latency": {
-          "totalMs": 4340,
-          "stepP50": 1632,
-          "stepP95": 1632,
-          "reasonerMsPerStep": 4
+          "totalMs": 6522,
+          "stepP50": 3030,
+          "stepP95": 3030,
+          "reasonerMsPerStep": 1854
         }
       },
       {
@@ -1207,107 +427,29 @@
           "justified": 4
         },
         "resources": {
-          "localMsPerStep": 2914,
-          "payloadBytesP50": 50702,
+          "localMsPerStep": 1257,
+          "payloadBytesP50": 50703,
           "screenshotBytesP50": 40272,
           "steps": 2
         },
         "latency": {
-          "totalMs": 7551,
-          "stepP50": 3350,
-          "stepP95": 3350,
-          "reasonerMsPerStep": 16
-        }
-      },
-      {
-        "taskId": "T7",
-        "seed": 42,
-        "policy": "BALANCED",
-        "success": true,
-        "steps": 2,
-        "visual": {
-          "recall": 1,
-          "precision": 1,
-          "matched": 16,
-          "truth": 16,
-          "observed": 16
-        },
-        "detection": {
-          "recall": 1,
-          "precision": 1,
-          "tp": 2,
-          "fn": 0,
-          "fp": 0,
-          "leakedValues": []
-        },
-        "redaction": {
-          "precision": 1,
-          "total": 4,
-          "justified": 4
-        },
-        "resources": {
-          "localMsPerStep": 1543,
-          "payloadBytesP50": 50979,
-          "screenshotBytesP50": 40452,
-          "steps": 2
-        },
-        "latency": {
-          "totalMs": 4841,
-          "stepP50": 1770,
-          "stepP95": 1770,
-          "reasonerMsPerStep": 6
-        }
-      },
-      {
-        "taskId": "T7",
-        "seed": 7,
-        "policy": "BALANCED",
-        "success": true,
-        "steps": 2,
-        "visual": {
-          "recall": 1,
-          "precision": 1,
-          "matched": 16,
-          "truth": 16,
-          "observed": 16
-        },
-        "detection": {
-          "recall": 1,
-          "precision": 1,
-          "tp": 2,
-          "fn": 0,
-          "fp": 0,
-          "leakedValues": []
-        },
-        "redaction": {
-          "precision": 1,
-          "total": 4,
-          "justified": 4
-        },
-        "resources": {
-          "localMsPerStep": 1820,
-          "payloadBytesP50": 50763,
-          "screenshotBytesP50": 40336,
-          "steps": 2
-        },
-        "latency": {
-          "totalMs": 5149,
-          "stepP50": 1927,
-          "stepP95": 1927,
-          "reasonerMsPerStep": 9
+          "totalMs": 6645,
+          "stepP50": 3261,
+          "stepP95": 3261,
+          "reasonerMsPerStep": 1747
         }
       }
     ],
     "completion": 1,
-    "visualRecall": 0.9781818181818183,
-    "visualPrecision": 0.9967532467532466,
+    "visualRecall": 0.9781818181818182,
+    "visualPrecision": 0.9967532467532468,
     "detectionRecall": 1,
     "detectionPrecision": 0.9772727272727273,
-    "redactionPrecision": 0.9556724738201586,
-    "localMsPerStep": 1803,
-    "payloadBytesP50": 42034,
-    "stepP50": 2126,
-    "stepP95": 2699,
+    "redactionPrecision": 0.955969562352541,
+    "localMsPerStep": 1059,
+    "payloadBytesP50": 43066,
+    "stepP50": 3446,
+    "stepP95": 4666,
     "leaks": 0
   }
 }
