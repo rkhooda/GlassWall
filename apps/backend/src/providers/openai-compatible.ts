@@ -98,7 +98,14 @@ export function createOpenAiCompatibleProvider(env: NodeJS.ProcessEnv = process.
           signal: controller.signal,
           body: JSON.stringify({ model, messages, temperature: 0, max_tokens: 800, response_format: { type: 'json_object' } }),
         });
-        if (!res.ok) throw new Error(`${baseUrl}/chat/completions → ${res.status} ${(await res.text()).slice(0, 200)}`);
+        if (!res.ok) {
+          const detail = (await res.text()).slice(0, 200);
+          // A rate-limited model stays rate-limited for a while. Park it so the chain
+          // skips straight to the next one instead of paying a doomed round trip on
+          // every following step.
+          if (res.status === 429) cachedAvailability = { at: Date.now(), result: { ok: false, detail: `rate limited: ${detail}` } };
+          throw new Error(`${baseUrl}/chat/completions → ${res.status} ${detail}`);
+        }
         const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
         const text = data.choices?.[0]?.message?.content;
         if (!text) throw new Error('empty completion');

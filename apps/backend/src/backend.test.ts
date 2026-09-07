@@ -4,7 +4,7 @@ import type { SanitizedObservation } from '@glasswall/schema/observation';
 import { registerRoutes } from './routes/index.js';
 import { planWithFailover, scriptedProvider, type Provider } from './providers/index.js';
 import { validateActionEnvelope } from './guard/validate.js';
-import { extractJson, createOpenAiCompatibleProviders } from './providers/openai-compatible.js';
+import { extractJson, createOpenAiCompatibleProviders, createOpenAiCompatibleProvider } from './providers/openai-compatible.js';
 
 function checkout(over: Partial<SanitizedObservation> = {}): SanitizedObservation {
   const el = (id: string, tag: string, label: string, extra: Partial<SanitizedObservation['elements'][number]> = {}) => ({
@@ -189,5 +189,25 @@ describe('provider chain from env', () => {
 
   it('is empty when no model is configured', () => {
     expect(createOpenAiCompatibleProviders({} as NodeJS.ProcessEnv)).toEqual([]);
+  });
+});
+
+describe('rate-limited provider', () => {
+  it('reports itself unavailable after a 429, so the chain skips it', async () => {
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async (url: string) =>
+      String(url).endsWith('/models')
+        ? new Response('{}', { status: 200 })
+        : new Response('quota exceeded', { status: 429 })) as typeof fetch;
+    try {
+      const p = createOpenAiCompatibleProvider({ GLASSWALL_LLM_MODEL: 'm', GLASSWALL_LLM_BASE_URL: 'https://x.test/v1' } as NodeJS.ProcessEnv)!;
+      expect((await p.available()).ok).toBe(true);
+      await expect(p.plan({ observation: checkout(), history: [], stepIndex: 0, sessionId: 's', task: 't', policy: { name: 'STRICT', require_confirmation: [] } } as never)).rejects.toThrow('429');
+      const after = await p.available();
+      expect(after.ok).toBe(false);
+      expect(after.detail).toContain('rate limited');
+    } finally {
+      globalThis.fetch = realFetch;
+    }
   });
 });
