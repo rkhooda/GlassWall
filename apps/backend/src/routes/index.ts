@@ -87,6 +87,9 @@ export async function registerRoutes(app: FastifyInstance, opts: RouteOptions = 
         envelope = { ...envelope, action: { type: 'DONE', outcome: 'blocked' }, risk: 'low', requires_confirmation: false, reasoning: 'Loop detected: the same action repeated without effect.' };
       }
       session.history = [...session.history, envelope].slice(-STEP_BUDGET);
+      // Log the providers that refused, not just the one that answered: without this a
+      // rate-limited primary degrades to the scripted planner in silence.
+      for (const a of attempts.filter(x => !x.ok)) app.log.warn({ session_id, stepIndex, provider: a.provider, error: a.error }, 'provider declined');
       app.log.info({ session_id, stepIndex, provider, attempts: attempts.length, action: envelope.action.type }, 'step planned');
       const body: StepResponse = { action_envelope: envelope, provider, latency_ms: Date.now() - started };
       return reply.send(body);
