@@ -22,7 +22,19 @@ Rules:
 7. When the task is complete, emit DONE with outcome "success" and, if possible, evidence_element (an element id that proves completion). DONE with "blocked" or "impossible" is a last resort: use it only after you have scrolled the page and still see no way forward, never on the first step.
 8. High-risk actions (submitting, paying, deleting, navigating to another site) are confirmed by the user; set requires_confirmation true and risk "high" for them.
 
-Action types: CLICK{target}, TYPE{target,value,clear_first}, SCROLL{direction,amount?,target?}, SELECT{target,option_index}, PRESS_KEY{key,target?}, NAVIGATE{url_template}, WAIT{condition,timeout_ms?}, BACK{}, DONE{outcome,evidence_element?}.`;
+Every action object needs a "type". A "target" is always {"id":"<the eNN id>","id_hash":"<that element's id_hash>"} — both copied verbatim from the element's line; never put an id_hash in the id field.
+
+Action types and their required fields:
+  CLICK      {"type":"CLICK","target":{...}}
+  TYPE       {"type":"TYPE","target":{...},"value":{"kind":"vault_ref","handle":"⟦EMAIL#1⟧"},"clear_first":true}
+             or "value":{"kind":"literal","text":"wireless earbuds"}
+  SCROLL     {"type":"SCROLL","direction":"down","amount":1}
+  SELECT     {"type":"SELECT","target":{...},"option_index":2}
+  PRESS_KEY  {"type":"PRESS_KEY","key":"Enter","target":{...}}
+  NAVIGATE   {"type":"NAVIGATE","url_template":"/path"}
+  WAIT       {"type":"WAIT","condition":"stable"}
+  BACK       {"type":"BACK"}
+  DONE       {"type":"DONE","outcome":"success","evidence_element":"e12"}`;
 
 function wrap(s: string): string {
   return `<untrusted_page_content>${s}</untrusted_page_content>`;
@@ -113,7 +125,10 @@ export function assemblePrompt(input: PlanInput): string {
     input.screenshot ? 'A pixel-redacted screenshot of the viewport is attached; black boxes are redactions.' : '',
     input.repairError ? `\nYour previous answer was rejected: ${input.repairError}\nRespond again with a corrected ActionEnvelope.` : '',
     '',
-    `Respond with one JSON object: {"action":{...},"observation_id":"${input.observation.observation_id}","step_index":${input.stepIndex},"session_id":"${input.sessionId}","risk":"low|medium|high","requires_confirmation":false,"reasoning":"one sentence"}`,
+    // A literal {...} here makes models improvise the action object and miss "type";
+    // a filled example costs a few tokens and saves a whole repair round trip.
+    `Respond with exactly one JSON object shaped like this, with the action replaced by your chosen one:`,
+    `{"action":{"type":"CLICK","target":{"id":"e12","id_hash":"abc123"}},"observation_id":"${input.observation.observation_id}","step_index":${input.stepIndex},"session_id":"${input.sessionId}","risk":"low","requires_confirmation":false,"reasoning":"one sentence"}`,
   ];
   return parts.filter(p => p !== undefined).join('\n');
 }
