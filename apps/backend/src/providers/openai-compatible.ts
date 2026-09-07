@@ -23,19 +23,31 @@ function extractJson(text: string): unknown {
   return JSON.parse(candidate.slice(start, end + 1));
 }
 
+/** Endpoint slots: the bare names, then _2, _3, _4. Each is an independent vendor. */
+const SLOTS = ['', '_2', '_3', '_4'] as const;
+
 /**
- * One provider per model in GLASSWALL_LLM_MODEL (comma-separated), sharing the same
- * endpoint and key. A second model is the cheap insurance for a live demo: when the
- * first one's quota is spent the chain still reaches a reasoner instead of dropping
- * to the scripted planner, which cannot handle an unrehearsed task.
+ * Every reasoner the chain can reach, in order. Each slot is one vendor (base URL,
+ * key, models); each model within a slot is its own link. A demo dies when a single
+ * free-tier quota runs out mid-run and the chain falls through to the scripted
+ * planner, which by design cannot handle an unrehearsed task — so spread the fallback
+ * across vendors, not just models.
  */
 export function createOpenAiCompatibleProviders(env: NodeJS.ProcessEnv = process.env): Provider[] {
-  return (env.GLASSWALL_LLM_MODEL ?? '')
-    .split(',')
-    .map(m => m.trim())
-    .filter(Boolean)
-    .map(model => createOpenAiCompatibleProvider({ ...env, GLASSWALL_LLM_MODEL: model }))
-    .filter((p): p is Provider => p !== null);
+  return SLOTS.flatMap(slot => {
+    const slotEnv: NodeJS.ProcessEnv = {
+      ...env,
+      GLASSWALL_LLM_BASE_URL: env[`GLASSWALL_LLM_BASE_URL${slot}`],
+      GLASSWALL_LLM_API_KEY: env[`GLASSWALL_LLM_API_KEY${slot}`],
+      GLASSWALL_LLM_VISION: env[`GLASSWALL_LLM_VISION${slot}`],
+    };
+    return (env[`GLASSWALL_LLM_MODEL${slot}`] ?? '')
+      .split(',')
+      .map(m => m.trim())
+      .filter(Boolean)
+      .map(model => createOpenAiCompatibleProvider({ ...slotEnv, GLASSWALL_LLM_MODEL: model }))
+      .filter((p): p is Provider => p !== null);
+  });
 }
 
 export function createOpenAiCompatibleProvider(env: NodeJS.ProcessEnv = process.env): Provider | null {
@@ -48,8 +60,11 @@ export function createOpenAiCompatibleProvider(env: NodeJS.ProcessEnv = process.
   const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}) };
   let cachedAvailability: { at: number; result: { ok: boolean; detail?: string } } | null = null;
 
+  // Two vendors can serve the same model name; the host is what tells them apart in
+  // the panel's per-step "Planner" line.
+  const host = (() => { try { return new URL(baseUrl).host; } catch { return baseUrl; } })();
   return {
-    name: `openai-compatible:${model}`,
+    name: `${host}:${model}`,
     vision,
     async available() {
       if (cachedAvailability && Date.now() - cachedAvailability.at < 30_000) return cachedAvailability.result;

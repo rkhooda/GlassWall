@@ -4,7 +4,7 @@ import type { SanitizedObservation } from '@glasswall/schema/observation';
 import { registerRoutes } from './routes/index.js';
 import { planWithFailover, scriptedProvider, type Provider } from './providers/index.js';
 import { validateActionEnvelope } from './guard/validate.js';
-import { extractJson } from './providers/openai-compatible.js';
+import { extractJson, createOpenAiCompatibleProviders } from './providers/openai-compatible.js';
 
 function checkout(over: Partial<SanitizedObservation> = {}): SanitizedObservation {
   const el = (id: string, tag: string, label: string, extra: Partial<SanitizedObservation['elements'][number]> = {}) => ({
@@ -167,5 +167,27 @@ describe('guard', () => {
     expect(extractJson('Sure! ```json\n{"a":1}\n```')).toEqual({ a: 1 });
     expect(extractJson('{"a":{"b":2}} trailing')).toEqual({ a: { b: 2 } });
     expect(() => extractJson('no json here')).toThrow();
+  });
+});
+
+describe('provider chain from env', () => {
+  it('spans every model of every endpoint slot, in order', () => {
+    const names = createOpenAiCompatibleProviders({
+      GLASSWALL_LLM_BASE_URL: 'https://api.groq.com/openai/v1',
+      GLASSWALL_LLM_MODEL: 'openai/gpt-oss-120b, openai/gpt-oss-20b',
+      GLASSWALL_LLM_API_KEY: 'k1',
+      GLASSWALL_LLM_BASE_URL_2: 'https://integrate.api.nvidia.com/v1',
+      GLASSWALL_LLM_MODEL_2: 'meta/llama-3.3-70b-instruct',
+      GLASSWALL_LLM_API_KEY_2: 'k2',
+    } as NodeJS.ProcessEnv).map(p => p.name);
+    expect(names).toEqual([
+      'api.groq.com:openai/gpt-oss-120b',
+      'api.groq.com:openai/gpt-oss-20b',
+      'integrate.api.nvidia.com:meta/llama-3.3-70b-instruct',
+    ]);
+  });
+
+  it('is empty when no model is configured', () => {
+    expect(createOpenAiCompatibleProviders({} as NodeJS.ProcessEnv)).toEqual([]);
   });
 });
