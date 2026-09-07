@@ -30,11 +30,25 @@ command that can be re-run.
 | 7 — Hardening, tests, reliability | ✅ COMPLETE | 95% | orchestrator error matrix (11 tests); blocked-literal history leak, cross-run vault staleness and NER/label false positives fixed; lint zero errors; two consecutive unattended scripted runs (`bench:all`, then `bench:leakage` + smoke) green. Not done: an LLM-provider e2e run (no key or Ollama on the machine; failover covered by `backend.test.ts`) |
 | 8 — Demo and documentation | ✅ COMPLETE | 95% | README, DEMO, ARCHITECTURE, SECURITY, PRIVACY, EVALUATION, MODEL_CARD, CONTRACTS rewritten to the build; final audit below. Not done: a judge-facing rehearsal of beat 9 on an unseen public page |
 
-## Current Gaps (as of 2026-09-02, after the final audit)
+## Current Gaps (as of 2026-09-08, after the live-provider rehearsal)
 
-- No LLM provider was exercised end to end on this machine (no key, no Ollama); the
-  scripted planner drove every measured run. The provider chain, repair retry and
-  fallback are unit-tested in `apps/backend/src/backend.test.ts`.
+- Closed 2026-09-08: an LLM provider now drives the loop end to end. Rehearsal on
+  Gemini (`gemini-3.6-flash`, falling back through `gemini-3.1-flash-lite`, two free
+  OpenRouter models and three Groq models) was 11/11 tasks across all three sites in
+  both policies, 0 leaks, at `eval/reports/summary.md`.
+- Free-tier request budgets, not the code, are the demo constraint: Gemini allows 20
+  requests/minute, so back-to-back automated suites throttle and fall down the chain
+  (a live demo, one task at a time, does not). Groq is ~8k tokens/minute per model
+  plus a daily cap; OpenRouter free models are 20/min and 50/day and are noticeably
+  weaker on long multi-step tasks — fallback material, not a primary.
+- The keys live only in `apps/backend/.env`, which is gitignored, and the local model
+  weights under `apps/extension/public/` are not in the repo. A fresh clone or a
+  different machine needs both restored before anything but the scripted planner runs.
+- `guard/validate.ts` does not validate `NAVIGATE.url_template`; only the
+  orchestrator's same-origin check constrains it, and models do emit NAVIGATE freely.
+- `scrubPlaceholder()` only masks recognizer-shaped placeholder text, while labels get
+  full registry substitution. One `REGISTRY_SCAN` gate violation was seen on a
+  placeholder and could not be reproduced in ~40 later runs.
 - Redaction precision is 95.6% overall and 83% on ClinicDesk: OCR crops around the
   canvas report are larger than the instrumented regions.
 - T1 visual recall is 88%: the checkout's cross-origin gift-message iframe input is a
