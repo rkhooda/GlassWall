@@ -33,22 +33,6 @@ function shortProvider(name: string): string {
   return i > 0 && name.slice(0, i).includes('.') ? name.slice(i + 1) : name;
 }
 
-/**
- * Turn what the user typed into a URL worth navigating to. Anything that is not
- * plain http(s) — javascript:, data:, file: — comes back null and the panel does
- * nothing: the address bar of an agent is a trust boundary like any other.
- */
-function normalizeUrl(raw: string): string | null {
-  const typed = raw.trim();
-  if (!typed) return null;
-  try {
-    const url = new URL(/^https?:\/\//i.test(typed) ? typed : `https://${typed}`);
-    return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : null;
-  } catch {
-    return null;
-  }
-}
-
 function defaultTaskFor(url: string | undefined): string {
   return (url && DEFAULT_TASKS.find(([re]) => re.test(url))?.[1]) ?? '';
 }
@@ -79,8 +63,6 @@ function describeAction(entry: TraceEntry): string {
 export default function App() {
   const [task, setTask] = useState('');
   const [pageUrl, setPageUrl] = useState('');
-  // What the URL box shows: the tab's address until the user types over it.
-  const [urlDraft, setUrlDraft] = useState('');
   // Once the box has been edited the prefill stops overwriting it, including on a tab switch.
   const taskEditedRef = useRef(false);
   const [policy, setPolicy] = useState<PolicyProfile>('STRICT');
@@ -115,9 +97,7 @@ export default function App() {
     void chrome.tabs
       .query({ active: true, lastFocusedWindow: true })
       .then(([t]) => {
-        const url = t?.url && /^https?:/.test(t.url) ? t.url : '';
-        setPageUrl(url);
-        setUrlDraft(url);
+        setPageUrl(t?.url && /^https?:/.test(t.url) ? t.url : '');
         setTask(prev => (taskEditedRef.current ? prev : defaultTaskFor(t?.url)));
       })
       .catch(() => undefined);
@@ -154,21 +134,6 @@ export default function App() {
       chrome.tabs.onUpdated.removeListener(onUpdated);
     };
   }, [syncActiveTab]);
-
-  /** Add/Change: send the active tab to the typed URL, or re-read it if unchanged. */
-  const openPage = () => {
-    const url = normalizeUrl(urlDraft);
-    if (!url) return;
-    void chrome.tabs
-      .query({ active: true, lastFocusedWindow: true })
-      .then(([t]) => {
-        // A real navigation lands back here through the onUpdated listener.
-        if (t?.id != null && url !== t.url) return chrome.tabs.update(t.id, { url });
-        syncActiveTab();
-        return undefined;
-      })
-      .catch(() => undefined);
-  };
 
   const running = state.status === 'running' || state.status === 'waiting_confirmation';
 
@@ -247,21 +212,10 @@ export default function App() {
       {!collapsed && (
         <>
           <section className="section">
-            <h2 className="section-label"><label htmlFor="page-url">Add Page</label></h2>
+            <h2 className="section-label">Current Page</h2>
             <div className="page-row">
-              <input
-                id="page-url"
-                className="page-url"
-                type="text"
-                inputMode="url"
-                spellCheck={false}
-                value={urlDraft}
-                placeholder="Enter the URL of the website..."
-                title={urlDraft}
-                onChange={e => setUrlDraft(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') openPage(); }}
-              />
-              <button type="button" className="pill" onClick={openPage} disabled={!normalizeUrl(urlDraft)}>{pageUrl ? 'Change' : 'Add'}</button>
+              <p className={`page-url${pageUrl ? '' : ' page-url-empty'}`} title={pageUrl}>{pageUrl || 'No page detected'}</p>
+              <button type="button" className="pill" onClick={syncActiveTab}>Change</button>
             </div>
           </section>
 

@@ -66,8 +66,8 @@ body { margin: 0; background: var(--card); color: var(--text); font: 400 14px/1.
 
 textarea, select, input { font: inherit; color: var(--text); background: var(--card); }
 .page-url, textarea { width: 100%; border: none; border-radius: 6px; box-shadow: var(--ring); font-size: 12px; }
-.page-url { height: 40px; padding: 0 12px; font-weight: 500; text-overflow: ellipsis; text-decoration: underline; text-underline-offset: 2px; }
-.page-url:placeholder-shown { text-decoration: none; }
+.page-url { display: flex; align-items: center; height: 40px; margin: 0; padding: 0 12px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-decoration: underline; text-underline-offset: 2px; }
+.page-url-empty { color: var(--faint); text-decoration: none; }
 textarea { height: 96px; padding: 16px 12px; resize: none; line-height: 1.5; }
 ::placeholder { color: var(--faint); }
 .page-url:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
