@@ -3,25 +3,26 @@
  *
  * Built to be read from three metres away (PLAN-B §6 P12-B): nothing below 14px,
  * and every foreground/background pair here clears WCAG AA at that size. Plain
- * inline styles — the side panel ships no stylesheet, and a demo-critical panel
- * should not depend on one arriving.
+ * inline styles — a demo-critical panel should not depend on a stylesheet
+ * arriving — but the colours and faces are the panel's own tokens, so the
+ * inspector reads as part of the same product rather than a debug console.
  */
 import type { CSSProperties } from 'react';
 
-export const RED = '#b31b1b';
-export const GREEN = '#0b6b3a';
+export const RED = '#c73f38';
+export const GREEN = '#007506';
 export const AMBER = '#8a5a00';
 
-export const TEXT: CSSProperties = { color: '#111', fontFamily: 'system-ui, -apple-system, Segoe UI, sans-serif' };
-export const MUTED: CSSProperties = { ...TEXT, color: '#444', fontSize: 15 };
-export const mono: CSSProperties = { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' };
+export const TEXT: CSSProperties = { color: 'var(--text)', fontFamily: 'var(--sans)' };
+export const MUTED: CSSProperties = { ...TEXT, color: 'var(--muted)', fontSize: 15 };
+export const mono: CSSProperties = { fontFamily: 'var(--mono)' };
 
 export const CARD: CSSProperties = {
-  background: '#fff',
-  border: '2px solid #111',
-  borderRadius: 8,
+  background: 'var(--card)',
+  borderRadius: 6,
+  boxShadow: 'var(--ring)',
   padding: 16,
-  marginBottom: 16,
+  marginBottom: 10,
 };
 
 export const PANE: CSSProperties = {
@@ -29,8 +30,8 @@ export const PANE: CSSProperties = {
   fontSize: 14,
   lineHeight: 1.45,
   color: '#111',
-  background: '#f5f5f5',
-  border: '1px solid #999',
+  background: '#f8f8f9',
+  border: '1px solid var(--line)',
   borderRadius: 6,
   padding: 12,
   margin: 0,

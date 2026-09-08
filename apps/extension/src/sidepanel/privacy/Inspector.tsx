@@ -85,9 +85,9 @@ const RedactionOverlay: React.FC<{ payload: SanitizedObservation; redactions: Re
           position: 'relative',
           width: OVERLAY_W,
           height,
-          background: '#fff',
-          border: '2px solid #111',
-          borderRadius: 4,
+          background: 'var(--card)',
+          border: '1px solid var(--line)',
+          borderRadius: 6,
           flexShrink: 0,
         }}
         aria-hidden="true"
@@ -102,7 +102,7 @@ const RedactionOverlay: React.FC<{ payload: SanitizedObservation; redactions: Re
               width: Math.max(3, r.rect[2] * scale),
               height: Math.max(3, r.rect[3] * scale),
               background: 'rgba(179, 27, 27, 0.35)',
-              border: `2px solid ${RED}`,
+              border: `1px solid ${RED}`,
               boxSizing: 'border-box',
             }}
           />
@@ -129,7 +129,7 @@ export const Inspector: React.FC<InspectorProps> = ({ raw, payload, redactions, 
   const result = useMemo(() => scanPayload(payload, query), [payload, query]);
 
   return (
-    <div style={{ ...TEXT, padding: 16, background: '#fafafa', overflow: 'auto' }}>
+    <div style={{ ...TEXT, overflow: 'auto' }}>
       <section style={CARD}>
         <Heading>Is a value in the outbound payload?</Heading>
         <label htmlFor="gw-inspector-search" style={{ ...MUTED, display: 'block', marginBottom: 6 }}>
@@ -151,7 +151,8 @@ export const Inspector: React.FC<InspectorProps> = ({ raw, payload, redactions, 
             padding: '12px 14px',
             color: '#111',
             background: '#fff',
-            border: '2px solid #111',
+            border: 'none',
+            boxShadow: 'var(--ring)',
             borderRadius: 6,
           }}
         />
@@ -177,7 +178,7 @@ export const Inspector: React.FC<InspectorProps> = ({ raw, payload, redactions, 
             <p style={{ ...TEXT, fontSize: 16, fontWeight: 700, margin: '0 0 6px' }}>
               OUTBOUND <span style={{ ...MUTED, fontWeight: 400 }}>· exactly what the gate would send</span>
             </p>
-            <pre style={{ ...PANE, background: '#eef4ff', border: '1px solid #2b5fa8' }}>
+            <pre style={{ ...PANE, background: '#f4f0fd', border: '1px solid var(--accent-soft)' }}>
               {payload ? JSON.stringify(payload, null, 1) : 'No payload for this step.'}
             </pre>
           </div>
@@ -193,7 +194,7 @@ export const Inspector: React.FC<InspectorProps> = ({ raw, payload, redactions, 
         )}
       </section>
 
-      <section style={{ ...CARD, borderColor: degraded.length > 0 ? AMBER : '#111' }}>
+      <section style={{ ...CARD, boxShadow: degraded.length > 0 ? `0 0 0 1px ${AMBER}` : CARD.boxShadow }}>
         <Heading>Degraded this step</Heading>
         {degraded.length === 0 ? (
           <p style={{ ...MUTED, fontSize: 16, margin: 0 }}>

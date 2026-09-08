@@ -38,7 +38,7 @@ export function summarizeHandles(handles: Handle[]): TypeRow[] {
 const CELL: React.CSSProperties = {
   padding: '10px 12px',
   fontSize: 16,
-  borderBottom: '1px solid #d0d0d0',
+  borderBottom: '1px solid var(--line)',
   textAlign: 'left',
 };
 
@@ -61,17 +61,17 @@ export const Handles: React.FC<HandlesProps> = ({ handles }) => {
         <table style={{ width: '100%', borderCollapse: 'collapse', ...TEXT }}>
           <thead>
             <tr>
-              <th style={{ ...CELL, fontSize: 14, letterSpacing: '0.04em', color: '#444' }}>TYPE</th>
-              <th style={{ ...CELL, fontSize: 14, letterSpacing: '0.04em', color: '#444' }}>TIER</th>
-              <th style={{ ...CELL, fontSize: 14, letterSpacing: '0.04em', color: '#444' }}>DISTINCT</th>
-              <th style={{ ...CELL, fontSize: 14, letterSpacing: '0.04em', color: '#444' }}>USES</th>
+              <th style={{ ...CELL, fontSize: 14, letterSpacing: '0.04em', color: 'var(--muted)' }}>TYPE</th>
+              <th style={{ ...CELL, fontSize: 14, letterSpacing: '0.04em', color: 'var(--muted)' }}>TIER</th>
+              <th style={{ ...CELL, fontSize: 14, letterSpacing: '0.04em', color: 'var(--muted)' }}>DISTINCT</th>
+              <th style={{ ...CELL, fontSize: 14, letterSpacing: '0.04em', color: 'var(--muted)' }}>USES</th>
             </tr>
           </thead>
           <tbody>
             {rows.map(row => (
               <tr key={row.type}>
                 <td style={{ ...CELL, ...mono, fontWeight: 700 }}>{row.type}</td>
-                <td style={{ ...CELL, color: row.tier === 1 ? '#b31b1b' : '#111', fontWeight: row.tier === 1 ? 700 : 400 }}>
+                <td style={{ ...CELL, color: row.tier === 1 ? 'var(--danger)' : 'var(--text)', fontWeight: row.tier === 1 ? 700 : 400 }}>
                   {row.tier}
                 </td>
                 <td style={{ ...CELL, ...mono }}>{row.distinct}</td>
