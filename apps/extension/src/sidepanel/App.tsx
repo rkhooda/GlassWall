@@ -19,7 +19,7 @@ const DEFAULT_TASKS: [RegExp, string][] = [
   [/\/govportal/, 'Fill the application form with the applicant profile on record and submit it'],
   [/\/clinicdesk/, "Open the first patient's record"],
 ];
-const GENERIC_TASK = 'Describe what you want done on this page';
+const GENERIC_TASK = '“Book a table for two tonight.”';
 
 const POLICY_NOTE: Partial<Record<PolicyProfile, string>> = {
   STRICT: '(Structure only · No raw page pixels sent to AI)',
@@ -32,19 +32,21 @@ function shortProvider(name: string): string {
   return i > 0 && name.slice(0, i).includes('.') ? name.slice(i + 1) : name;
 }
 
-const BrandMark = () => (
-  <svg className="brand-mark" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
-    <rect x="2.5" y="4.5" width="19" height="15" rx="2.5" />
-    <path d="M2.5 12h19M9 4.5V12M15 12v7.5" />
-  </svg>
-);
-
-const PolicyMark = () => (
-  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
-    <rect x="3" y="4" width="18" height="16" rx="2.5" />
-    <path d="m4.5 18.5 5-5 3.5 3.5M3 3l18 18" />
-  </svg>
-);
+/**
+ * Turn what the user typed into a URL worth navigating to. Anything that is not
+ * plain http(s) — javascript:, data:, file: — comes back null and the panel does
+ * nothing: the address bar of an agent is a trust boundary like any other.
+ */
+function normalizeUrl(raw: string): string | null {
+  const typed = raw.trim();
+  if (!typed) return null;
+  try {
+    const url = new URL(/^https?:\/\//i.test(typed) ? typed : `https://${typed}`);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : null;
+  } catch {
+    return null;
+  }
+}
 
 function defaultTaskFor(url: string | undefined): string {
   return (url && DEFAULT_TASKS.find(([re]) => re.test(url))?.[1]) ?? '';
@@ -67,6 +69,8 @@ function describeAction(entry: TraceEntry): string {
 export default function App() {
   const [task, setTask] = useState('');
   const [pageUrl, setPageUrl] = useState('');
+  // What the URL box shows: the tab's address until the user types over it.
+  const [urlDraft, setUrlDraft] = useState('');
   // Once the box has been edited the prefill stops overwriting it, including on a tab switch.
   const taskEditedRef = useRef(false);
   const [policy, setPolicy] = useState<PolicyProfile>('STRICT');
@@ -86,7 +90,9 @@ export default function App() {
     void chrome.tabs
       .query({ active: true, lastFocusedWindow: true })
       .then(([t]) => {
-        setPageUrl(t?.url && /^https?:/.test(t.url) ? t.url : '');
+        const url = t?.url && /^https?:/.test(t.url) ? t.url : '';
+        setPageUrl(url);
+        setUrlDraft(url);
         setTask(prev => (taskEditedRef.current ? prev : defaultTaskFor(t?.url)));
       })
       .catch(() => undefined);
@@ -123,6 +129,21 @@ export default function App() {
       chrome.tabs.onUpdated.removeListener(onUpdated);
     };
   }, [syncActiveTab]);
+
+  /** Add/Change: send the active tab to the typed URL, or re-read it if unchanged. */
+  const openPage = () => {
+    const url = normalizeUrl(urlDraft);
+    if (!url) return;
+    void chrome.tabs
+      .query({ active: true, lastFocusedWindow: true })
+      .then(([t]) => {
+        // A real navigation lands back here through the onUpdated listener.
+        if (t?.id != null && url !== t.url) return chrome.tabs.update(t.id, { url });
+        syncActiveTab();
+        return undefined;
+      })
+      .catch(() => undefined);
+  };
 
   const running = state.status === 'running' || state.status === 'waiting_confirmation';
 
@@ -178,53 +199,70 @@ export default function App() {
     <div className="panel">
       <header className="panel-header">
         <button type="button" className="collapse" aria-expanded={!collapsed} aria-label={collapsed ? 'Expand controls' : 'Collapse controls'} onClick={() => setCollapsed(c => !c)}>
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg>
+          <img src="/icons/caret.svg" alt="" width={16} height={16} />
         </button>
-        <BrandMark />
+        <img className="brand-mark" src="/icons/logo.svg" alt="" width={26} height={26} />
         <h1>Glasswall</h1>
-      </header>
-
-      <div className="meta">
-        <span className={`chip ${health?.gateway === 'ok' ? 'chip-ok' : 'chip-warn'}`} title={health?.providers.join(', ')}>
-          {health === null ? 'checking gateway…' : health.gateway === 'ok' ? `gateway · ${health.active ? shortProvider(health.active) : 'no provider'}` : 'gateway offline'}
-        </span>
-        {health?.capability && (
-          <span className="chip" title="Local models run in the extension's offscreen document">
-            local · {health.capability.webgpu ? 'WebGPU' : 'WASM'}{health.warm ? ` · NER ${health.warm.ner ? 'warm' : 'cold'} · OCR ${health.warm.ocr ? 'warm' : 'cold'}` : ''}
-          </span>
-        )}
         <span className={`status status-${state.status}`}>{state.status.replace('_', ' ')}</span>
-      </div>
+        <div className="health">
+          <span className={`chip ${health?.gateway === 'ok' ? 'chip-ok' : 'chip-warn'}`} title={health?.providers.join(', ')}>
+            {health === null ? 'checking gateway…' : health.gateway === 'ok' ? `gateway · ${health.active ? shortProvider(health.active) : 'no provider'}` : 'gateway offline'}
+          </span>
+          {health?.capability && (
+            <span className="chip" title="Local models run in the extension's offscreen document">
+              local · {health.capability.webgpu ? 'WebGPU' : 'WASM'}{health.warm ? ` · NER ${health.warm.ner ? 'warm' : 'cold'} · OCR ${health.warm.ocr ? 'warm' : 'cold'}` : ''}
+            </span>
+          )}
+        </div>
+      </header>
 
       {!collapsed && (
         <>
           <section className="section">
-            <h2 className="section-label">Current Page</h2>
+            <h2 className="section-label"><label htmlFor="page-url">Add Page</label></h2>
             <div className="page-row">
-              <p className="page-url" title={pageUrl}>{pageUrl || 'No page detected'}</p>
-              <button type="button" className="change" onClick={syncActiveTab}>Change</button>
+              <input
+                id="page-url"
+                className="page-url"
+                type="text"
+                inputMode="url"
+                spellCheck={false}
+                value={urlDraft}
+                placeholder="Enter the URL of the website..."
+                title={urlDraft}
+                onChange={e => setUrlDraft(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') openPage(); }}
+              />
+              <button type="button" className="pill" onClick={openPage} disabled={!normalizeUrl(urlDraft)}>{pageUrl ? 'Change' : 'Add'}</button>
             </div>
           </section>
 
-          <form className="section" onSubmit={e => { void onStart(e); }}>
-            <h2 className="section-label"><label htmlFor="task">Task &amp; Privacy</label></h2>
-            <textarea id="task" rows={6} value={task} placeholder={GENERIC_TASK} onChange={e => { taskEditedRef.current = true; setTask(e.target.value); }} disabled={running} />
-            <div className="policy-row">
-              <span className="policy-icon"><PolicyMark /></span>
-              <svg className="policy-caret" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
-              <select aria-label="Privacy policy" value={policy} onChange={e => setPolicy(e.target.value as PolicyProfile)} disabled={running}>
-                <option value="STRICT">Strict</option>
-                <option value="BALANCED">Balanced</option>
-              </select>
-              <span className="policy-note">{POLICY_NOTE[policy]}</span>
-            </div>
-            {running ? (
-              <button type="button" className="danger block" onClick={() => void send({ type: 'gw:abort' })}>Abort</button>
-            ) : (
-              <button type="submit" className="primary block" disabled={!task.trim()}>Start Task</button>
-            )}
-            <p className="form-hint">Your sensitive data stays protected locally during task execution.</p>
-          </form>
+          <div className="controls">
+            <form className="section" onSubmit={e => { void onStart(e); }}>
+              <h2 className="section-label"><label htmlFor="task">Task &amp; Privacy</label></h2>
+              <textarea id="task" rows={4} value={task} placeholder={GENERIC_TASK} onChange={e => { taskEditedRef.current = true; setTask(e.target.value); }} disabled={running} />
+              <div className="policy-row">
+                <img className="policy-caret" src="/icons/caret.svg" alt="" width={16} height={16} />
+                <select aria-label="Privacy policy" value={policy} onChange={e => setPolicy(e.target.value as PolicyProfile)} disabled={running}>
+                  <option value="STRICT">STRICT</option>
+                  <option value="BALANCED">BALANCED</option>
+                </select>
+                <span className="policy-note">{POLICY_NOTE[policy]}</span>
+              </div>
+              {running ? (
+                <button type="button" className="danger block" onClick={() => void send({ type: 'gw:abort' })}>Abort Task</button>
+              ) : (
+                <button type="submit" className="primary block" disabled={!task.trim()}>Start Task</button>
+              )}
+              <p className="form-hint">Your sensitive data stays protected locally during task execution.</p>
+            </form>
+
+            <nav className="tabs" role="tablist">
+              <button role="tab" aria-selected={tab === 'run'} onClick={() => setTab('run')}>Runs</button>
+              <button role="tab" aria-selected={tab === 'privacy'} onClick={() => setTab('privacy')}>Privacy</button>
+              <button type="button" className="link" onClick={() => void exportAudit()} disabled={!state.sessionId}>Export audit log</button>
+            </nav>
+          </div>
         </>
       )}
 
@@ -242,15 +280,14 @@ export default function App() {
         </div>
       )}
 
-      <nav className="tabs" role="tablist">
-        <button role="tab" aria-selected={tab === 'run'} onClick={() => setTab('run')}>Runs</button>
-        <button role="tab" aria-selected={tab === 'privacy'} onClick={() => setTab('privacy')}>Privacy</button>
-        <button type="button" className="link" onClick={() => void exportAudit()} disabled={!state.sessionId}>Export audit log</button>
-      </nav>
-
       {tab === 'run' && (
         <section className="trace" aria-label="Step trace">
-          {trace.length === 0 && <p className="muted">{running ? 'Observing the page…' : 'No steps yet. Open a page, describe the task, press Start.'}</p>}
+          {trace.length === 0 && (
+            <div className="empty">
+              <img src="/icons/incognito.svg" alt="" width={32} height={32} />
+              <p>{running ? 'Observing the page…' : pageUrl ? 'Describe a task above, then press Start.' : 'Add a website to start running tasks.'}</p>
+            </div>
+          )}
           {trace.map(entry => (
             <article key={`${entry.step}-${entry.at}`} className={`step step-${entry.phase}`}>
               <header>
