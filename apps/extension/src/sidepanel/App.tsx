@@ -1,5 +1,5 @@
 // Side panel: task input, gateway status, run trace, and the privacy inspector.
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import type { PolicyProfile } from '@glasswall/schema/policy';
 import type { WorkerToPanel, RunState, TraceEntry, InspectPayload, ConfirmContext, PanelToWorker, HealthInfo, AuditEntry } from '../shared/messages';
 import { Inspector } from './privacy';
@@ -21,6 +21,31 @@ const DEFAULT_TASKS: [RegExp, string][] = [
 ];
 const GENERIC_TASK = 'Describe what you want done on this page';
 
+const POLICY_NOTE: Partial<Record<PolicyProfile, string>> = {
+  STRICT: '(Structure only · No raw page pixels sent to AI)',
+  BALANCED: '(Adds a pixel-redacted screenshot of the viewport)',
+};
+
+/** "generativelanguage.googleapis.com:gemini-3.6-flash" -> "gemini-3.6-flash". */
+function shortProvider(name: string): string {
+  const i = name.indexOf(':');
+  return i > 0 && name.slice(0, i).includes('.') ? name.slice(i + 1) : name;
+}
+
+const BrandMark = () => (
+  <svg className="brand-mark" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
+    <rect x="2.5" y="4.5" width="19" height="15" rx="2.5" />
+    <path d="M2.5 12h19M9 4.5V12M15 12v7.5" />
+  </svg>
+);
+
+const PolicyMark = () => (
+  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+    <rect x="3" y="4" width="18" height="16" rx="2.5" />
+    <path d="m4.5 18.5 5-5 3.5 3.5M3 3l18 18" />
+  </svg>
+);
+
 function defaultTaskFor(url: string | undefined): string {
   return (url && DEFAULT_TASKS.find(([re]) => re.test(url))?.[1]) ?? '';
 }
@@ -41,6 +66,7 @@ function describeAction(entry: TraceEntry): string {
 
 export default function App() {
   const [task, setTask] = useState('');
+  const [pageUrl, setPageUrl] = useState('');
   // Once the box has been edited the prefill stops overwriting it, including on a tab switch.
   const taskEditedRef = useRef(false);
   const [policy, setPolicy] = useState<PolicyProfile>('STRICT');
@@ -51,8 +77,20 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [health, setHealth] = useState<HealthInfo | null>(null);
   const [tab, setTab] = useState<'run' | 'privacy'>('run');
+  const [collapsed, setCollapsed] = useState(false);
 
   const refreshHealth = () => void send({ type: 'gw:get-health' }).then(h => { if (h) setHealth(h as HealthInfo); }).catch(() => undefined);
+
+  /** Read the tab in front: its URL for the Current Page box, and its site's default task. */
+  const syncActiveTab = useCallback(() => {
+    void chrome.tabs
+      .query({ active: true, lastFocusedWindow: true })
+      .then(([t]) => {
+        setPageUrl(t?.url && /^https?:/.test(t.url) ? t.url : '');
+        setTask(prev => (taskEditedRef.current ? prev : defaultTaskFor(t?.url)));
+      })
+      .catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     const listener = (message: unknown) => {
@@ -74,17 +112,9 @@ export default function App() {
     void send({ type: 'gw:get-state' }).then(s => { if (s) setState(s as RunState); }).catch(() => undefined);
     refreshHealth();
 
-    // Prefill the task from whatever tab is in front, and follow the user as they
-    // switch tabs or navigate, until they type their own task.
-    const prefill = () => {
-      void chrome.tabs
-        .query({ active: true, lastFocusedWindow: true })
-        .then(([t]) => setTask(prev => (taskEditedRef.current ? prev : defaultTaskFor(t?.url))))
-        .catch(() => undefined);
-    };
-    prefill();
-    const onActivated = () => prefill();
-    const onUpdated = (_id: number, change: chrome.tabs.TabChangeInfo) => { if (change.url) prefill(); };
+    syncActiveTab();
+    const onActivated = () => syncActiveTab();
+    const onUpdated = (_id: number, change: chrome.tabs.TabChangeInfo) => { if (change.url) syncActiveTab(); };
     chrome.tabs.onActivated.addListener(onActivated);
     chrome.tabs.onUpdated.addListener(onUpdated);
     return () => {
@@ -92,7 +122,7 @@ export default function App() {
       chrome.tabs.onActivated.removeListener(onActivated);
       chrome.tabs.onUpdated.removeListener(onUpdated);
     };
-  }, []);
+  }, [syncActiveTab]);
 
   const running = state.status === 'running' || state.status === 'waiting_confirmation';
 
@@ -147,38 +177,56 @@ export default function App() {
   return (
     <div className="panel">
       <header className="panel-header">
-        <div>
-          <h1>GLASSWALL</h1>
-          <span className={`chip ${health?.gateway === 'ok' ? 'chip-ok' : 'chip-warn'}`} title={health?.providers.join(', ')}>
-            {health === null ? 'checking gateway…' : health.gateway === 'ok' ? `gateway · ${health.active ?? 'no provider'}` : 'gateway offline'}
-          </span>
-          {health?.capability && (
-            <span className="chip" title="Local models run in the extension's offscreen document">
-              local · {health.capability.webgpu ? 'WebGPU' : 'WASM'}{health.warm ? ` · NER ${health.warm.ner ? 'warm' : 'cold'} · OCR ${health.warm.ocr ? 'warm' : 'cold'}` : ''}
-            </span>
-          )}
-        </div>
-        <span className={`status status-${state.status}`}>{state.status.replace('_', ' ')}</span>
+        <button type="button" className="collapse" aria-expanded={!collapsed} aria-label={collapsed ? 'Expand controls' : 'Collapse controls'} onClick={() => setCollapsed(c => !c)}>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg>
+        </button>
+        <BrandMark />
+        <h1>Glasswall</h1>
       </header>
 
-      <form className="task" onSubmit={e => { void onStart(e); }}>
-        <label htmlFor="task">Task</label>
-        <textarea id="task" rows={2} value={task} placeholder={GENERIC_TASK} onChange={e => { taskEditedRef.current = true; setTask(e.target.value); }} disabled={running} />
-        <div className="task-controls">
-          <label>
-            Policy
-            <select value={policy} onChange={e => setPolicy(e.target.value as PolicyProfile)} disabled={running}>
-              <option value="STRICT">STRICT · structure only, no pixels leave</option>
-              <option value="BALANCED">BALANCED · adds a pixel-redacted screenshot</option>
-            </select>
-          </label>
-          {running ? (
-            <button type="button" className="danger" onClick={() => void send({ type: 'gw:abort' })}>Abort</button>
-          ) : (
-            <button type="submit" className="primary" disabled={!task.trim()}>Start</button>
-          )}
-        </div>
-      </form>
+      <div className="meta">
+        <span className={`chip ${health?.gateway === 'ok' ? 'chip-ok' : 'chip-warn'}`} title={health?.providers.join(', ')}>
+          {health === null ? 'checking gateway…' : health.gateway === 'ok' ? `gateway · ${health.active ? shortProvider(health.active) : 'no provider'}` : 'gateway offline'}
+        </span>
+        {health?.capability && (
+          <span className="chip" title="Local models run in the extension's offscreen document">
+            local · {health.capability.webgpu ? 'WebGPU' : 'WASM'}{health.warm ? ` · NER ${health.warm.ner ? 'warm' : 'cold'} · OCR ${health.warm.ocr ? 'warm' : 'cold'}` : ''}
+          </span>
+        )}
+        <span className={`status status-${state.status}`}>{state.status.replace('_', ' ')}</span>
+      </div>
+
+      {!collapsed && (
+        <>
+          <section className="section">
+            <h2 className="section-label">Current Page</h2>
+            <div className="page-row">
+              <p className="page-url" title={pageUrl}>{pageUrl || 'No page detected'}</p>
+              <button type="button" className="change" onClick={syncActiveTab}>Change</button>
+            </div>
+          </section>
+
+          <form className="section" onSubmit={e => { void onStart(e); }}>
+            <h2 className="section-label"><label htmlFor="task">Task &amp; Privacy</label></h2>
+            <textarea id="task" rows={6} value={task} placeholder={GENERIC_TASK} onChange={e => { taskEditedRef.current = true; setTask(e.target.value); }} disabled={running} />
+            <div className="policy-row">
+              <span className="policy-icon"><PolicyMark /></span>
+              <svg className="policy-caret" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+              <select aria-label="Privacy policy" value={policy} onChange={e => setPolicy(e.target.value as PolicyProfile)} disabled={running}>
+                <option value="STRICT">Strict</option>
+                <option value="BALANCED">Balanced</option>
+              </select>
+              <span className="policy-note">{POLICY_NOTE[policy]}</span>
+            </div>
+            {running ? (
+              <button type="button" className="danger block" onClick={() => void send({ type: 'gw:abort' })}>Abort</button>
+            ) : (
+              <button type="submit" className="primary block" disabled={!task.trim()}>Start Task</button>
+            )}
+            <p className="form-hint">Your sensitive data stays protected locally during task execution.</p>
+          </form>
+        </>
+      )}
 
       {error && <div className="banner error" role="alert">{error}</div>}
       {state.message && !error && <div className={`banner ${state.status === 'done' && state.outcome === 'success' ? 'ok' : 'info'}`}>{state.message}</div>}
@@ -195,7 +243,7 @@ export default function App() {
       )}
 
       <nav className="tabs" role="tablist">
-        <button role="tab" aria-selected={tab === 'run'} onClick={() => setTab('run')}>Run</button>
+        <button role="tab" aria-selected={tab === 'run'} onClick={() => setTab('run')}>Runs</button>
         <button role="tab" aria-selected={tab === 'privacy'} onClick={() => setTab('privacy')}>Privacy</button>
         <button type="button" className="link" onClick={() => void exportAudit()} disabled={!state.sessionId}>Export audit log</button>
       </nav>

@@ -39,25 +39,25 @@ describe('side panel', () => {
   it('prefills the task from the active site, and typing wins', async () => {
     render(<App />);
     await act(() => Promise.resolve());
-    const box = screen.getByLabelText<HTMLTextAreaElement>('Task');
+    const box = screen.getByLabelText<HTMLTextAreaElement>('Task & Privacy');
     expect(box.value).toBe("Open the first patient's record");
     fireEvent.change(box, { target: { value: 'Open the third patient instead' } });
-    expect(screen.getByLabelText<HTMLTextAreaElement>('Task').value).toBe('Open the third patient instead');
+    expect(screen.getByLabelText<HTMLTextAreaElement>('Task & Privacy').value).toBe('Open the third patient instead');
   });
 
   it('leaves the task empty on a page it has no default for', async () => {
     activeUrl = 'https://example.com/anything';
     render(<App />);
     await act(() => Promise.resolve());
-    expect(screen.getByLabelText<HTMLTextAreaElement>('Task').value).toBe('');
+    expect(screen.getByLabelText<HTMLTextAreaElement>('Task & Privacy').value).toBe('');
   });
 
   it('starts a run, shows the trace, and reports completion', async () => {
     render(<App />);
     await act(() => Promise.resolve());
     expect(await screen.findByText(/gateway · scripted/)).toBeTruthy();
-    fireEvent.change(screen.getByLabelText('Task'), { target: { value: 'Fill the form' } });
-    await act(async () => { fireEvent.click(screen.getByText('Start')); });
+    fireEvent.change(screen.getByLabelText('Task & Privacy'), { target: { value: 'Fill the form' } });
+    await act(async () => { fireEvent.click(screen.getByText('Start Task')); });
     expect(sent.some(m => (m as { type: string }).type === 'gw:start')).toBe(true);
 
     emit({ type: 'gw:state', state: { status: 'running', sessionId: 's1', task: 'Fill the form', policy: 'STRICT', step: 0, stepsLeft: 20, provider: 'scripted' } });
