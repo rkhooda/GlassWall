@@ -56,6 +56,15 @@ function send(message: PanelToWorker): Promise<unknown> {
   return chrome.runtime.sendMessage(message);
 }
 
+/** Badge tone per step: refused first, then the kind of action that ran. */
+function actionTone(entry: TraceEntry): string {
+  if (entry.phase === 'error' || entry.phase === 'blocked') return 'stop';
+  if (entry.action?.type === 'TYPE') return 'type';
+  if (entry.action?.type === 'CLICK') return 'click';
+  if (entry.action?.type === 'DONE') return 'done';
+  return 'plain';
+}
+
 function describeAction(entry: TraceEntry): string {
   const a = entry.action;
   if (!a) return entry.phase;
@@ -148,13 +157,14 @@ export default function App() {
   const running = state.status === 'running' || state.status === 'waiting_confirmation';
 
   const summary = useMemo(() => {
-    if (trace.length === 0) return null;
     const total = trace.reduce((s, e) => s + e.timings.total, 0);
     const network = trace.reduce((s, e) => s + (e.timings.reason ?? 0), 0);
     const redactions = trace.reduce((s, e) => s + e.redactions, 0);
     const blocked = trace.filter(e => e.phase === 'blocked').length;
     return { steps: trace.length, total, network, redactions, blocked };
   }, [trace]);
+
+  const showSummary = state.status !== 'idle' || trace.length > 0;
 
   const onStart = async (e: FormEvent) => {
     e.preventDefault();
@@ -203,7 +213,6 @@ export default function App() {
         </button>
         <img className="brand-mark" src="/icons/logo.svg" alt="" width={26} height={26} />
         <h1>Glasswall</h1>
-        <span className={`status status-${state.status}`}>{state.status.replace('_', ' ')}</span>
         <div className="health">
           <span className={`chip ${health?.gateway === 'ok' ? 'chip-ok' : 'chip-warn'}`} title={health?.providers.join(', ')}>
             {health === null ? 'checking gateway…' : health.gateway === 'ok' ? `gateway · ${health.active ? shortProvider(health.active) : 'no provider'}` : 'gateway offline'}
@@ -269,15 +278,22 @@ export default function App() {
       {error && <div className="banner error" role="alert">{error}</div>}
       {state.message && !error && <div className={`banner ${state.status === 'done' && state.outcome === 'success' ? 'ok' : 'info'}`}>{state.message}</div>}
 
-      {summary && (
-        <div className="summary" aria-label="Run summary">
-          <span><strong>{summary.steps}</strong> steps</span>
-          <span><strong>{(summary.total / 1000).toFixed(1)} s</strong> total</span>
-          <span><strong>{summary.network} ms</strong> in the reasoner</span>
-          <span><strong>{summary.redactions}</strong> redactions</span>
-          {summary.blocked > 0 && <span className="warn"><strong>{summary.blocked}</strong> blocked</span>}
-          {inspect && <span><strong>{inspect.handlesCount}</strong> handles held locally</span>}
-        </div>
+      {showSummary && (
+        <section className="summary" aria-label="Run summary">
+          <div className="summary-top">
+            <span className={`status status-${state.status}`}>{state.status.replace('_', ' ')}</span>
+            <span className="summary-total">{(summary.total / 1000).toFixed(1)} s total</span>
+          </div>
+          <p className="summary-head">{task || 'Waiting for a task'}</p>
+          <p className="summary-metrics">
+            <strong>{summary.steps} steps</strong>
+            <span>· {summary.redactions} redactions</span>
+            {summary.blocked > 0 && <span className="warn"><strong>{summary.blocked}</strong> blocked</span>}
+            {inspect && <span>· {inspect.handlesCount} handles held locally</span>}
+            <img src="/icons/swap.svg" alt="" width={16} height={16} />
+            <span>{summary.network} ms in the reasoner</span>
+          </p>
+        </section>
       )}
 
       {tab === 'run' && (
@@ -292,16 +308,16 @@ export default function App() {
             <article key={`${entry.step}-${entry.at}`} className={`step step-${entry.phase}`}>
               <header>
                 <strong>Step {entry.step}</strong>
-                <span>{describeAction(entry)}</span>
-                <span className="muted">{entry.timings.total} ms</span>
+                <span className={`badge badge-${actionTone(entry)}`}>{describeAction(entry)}</span>
+                <span className="step-time">{(entry.timings.total / 1000).toFixed(1)} s</span>
               </header>
               <dl>
-                {entry.targetLabel && <><dt>Target</dt><dd>{entry.targetLabel}</dd></>}
-                {entry.provider && <><dt>Planner</dt><dd>{entry.provider}</dd></>}
-                <dt>Observed</dt><dd>{entry.observedElements} elements · {entry.redactions} redactions{entry.degraded.length ? ` · degraded: ${entry.degraded.join(', ')}` : ''}</dd>
-                <dt>Timing</dt>
+                {entry.targetLabel && <><dt>Target:</dt><dd className="target">{entry.targetLabel}</dd></>}
+                {entry.provider && <><dt>Planner:</dt><dd>{entry.provider}</dd></>}
+                <dt>Observed:</dt><dd>{entry.observedElements} elements · {entry.redactions} redactions{entry.degraded.length ? ` · degraded: ${entry.degraded.join(', ')}` : ''}</dd>
+                <dt>Timing:</dt>
                 <dd>{Object.entries(entry.timings).filter(([k]) => k !== 'total').map(([k, v]) => `${k} ${v}ms`).join(' · ')}</dd>
-                {entry.errorCode && <><dt>{entry.phase === 'blocked' ? 'Blocked' : 'Error'}</dt><dd>{entry.errorCode}{entry.errorMessage ? ` — ${entry.errorMessage}` : ''}</dd></>}
+                {entry.errorCode && <><dt>{entry.phase === 'blocked' ? 'Blocked' : 'Error'}</dt><dd className="stop">{entry.errorCode}{entry.errorMessage ? ` — ${entry.errorMessage}` : ''}</dd></>}
               </dl>
             </article>
           ))}

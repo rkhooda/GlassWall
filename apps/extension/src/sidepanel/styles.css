@@ -100,9 +100,15 @@ button:disabled { opacity: 0.45; cursor: default; }
 .banner.info { background: #efe8fd; color: var(--accent); }
 .banner.ok { background: #e6f4ea; color: var(--ok); }
 
-.summary { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 12px 20px 0; padding: 9px 12px; background: var(--card); border: 1px solid var(--line); border-radius: 8px; font-size: 12px; color: var(--muted); }
-.summary strong { color: var(--text); }
-.summary .warn strong { color: var(--danger); }
+/* The run strip: status and wall-clock on one line, then the task and its counters. */
+.summary { display: flex; flex-direction: column; gap: 4px; padding: 14px 24px; background: var(--card); border-top: 1px solid var(--line-strong); border-bottom: 1px solid var(--line-strong); }
+.summary-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.summary-total { font: 500 12px var(--mono); letter-spacing: -1px; color: var(--accent-soft); }
+.summary-head { margin: 0; font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.summary-metrics { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 0; font-size: 12px; font-weight: 500; color: var(--muted); }
+.summary-metrics strong { color: var(--accent); font-weight: 600; }
+.summary-metrics .warn strong { color: var(--danger); }
+.summary-metrics img { flex: none; }
 
 .tabs { display: flex; align-items: center; gap: 44px; padding: 44px 24px 0; }
 .tabs button { border: none; border-radius: 0; background: none; color: var(--text); padding: 0 0 9px; font: 500 12px/1.2 var(--mono); border-bottom: 3px solid transparent; }
@@ -113,16 +119,24 @@ button:disabled { opacity: 0.45; cursor: default; }
 .empty { margin: auto; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 48px 0; }
 .empty p { margin: 0; font-size: 14px; font-weight: 500; color: var(--empty); text-align: center; }
 
-.trace, .privacy { padding: 14px 20px 24px; display: flex; flex-direction: column; gap: 10px; }
+.trace, .privacy { flex: 1; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
 .muted { color: var(--muted); }
-.step { background: var(--card); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 8px; padding: 10px 12px; }
-.step-error, .step-blocked { border-left-color: var(--danger); }
-.step-done { border-left-color: var(--ok); }
-.step header { display: flex; gap: 10px; align-items: baseline; margin-bottom: 6px; }
-.step header span:last-child { margin-left: auto; }
-.step dl { display: grid; grid-template-columns: max-content 1fr; gap: 3px 10px; margin: 0; font-size: 13px; }
-.step dt { color: var(--muted); }
-.step dd { margin: 0; overflow-wrap: anywhere; }
+
+/* One card per step: a ruled header, then Target/Observed style rows underneath. */
+.step { background: var(--card); border-radius: 6px; box-shadow: var(--ring); padding: 12px; }
+.step header { display: flex; gap: 8px; align-items: center; padding-bottom: 8px; margin-bottom: 12px; border-bottom: 1px solid var(--line); }
+.step header strong { font-size: 14px; font-weight: 600; }
+.step-time { margin-left: auto; font: 500 11px var(--mono); letter-spacing: -1px; color: var(--muted); }
+.badge { padding: 1px 8px; border-radius: 20px; font: 500 11px var(--mono); background: #f0f1f4; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.badge-click { background: #d0eeff; color: #001275; }
+.badge-type { background: #e4ffd0; color: var(--ok); }
+.badge-done { background: var(--accent-wash); color: var(--accent-soft); }
+.badge-stop { background: #ffe0de; color: var(--danger); }
+.step dl { display: grid; grid-template-columns: max-content 1fr; align-items: baseline; gap: 8px 12px; margin: 0; font-size: 12px; }
+.step dt { font: 500 12px var(--mono); color: var(--muted); }
+.step dd { margin: 0; text-align: right; font-weight: 500; color: var(--muted); overflow-wrap: anywhere; }
+.step dd.target { color: var(--accent-soft); text-decoration: underline; text-underline-offset: 2px; }
+.step dd.stop { color: var(--danger); }
 
 .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; z-index: 10; }
 .modal { background: var(--card); border-radius: 12px; padding: 20px; width: min(360px, 92vw); }
