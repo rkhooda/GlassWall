@@ -138,10 +138,18 @@ button:disabled { opacity: 0.45; cursor: default; }
 .step dd.target { color: var(--accent-soft); text-decoration: underline; text-underline-offset: 2px; }
 .step dd.stop { color: var(--danger); }
 
-.modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; z-index: 10; }
-.modal { background: var(--card); border-radius: 12px; padding: 20px; width: min(360px, 92vw); }
-.modal h2 { margin: 0 0 8px; font-size: 16px; }
-.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+.modal-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.35); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 10; }
+/* The approval card: what is about to happen, then Deny/Approve pinned bottom-right. */
+.modal { display: flex; flex-direction: column; align-items: flex-end; gap: 16px; background: var(--card); border-radius: 10px; padding: 16px; width: min(360px, 100%); box-shadow: var(--ring), 0 12px 32px rgba(0, 0, 0, 0.16); }
+.modal-body { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.modal h2 { display: flex; align-items: center; gap: 8px; margin: 0 0 4px; font-size: 16px; font-weight: 600; }
+.modal-target { margin: 0; font-size: 16px; font-weight: 500; color: var(--accent); text-decoration: underline; text-underline-offset: 2px; overflow-wrap: anywhere; }
+.modal-reason { margin: 0; font-size: 12px; }
+.modal-note { margin: 0; font-size: 11px; color: var(--muted); }
+.modal-actions { display: flex; gap: 10px; }
+.modal-actions .ghost { height: 26px; min-width: 83px; padding: 0 12px; border: none; border-radius: 6px; background: var(--card); box-shadow: var(--ring); font-size: 12px; font-weight: 500; }
+.modal-actions .pill { height: 26px; }
+
 code { font-family: var(--mono); font-size: 12px; }
 
 .reasons { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; font-size: 13px; }

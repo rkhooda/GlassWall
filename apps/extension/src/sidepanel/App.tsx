@@ -348,13 +348,20 @@ export default function App() {
       {confirm && (
         <div className="modal-backdrop">
           <div className="modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
-            <h2 id="confirm-title">Confirm {confirm.actionType}</h2>
-            <p><strong>{confirm.targetLabel || confirm.destination || ''}</strong></p>
-            <p className="muted">{confirm.reason}</p>
-            {confirm.vaultRef && <p>Value: <code>{confirm.vaultRef}</code> (resolved locally, never sent)</p>}
+            <div className="modal-body">
+              <h2 id="confirm-title">
+                Step {state.step}
+                <span className={`badge badge-${confirm.vaultRef ? 'type' : 'click'}`}>
+                  {confirm.actionType}{confirm.vaultRef ? ` ← ${confirm.vaultRef}` : ''}
+                </span>
+              </h2>
+              <p className="modal-target">{confirm.targetLabel || confirm.destination || confirm.actionType}</p>
+              <p className="modal-reason">GLASSWALL is ready to act here — {confirm.reason}.</p>
+              {confirm.vaultRef && <p className="modal-note">The value is resolved locally at the keystroke and never leaves this machine.</p>}
+            </div>
             <div className="modal-actions">
-              <button onClick={() => answer(false)}>Deny</button>
-              <button className="primary" onClick={() => answer(true)}>Approve</button>
+              <button type="button" className="ghost" onClick={() => answer(false)}>Deny</button>
+              <button type="button" className="pill" onClick={() => answer(true)}>Approve</button>
             </div>
           </div>
         </div>
