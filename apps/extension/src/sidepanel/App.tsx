@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import type { PolicyProfile } from '@glasswall/schema/policy';
 import type { WorkerToPanel, RunState, TraceEntry, InspectPayload, ConfirmContext, PanelToWorker, HealthInfo, AuditEntry } from '../shared/messages';
 import { Inspector } from './privacy';
+import Welcome from './Welcome';
 import './styles.css';
 
 const IDLE: RunState = { status: 'idle', sessionId: null, task: '', policy: 'STRICT', step: 0, stepsLeft: 0, provider: null };
@@ -91,6 +92,21 @@ export default function App() {
   const [health, setHealth] = useState<HealthInfo | null>(null);
   const [tab, setTab] = useState<'run' | 'privacy'>('run');
   const [collapsed, setCollapsed] = useState(false);
+  // 'unknown' until storage answers, so the panel never flashes behind the intro.
+  const [welcome, setWelcome] = useState<'unknown' | 'show' | 'hide'>(() => (chrome.storage ? 'unknown' : 'hide'));
+
+  useEffect(() => {
+    if (welcome !== 'unknown') return;
+    void chrome.storage.local
+      .get('gw:welcomed')
+      .then(v => setWelcome(v['gw:welcomed'] ? 'hide' : 'show'))
+      .catch(() => setWelcome('hide'));
+  }, [welcome]);
+
+  const dismissWelcome = () => {
+    setWelcome('hide');
+    void chrome.storage.local.set({ 'gw:welcomed': true }).catch(() => undefined);
+  };
 
   const refreshHealth = () => void send({ type: 'gw:get-health' }).then(h => { if (h) setHealth(h as HealthInfo); }).catch(() => undefined);
 
@@ -204,6 +220,9 @@ export default function App() {
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
+
+  if (welcome === 'unknown') return null;
+  if (welcome === 'show') return <Welcome onDismiss={dismissWelcome} />;
 
   return (
     <div className="panel">
