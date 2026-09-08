@@ -128,10 +128,12 @@ export default function App() {
     const onUpdated = (_id: number, change: chrome.tabs.TabChangeInfo) => { if (change.url) syncActiveTab(); };
     chrome.tabs.onActivated.addListener(onActivated);
     chrome.tabs.onUpdated.addListener(onUpdated);
+    chrome.windows?.onFocusChanged.addListener(onActivated);
     return () => {
       chrome.runtime.onMessage.removeListener(listener);
       chrome.tabs.onActivated.removeListener(onActivated);
       chrome.tabs.onUpdated.removeListener(onUpdated);
+      chrome.windows?.onFocusChanged.removeListener(onActivated);
     };
   }, [syncActiveTab]);
 
@@ -215,7 +217,6 @@ export default function App() {
             <h2 className="section-label">Current Page</h2>
             <div className="page-row">
               <p className={`page-url${pageUrl ? '' : ' page-url-empty'}`} title={pageUrl}>{pageUrl || 'No page detected'}</p>
-              <button type="button" className="pill" onClick={syncActiveTab}>Change</button>
             </div>
           </section>
 

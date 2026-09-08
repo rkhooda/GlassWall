@@ -60,7 +60,7 @@ body { margin: 0; background: var(--card); color: var(--text); font: 400 14px/1.
 .controls { background: var(--card); border-bottom: 1px solid var(--line); }
 .controls .section { border-bottom: none; padding-bottom: 0; }
 
-.page-row { display: flex; gap: 12px; align-items: center; }
+.page-row { display: flex; align-items: center; }
 .change, .pill { flex: none; height: 36px; padding: 0 10px; min-width: 83px; border: none; border-radius: 8px; background: var(--accent); color: #fff; font: 700 12px var(--sans); cursor: pointer; box-shadow: 0 2px 4px rgba(108, 56, 199, 0.15); }
 .change:hover:not(:disabled), .pill:hover:not(:disabled) { background: var(--accent-press); }
 
