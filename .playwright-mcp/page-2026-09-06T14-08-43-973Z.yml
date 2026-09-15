@@ -1,0 +1,62 @@
+- generic [ref=f5e1]:
+  - banner:
+    - heading "Excalidraw" [level=1] [ref=f5e2]
+  - generic [active] [ref=f5e5]:
+    - generic:
+      - generic:
+        - generic:
+          - button [ref=f5e7] [cursor=pointer]
+          - region "Shapes":
+            - generic [ref=f5e14]:
+              - generic:
+                - generic:
+                  - text: To move canvas, hold
+                  - generic: Scroll wheel
+                  - text: or
+                  - generic: Space
+                  - text: while dragging, or use the hand tool
+              - heading "Shapes" [level=2] [ref=f5e15]
+              - generic [ref=f5e16]:
+                - button "Keep selected tool active after drawing" [ref=f5e17] [cursor=pointer]
+                - button "Hand (panning tool)" [ref=f5e26] [cursor=pointer]
+                - button "Selection" [pressed] [ref=f5e35] [cursor=pointer]:
+                  - generic [ref=f5e36]: "1"
+                - button "Rectangle" [ref=f5e43] [cursor=pointer]:
+                  - generic [ref=f5e44]: "2"
+                - button "Diamond" [ref=f5e50] [cursor=pointer]:
+                  - generic [ref=f5e51]: "3"
+                - button "Ellipse" [ref=f5e57] [cursor=pointer]:
+                  - generic [ref=f5e58]: "4"
+                - button "Arrow" [ref=f5e64] [cursor=pointer]:
+                  - generic [ref=f5e65]: "5"
+                - button "Line" [ref=f5e72] [cursor=pointer]:
+                  - generic [ref=f5e73]: "6"
+                - button "Draw" [ref=f5e76] [cursor=pointer]:
+                  - generic [ref=f5e77]: "7"
+                - button "Text" [ref=f5e83] [cursor=pointer]:
+                  - generic [ref=f5e84]: "8"
+                - button "Insert image" [ref=f5e91] [cursor=pointer]:
+                  - generic [ref=f5e92]: "9"
+                - button "Eraser" [ref=f5e99] [cursor=pointer]:
+                  - generic [ref=f5e100]: "0"
+                - button "More tools" [ref=f5e109] [cursor=pointer]
+          - generic:
+            - generic [ref=f5e116]:
+              - link "Excalidraw+" [ref=f5e117] [cursor=pointer]:
+                - /url: https://plus.excalidraw.com/plus?utm_source=excalidraw&utm_medium=app&utm_content=guestBanner#excalidraw-redirect
+              - button "Share" [ref=f5e118] [cursor=pointer]
+            - button "Library" [ref=f5e119] [cursor=pointer]
+      - contentinfo:
+        - region [ref=f5e127]:
+          - heading "Canvas actions" [level=2] [ref=f5e128]
+          - generic [ref=f5e130]:
+            - button "Zoom out" [ref=f5e131] [cursor=pointer]
+            - button "Reset zoom" [ref=f5e135] [cursor=pointer]: 100%
+            - button "Zoom in" [ref=f5e136] [cursor=pointer]
+          - generic [ref=f5e140]:
+            - button "Undo" [disabled] [ref=f5e143]
+            - button "Redo" [disabled] [ref=f5e149]
+        - link "Blog post on end-to-end encryption in Excalidraw" [ref=f5e154] [cursor=pointer]:
+          - /url: https://plus.excalidraw.com/blog/end-to-end-encryption
+        - button "Help" [ref=f5e160] [cursor=pointer]
+    - generic [ref=f5e166]: Drawing canvas

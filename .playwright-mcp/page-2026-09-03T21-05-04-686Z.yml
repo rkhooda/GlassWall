@@ -1,0 +1,81 @@
+- generic [ref=f3e3]:
+  - banner [ref=f3e4]:
+    - heading [level=1] [ref=f3e5]:
+      - link "ClinicDesk" [ref=f3e6] [cursor=pointer]:
+        - /url: /clinicdesk/?seed=1337
+    - generic [ref=f3e7]:
+      - text: "Seed:"
+      - code [ref=f3e8]: "1337"
+  - main [ref=f3e9]:
+    - generic [ref=f3e10]:
+      - generic [ref=f3e11]:
+        - 'heading "Patient Detail: Vivek Gupta" [level=2] [ref=f3e12]'
+        - generic [ref=f3e13]: "ID: P001"
+      - generic [ref=f3e14]:
+        - region [ref=f3e15]:
+          - heading "Lab Report (Canvas)" [level=3] [ref=f3e16]
+          - generic [ref=f3e17]: Your browser does not support canvas.
+          - generic [ref=f3e19]:
+            - paragraph [ref=f3e20]: "Regions (CSS px relative to canvas):"
+            - list [ref=f3e21]:
+              - listitem [ref=f3e22]: "PERSON_NAME at (20, 30) 250×24 — value_id: v_1"
+              - listitem [ref=f3e23]: "AADHAAR at (20, 70) 200×20 — value_id: v_4"
+              - listitem [ref=f3e24]: "PHONE at (20, 110) 180×20 — value_id: v_2"
+        - region [ref=f3e25]:
+          - heading "Prescription (Image)" [level=3] [ref=f3e26]
+          - img "Prescription" [ref=f3e28]
+          - generic [ref=f3e29]:
+            - paragraph [ref=f3e30]: "Regions (CSS px relative to image):"
+            - list [ref=f3e31]:
+              - listitem [ref=f3e32]: "PERSON_NAME at (100, 140) 200×18 — value_id: v_1"
+        - region [ref=f3e33]:
+          - heading "Clinical Notes (Free Text)" [level=3] [ref=f3e34]
+          - generic [ref=f3e35]: EmergencyconsultforVivekGupta.TraumafromMVA.Homeaddress:884Marathahalli.Contactnextofkin.
+        - region [ref=f3e36]:
+          - heading "Insurance Portal (Cross-Origin Iframe Placeholder)" [level=3] [ref=f3e37]
+          - generic [ref=f3e38]:
+            - iframe [ref=f3e39]:
+              - generic [ref=f4e2]:
+                - heading "Insurance Claim Form" [level=3] [ref=f4e3]
+                - generic [ref=f4e4]:
+                  - generic [ref=f4e5]: "Patient Name:"
+                  - textbox "Patient Name:" [ref=f4e6]: Vivek Gupta
+                - generic [ref=f4e7]:
+                  - generic [ref=f4e8]: "Aadhaar:"
+                  - textbox "Aadhaar:" [ref=f4e9]: 0576 6778 5003
+                - generic [ref=f4e10]:
+                  - generic [ref=f4e11]: "Phone:"
+                  - textbox "Phone:" [ref=f4e12]: +91 775742 0286
+                - generic [ref=f4e13]:
+                  - generic [ref=f4e14]: "Policy Number:"
+                  - textbox "Policy Number:" [ref=f4e15]: POL-9R6BC5EEO
+            - paragraph [ref=f3e40]: This is a cross-origin iframe — content is not accessible to DOM extraction.
+        - region [ref=f3e41]:
+          - heading "Consent Form (SVG with Text)" [level=3] [ref=f3e42]
+          - img "Consent form with patient details" [ref=f3e44]:
+            - generic [ref=f3e47]: CONSENT FOR TREATMENT
+            - generic [ref=f3e48]: I,
+            - generic [ref=f3e49]: Vivek Gupta
+            - generic [ref=f3e50]: residing at
+            - generic [ref=f3e51]: 884 Marathahalli
+            - generic [ref=f3e52]: Nagpur
+            - generic [ref=f3e53]: MH
+            - generic [ref=f3e54]: "440001"
+            - generic [ref=f3e55]: "contact:"
+            - generic [ref=f3e56]: +91 775742 0286
+            - generic [ref=f3e57]: hereby consent to the proposed treatment.
+        - region [ref=f3e58]:
+          - heading "Near-Miss Decoys in Detail View" [level=3] [ref=f3e59]
+          - generic [ref=f3e60]:
+            - generic [ref=f3e61]:
+              - generic [ref=f3e62]: "Fake Aadhaar (fails Verhoeff):"
+              - code [ref=f3e63]: "614151215571"
+            - generic [ref=f3e64]:
+              - generic [ref=f3e65]: "Fake Card (fails Luhn):"
+              - code [ref=f3e66]: "6587185508290760"
+            - generic [ref=f3e67]:
+              - generic [ref=f3e68]: "PAN-shaped SKU:"
+              - code [ref=f3e69]: PRODU6403X
+            - generic [ref=f3e70]:
+              - generic [ref=f3e71]: "6-digit Order Number (looks like PIN):"
+              - code [ref=f3e72]: "268653"

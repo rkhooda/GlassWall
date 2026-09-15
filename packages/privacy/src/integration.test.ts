@@ -86,6 +86,27 @@ describe('sanitize → egressGate → vault, as the orchestrator uses them', () 
     expect(text).toMatch(/Contact: ⟦PHONE#\d+⟧/);
   });
 
+  it('substitutes known values in page metadata before the gate scans it', async () => {
+    const secrets = createSessionSecrets('s5');
+    secrets.record('ShopLite', 'PERSONAL', 3);
+    const raw = { ...checkoutPage(0), page: { ...checkoutPage(0).page, url_template: '/shoplite/cart', title_raw: 'ShopLite Cart' } };
+    const result = await sanitize({ raw, frame: null, task: 't', step: 0, session: { session_id: 's5', policy_profile: 'STRICT', secrets } });
+    const obs = result.observation as { page: { url_template: string; title_raw: string } };
+
+    expect(obs.page.url_template).toBe('/⟦PERSONAL#1⟧/cart');
+    expect(obs.page.title_raw).toBe('⟦PERSONAL#1⟧ Cart');
+    expect(egressGate({ path: '/v1/step', body: { session_id: 's5', observation: obs, history: [] } }, secrets.registry, PROFILES.STRICT.policy).ok).toBe(true);
+  });
+
+  it('does not scan a safe handle against a secret containing its type name', async () => {
+    const secrets = createSessionSecrets('s6');
+    const handle = secrets.record('personal', 'PERSONAL', 3);
+    const sanitized = await sanitize({ raw: checkoutPage(0), frame: null, task: 't', step: 0, session: { session_id: 's6', policy_profile: 'STRICT', secrets } });
+    const observation = { ...sanitized.observation, page: { ...sanitized.observation.page, url_template: handle } };
+    const gate = egressGate({ path: '/v1/step', body: { session_id: 's6', observation, history: [] } }, secrets.registry, PROFILES.STRICT.policy);
+    expect(gate.ok).toBe(true);
+  });
+
   it('rejects a raw secret the sanitizer somehow missed', () => {
     resetRateLimitForTests();
     const secrets = createSessionSecrets('s3');

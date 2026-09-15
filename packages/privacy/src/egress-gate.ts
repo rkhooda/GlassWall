@@ -26,6 +26,8 @@ const ENTROPY_MIN_LENGTH = 24;
 const RATE_WINDOW_MS = 60_000;
 const RATE_MAX_SENDS = 90;
 const HANDLE_RE = /^⟦[A-Z_]+(#\d+)?⟧$/;
+const HANDLE_TOKEN_RE = /⟦[A-Z_]+(?:#\d+)?⟧/g;
+const PROTOCOL_LABEL_PATH = /(?:^|\.)(type|kind|source|sensitivity_class|pii_type|origin_class|type_hint|policy_profile)$/;
 /** Recognizer tiers 1–2 are checksum- or shape-verified identifiers: a hit is a leak. */
 const SWEEP_TIERS = new Set([1, 2]);
 
@@ -55,6 +57,7 @@ function checkSchema(request: OutboundRequest): Violation | null {
 function checkRecognizerSweep(body: unknown): Violation | null {
   for (const { value, path } of extractStrings(body)) {
     if (!value || OPAQUE_FIELDS.test(path)) continue;
+    if (HANDLE_RE.test(value)) continue;
     if (path.endsWith('.handle') && !HANDLE_RE.test(value)) return violation('TYPE_BRAND', `Malformed handle at ${path}`, { path });
     // Every tier-1/2 identifier carries a digit or an '@' (or is a long token); skip plain words.
     if (value.length < 6 || !(/[\d@]/.test(value) || (value.length >= 16 && /[_-]/.test(value)))) continue;
@@ -90,7 +93,14 @@ function checkRegistry(body: unknown, registry: SecretRegistry): Violation | nul
   // Scan the released strings one by one, normalized. Scanning each string separately
   // keeps an n-gram from straddling two unrelated values, and lets the violation name
   // the path of the offending field (never its content).
-  const strings = extractStrings(body).filter(s => s.value.length >= 4).map(s => ({ path: s.path, text: normalize(s.value) }));
+  // Handles are safe by construction, but their type name can also be a registry
+  // value (for example a detector may register "personal"). Remove only complete,
+  // well-shaped handles before scanning so the gate does not match a secret against
+  // the safe token it just emitted.
+  const strings = extractStrings(body)
+    .filter(s => s.value.length >= 4)
+    .filter(s => !PROTOCOL_LABEL_PATH.test(s.path))
+    .map(s => ({ path: s.path, text: normalize(s.value.replace(HANDLE_TOKEN_RE, ' ')) }));
   const { automaton, byPattern } = indexFor(registry);
   for (const { path, text } of strings) {
     const hit = automaton.search(text)[0];

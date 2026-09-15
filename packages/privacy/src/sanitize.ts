@@ -266,7 +266,18 @@ export async function sanitize(input: SanitizeInput): Promise<SanitizeResult> {
     });
 
     const handles = [...registry.values()].map(entry => ({ handle: entry.handle, type: entry.pii_type, tier: entry.tier, occurrences: 1, first_seen_step: step }));
-    const observation = buildSanitizedObservation({ raw, tokenizedElements, tokenizedTextNodes, handles, budget });
+    // Page metadata is part of the egress payload too. A route or title can repeat
+    // a value already registered from page content, so it must use the same
+    // substitution path as labels and text nodes before the gate scans it.
+    const projectedRaw: RawObservation = {
+      ...raw,
+      page: {
+        ...raw.page,
+        url_template: substitute(raw.page.url_template),
+        title_raw: substitute(raw.page.title_raw),
+      },
+    };
+    const observation = buildSanitizedObservation({ raw: projectedRaw, tokenizedElements, tokenizedTextNodes, handles, budget });
     timings.build = Date.now() - buildStart;
 
     return { observation, redactions, audit: { detections, policy: decisions, egress: [], timings, degraded }, timings, degraded };

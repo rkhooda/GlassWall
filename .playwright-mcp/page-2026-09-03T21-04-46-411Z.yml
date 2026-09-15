@@ -1,0 +1,66 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - heading [level=1] [ref=e5]:
+      - link "ClinicDesk" [ref=e6] [cursor=pointer]:
+        - /url: /clinicdesk/?seed=1337
+    - generic [ref=e7]:
+      - text: "Seed:"
+      - code [ref=e8]: "1337"
+  - main [ref=e9]:
+    - generic [ref=e10]:
+      - heading "Patient List" [level=2] [ref=e11]
+      - table [ref=e12]:
+        - rowgroup [ref=e13]:
+          - row [ref=e14]:
+            - columnheader "Patient ID" [ref=e15]
+            - columnheader "Name" [ref=e16]
+            - columnheader "MRN" [ref=e17]
+            - columnheader "Phone" [ref=e18]
+            - columnheader "DOB" [ref=e19]
+            - columnheader "Actions" [ref=e20]
+        - rowgroup [ref=e21]:
+          - row [ref=e22]:
+            - cell [ref=e23]:
+              - code [ref=e24]: P001
+            - cell "Vivek Gupta" [ref=e25]
+            - cell "CLIN-300178" [ref=e26]
+            - cell "+917757420286" [ref=e27]
+            - cell "1998-10-01" [ref=e28]
+            - cell [ref=e29]:
+              - link "View" [ref=e30] [cursor=pointer]:
+                - /url: /clinicdesk/patient/P001
+          - row [ref=e31]:
+            - cell [ref=e32]:
+              - code [ref=e33]: P002
+            - cell "Vikram Patel" [ref=e34]
+            - cell "OPD-123733" [ref=e35]
+            - cell "+919882942278" [ref=e36]
+            - cell "1956-01-25" [ref=e37]
+            - cell [ref=e38]:
+              - link "View" [ref=e39] [cursor=pointer]:
+                - /url: /clinicdesk/patient/P002
+          - row [ref=e40]:
+            - cell [ref=e41]:
+              - code [ref=e42]: P003
+            - cell "Ajay Reddy" [ref=e43]
+            - cell "MRN-243892" [ref=e44]
+            - cell "+916424795596" [ref=e45]
+            - cell "1997-07-05" [ref=e46]
+            - cell [ref=e47]:
+              - link "View" [ref=e48] [cursor=pointer]:
+                - /url: /clinicdesk/patient/P003
+      - generic [ref=e49]:
+        - heading "Near-Miss Decoys (Should NOT be detected)" [level=3] [ref=e50]
+        - generic [ref=e51]:
+          - generic [ref=e52]:
+            - generic [ref=e53]: "AADHAAR:"
+            - code [ref=e54]: "614151215571"
+          - generic [ref=e55]:
+            - generic [ref=e56]: "CARD:"
+            - code [ref=e57]: "6587185508290760"
+          - generic [ref=e58]:
+            - generic [ref=e59]: "PAN:"
+            - code [ref=e60]: PRODU6403X
+          - generic [ref=e61]:
+            - generic [ref=e62]: "POSTAL_CODE:"
+            - code [ref=e63]: "268653"
