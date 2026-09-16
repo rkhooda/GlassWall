@@ -120,7 +120,8 @@ pnpm lint
 pnpm verify:boundary
 ```
 
-Useful browser/evaluation commands, with the bench site and gateway running:
+Useful browser/evaluation commands. Build the evaluation extension first; run the
+browser commands in a second terminal while `pnpm dev` is running:
 
 ```bash
 pnpm build:eval       # evaluation extension plus the intentional unsafe control build
