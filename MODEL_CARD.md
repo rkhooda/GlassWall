@@ -98,9 +98,9 @@ region.
 
 ## 3. Visual PII / face detector: not built
 
-The problem statement gives "blur faces" as an example. GLASSWALL masks every image
-region without a DOM owner wholesale (explain-or-redact), so a photo is blacked out
-rather than analysed. A detector would refine that box into a face box; the extension
+General visual PII detection is a common use case, but it is not implemented here.
+GLASSWALL masks every image region without a DOM owner wholesale (explain-or-redact),
+so a photo is blacked out rather than analysed. A detector would refine that box into a face box; the extension
 point is a third `PerceptionSource` in `apps/extension/src/background/perception.ts`
 with its own coverage declaration. Ablation A8 (`eval/reports/p11-ablation.md`) shows
 that on the synthetic scene coverage alone accounts for the pixel channel.

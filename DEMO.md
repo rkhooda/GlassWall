@@ -1,10 +1,10 @@
 # DEMO — the rehearsed script (about 7 minutes)
 
 Every beat below runs on this repository as committed. Nothing is staged that the
-code does not do. Judges supply their own use case at the finale, so the last beat
-runs on a page we have not rehearsed.
+code does not do. The final beat is intentionally exploratory: it uses a page that is
+not part of the local benchmark.
 
-## Setup (before the judges arrive)
+## Setup
 
 ```bash
 pnpm install && bash ml/fetch-models.sh && pnpm build && pnpm build:eval
@@ -32,7 +32,7 @@ pnpm dev                     # bench sites :5173, gateway :3000
 | 6 | The attack | 0:45 | ShopLite injection page | Restart the gateway with `GLASSWALL_DEMO_HIJACKED=1`. Open `/shoplite/injection`, task *Add this product to my cart*. The hijacked planner tries to type the Aadhaar handle into the search box. Red banner: **Blocked: VAULT_TYPE_MISMATCH**. The audit entry records it. Restart the gateway normally. |
 | 7 | The proof | 1:00 | terminal | `pnpm bench:leakage`: the safe build shows 0 findings; then the UNSAFE build (sanitizer and gate compiled out) runs and the same harness goes red with the persona's values on the wire. A test that can fail. |
 | 8 | The numbers | 0:30 | `eval/reports/summary.md` | The five PS metrics from the last `pnpm bench:all`: visual-context recall/precision, PII recall/precision, redaction precision, local ms per step and payload size, step latency p50/p95. |
-| 9 | Unseen page | 0:45 | judge's choice | Any http(s) page they name with a form or a search box. Same panel, same task box. The scripted planner fills by field semantics; a configured LLM handles the rest. |
+| 9 | Unseen page | 0:45 | exploratory page | Any http(s) page with a form or a search box. Same panel, same task box. The scripted planner fills by field semantics; a configured LLM handles the rest. |
 | 10 | Close | 0:15 | slide | What is ours, what is prior work, what we do not claim (`SECURITY.md`). |
 
 ## Exact click paths
@@ -81,8 +81,8 @@ classes with no values, and the planner asks for confirmation before submitting.
 | Header chip says **gateway offline** | `pnpm dev` is not running, or the port moved. Restart it. |
 | "GLASSWALL works on http(s) pages only" | The active tab is `chrome://`. Click the bench-site tab, then Start. |
 | Screenshot missing under BALANCED | Accept the permission prompt, or reload the page and Start again. |
-| NER/OCR chip says cold and steps are slow | First step loads the models (a few seconds); later steps are fast. Warm up before the judges arrive. |
-| The planner gives up on the judge's page | Say so. Show the trace: the observation is still handles-only, and nothing left the device that should not have. |
+| NER/OCR chip says cold and steps are slow | First step loads the models (a few seconds); later steps are fast. Warm up before recording or presenting the run. |
+| The planner gives up on the exploratory page | Say so. Show the trace: the observation is still handles-only, and nothing left the device that should not have. |
 | Provider key expired | Nothing to do: the chain falls back to the scripted planner automatically and the chip shows which one answered. |
 
 ## Checklist
@@ -92,4 +92,4 @@ classes with no values, and the planner asks for confirmation before submitting.
 - [ ] Beats 2 to 7 run once on this machine before the session
 - [ ] `pnpm bench:smoke` green, `pnpm bench:leakage` green with the negative control red
 - [ ] `eval/reports/summary.md` is from the current commit
-- [ ] A second laptop holds the same state
+- [ ] A second machine can reproduce the same setup if a second environment is needed

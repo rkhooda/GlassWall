@@ -92,7 +92,7 @@ The ONNX Runtime Web inference spike **PASSES**. A tiny 2-layer MLP model runs e
 
 ---
 
-## Answers to PLAN.md Appendix A Questions
+## Questions answered by the spike
 
 ### Q1: Does ORT-Web run multithreaded/WebGPU inside an MV3 offscreen document on the demo machine?
 
@@ -113,7 +113,7 @@ The ONNX Runtime Web inference spike **PASSES**. A tiny 2-layer MLP model runs e
 
 ---
 
-## Manifest / CSP Changes Required (→ docs/REQUESTS-TO-A.md)
+## Manifest / CSP changes
 
 No new manifest.json or CSP changes required beyond what Phase 0/1 already specifies. The offscreen document already declares `offscreen` permission and the model loads via `chrome.runtime.getURL()` (no `connect-src` needed for model weights).
 
@@ -137,7 +137,7 @@ The inference spike meets all acceptance criteria:
 
 ## Next Steps
 
-1. Integrate `runtime.ts` + `registry.ts` into `apps/extension/src/offscreen/host.ts` (Lane B implements `InferenceHost`).
-2. Lane A wires up the RPC transport (`callOffscreenMethod`).
-3. Begin Phase 2 (DOM extraction) and Phase 3 (screenshot pipeline) in parallel.
-4. When real models arrive (PP-OCRv5, NER, vision detector), register them in `registry.ts` and benchmark with the same harness.
+1. Keep `runtime.ts` and `registry.ts` behind the offscreen host interface.
+2. Keep RPC transport details out of the orchestrator.
+3. Continue measuring real NER/OCR models with the same local harness.
+4. Add future visual models as independent perception sources with explicit coverage and failure behavior.

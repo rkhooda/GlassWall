@@ -51,7 +51,7 @@ function applyRedactions(
 
 /**
  * Redact regions of an image by drawing filled rectangles over them.
- * CRITICAL ORDERING RULE (PLAN.md §7.3):
+ * CRITICAL ORDERING RULE:
  * - Redaction is applied to the pixel buffer INSIDE the offscreen document
  * - The original bitmap is dropped before the redacted version is handed out
  * - This is the ONLY module in the repo that returns image bytes to the orchestrator

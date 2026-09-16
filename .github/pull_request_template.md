@@ -2,9 +2,9 @@
 
 One sentence. No "and".
 
-## Phase / acceptance criterion
+## Change / acceptance criterion
 
-PLAN-B §6 P__ — quote the specific criterion this satisfies.
+Describe the behavior or documentation outcome this change satisfies.
 
 ## Contracts touched
 
@@ -19,7 +19,7 @@ PLAN-B §6 P__ — quote the specific criterion this satisfies.
 [ ] `bench:leakage` green (day 8+)
 [ ] No `fetch` / `XMLHttpRequest` / `sendBeacon` / `WebSocket`
 [ ] No `eval` / `Function` / `innerHTML`
-[ ] No file outside my ownership map (PLAN-B §4)
+[ ] No unrelated files are included
 [ ] No raw value logged, traced, returned, or persisted outside `storage.session`
 [ ] On failure, this code degrades toward MORE redaction, not less
 

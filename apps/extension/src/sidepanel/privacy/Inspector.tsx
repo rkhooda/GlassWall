@@ -1,7 +1,7 @@
 /**
- * The payload inspector (PLAN-B §6 P12-B, PLAN.md §28 cut #11).
+ * The payload inspector for comparing local and released context.
  *
- * This is the component the demo is built around. A judge names a secret, types
+ * This is the component the demo is built around. A user names a secret, types
  * it into the search box, and the panel says whether it is present in the payload
  * that would go over the wire — naming every encoding it checked. The search is
  * not a rubber stamp: a value that genuinely is in the payload (a product name, a

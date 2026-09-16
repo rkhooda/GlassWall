@@ -1,7 +1,8 @@
 # INSTRUMENTATION SPEC — Contract C10
 
-**Owner: B (Privacy lane).** A applies these attributes while building ShopLite and GovPortal.
-**CI Gate:** The extension bundle must contain **zero** occurrences of `data-glasswall-`. Only the Playwright eval harness reads these. Extension code never does.
+The local bench sites expose these attributes as ground truth for the Playwright
+evaluation harness. The extension bundle must contain **zero** occurrences of
+`data-glasswall-`; extension code never reads them.
 
 ---
 

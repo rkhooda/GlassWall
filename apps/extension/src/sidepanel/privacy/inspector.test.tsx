@@ -1,7 +1,7 @@
 /**
- * The demo, as a test (PLAN-B §6 P12-B).
+ * The local privacy-inspector flow, as a test.
  *
- * A canary goes onto the page, a step runs through the real `sanitize()`, a judge
+ * A canary goes onto the page, a step runs through the real `sanitize()`, a user
  * searches for it and gets NOT PRESENT — and a value that genuinely *is* in the
  * payload comes back FOUND, so the search is demonstrably not a rubber stamp.
  *
@@ -24,8 +24,8 @@ const PUBLIC_PRODUCT = 'Aeron Chair';
 
 function buildRaw(): RawObservation {
   return {
-    observation_id: 'ob_judge',
-    session_id: 'sess_judge',
+    observation_id: 'ob_test',
+    session_id: 'sess_test',
     step: 3,
     page: {
       origin_class: 'benchmark',
@@ -66,12 +66,12 @@ async function runStep() {
     frame: null,
     task: 'checkout',
     step: 3,
-    session: { session_id: 'sess_judge', policy_profile: 'BALANCED' },
+    session: { session_id: 'sess_test', policy_profile: 'BALANCED' },
   });
   return { raw, result, payload: result.observation as SanitizedObservation };
 }
 
-describe('the judge flow', () => {
+describe('the privacy-inspector flow', () => {
   it('reports NOT PRESENT for a canary that was on the page', async () => {
     const { payload } = await runStep();
 

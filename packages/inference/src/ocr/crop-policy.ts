@@ -107,7 +107,7 @@ export function boxToViewport(
 
 export const NO_UNEXPLAINED_CROPS = 'no_unexplained_crops';
 
-/** Non-null when OCR should not run at all. PLAN.md §27 D6: the skip is itself a result. */
+/** Non-null when OCR should not run at all; the skip is itself a result. */
 export function ocrSkipReason(raw: RawObservation): string | null {
   return findUnexplainedRegions(raw).length === 0 ? NO_UNEXPLAINED_CROPS : null;
 }

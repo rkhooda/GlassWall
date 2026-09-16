@@ -10,7 +10,7 @@ import { extractPiiTypeFromHandle, resolveForBinding, type BindingTarget } from 
  * through the network or the model. It is also the A4 control — a hijacked reasoner
  * asking for an Aadhaar to be typed into a public search box is refused here.
  *
- * `PLAN.md` §11.5 calls the type match "one of the more interesting security
+ * The type match is one of the more interesting security
  * properties in the system". It had no test until P15-B, which is exactly the kind of
  * claim that should not survive into a document unchecked.
  */

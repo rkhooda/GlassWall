@@ -1,5 +1,5 @@
 /**
- * Handle inventory (PLAN-B §6 P12-B).
+ * Handle inventory.
  *
  * Type and count. Never a value — not in the text, not in a tooltip, not in a
  * `title` attribute, not in a data attribute, not anywhere in the DOM. This

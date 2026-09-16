@@ -1,5 +1,5 @@
 /**
- * Detection metrics for the perception sources (PLAN-B §6 P8/P9 acceptance).
+ * Detection metrics for the local perception sources.
  *
  * Span F1 scores NER against a labelled set; character accuracy scores OCR
  * against known crop text. Both are pure functions so the harness, the unit
@@ -24,7 +24,7 @@ export interface PrfScore {
 /**
  * Span-level P/R/F1. A prediction matches a gold span when the type agrees and
  * the character overlap reaches `minOverlap` of the union (IoU) — exact-boundary
- * scoring punishes a tokenizer for including a trailing period, which tells us
+ * the benchmark penalizes a tokenizer for including a trailing period, which tells us
  * nothing about whether the name was found.
  */
 export function spanF1(

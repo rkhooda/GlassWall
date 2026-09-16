@@ -1,4 +1,4 @@
-// The five metrics the SIH 26171 evaluation names, computed from real runs:
+// The five benchmark dimensions computed from real browser runs:
 //   1. accuracy of visual context from the screen        (25%)
 //   2. recall and precision for detection of sensitive data (20%)
 //   3. precision of redaction                             (20%)

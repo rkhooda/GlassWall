@@ -2,8 +2,8 @@
 
 **Status:** Accepted
 **Date:** 2026-08-29
-**Deciders:** Lane B (Perception & Privacy)
-**Consulted:** Lane A (Agent & Control)
+**Deciders:** GlassWall maintainers
+**Consulted:** Extension and inference modules
 
 ---
 
@@ -13,7 +13,7 @@ MV3 service workers cannot create Web Workers. ONNX Runtime Web's multithreaded 
 
 Even inside an offscreen document, the extension CSP may block worker creation, requiring a **sandboxed iframe** as a second fallback.
 
-The spike (P1-B) was mandated to resolve this before any other work, because **if ORT-Web cannot run in the offscreen document, the entire architecture changes** (fallback: Native Messaging host or `localhost` Node sidecar with `onnxruntime-node`).
+The inference spike resolved this early because **if ORT-Web could not run in the offscreen document, the entire architecture would need a Native Messaging host or `localhost` Node sidecar**.
 
 ---
 
@@ -45,12 +45,12 @@ The spike (P1-B) was mandated to resolve this before any other work, because **i
 - **Simplest working architecture** — single offscreen document, single RPC interface.
 - **WebGPU acceleration** available on supported hardware (major speedup for vision/OCR/NER).
 - **Zero network dependency** for inference — models bundled, loaded via `chrome.runtime.getURL()`.
-- **Offscreen document lifecycle** managed by Lane A (host.ts); Lane B only implements handlers.
+- **Offscreen document lifecycle** is managed by the extension host; inference modules only implement handlers.
 - **CSP unchanged** — no `worker-src` or `child-src` directives needed.
 
 ### Negative
 - **No WASM threads** — WASM inference is single-threaded. Acceptable for spike model; real models (PP-OCRv5, NER) will be slower on CPU-only machines. Mitigation: WebGPU preferred when available; WASM is fallback.
-- **Offscreen document keep-alive** — must be managed carefully to avoid Chrome killing it. Lane A owns this.
+- **Offscreen document keep-alive** — must be managed carefully to avoid Chrome killing it.
 
 ---
 
@@ -67,8 +67,4 @@ Spike results in `docs/SPIKE-INFERENCE.md` confirm:
 
 ## Related
 
-- `PLAN.md` §8.2 (MV3 inference placement decision)
-- `PLAN.md` §17 Phase 1 (Inference Spike acceptance criteria)
-- `PLAN-B-PERCEPTION-PRIVACY.md` §6 P1-B
 - `docs/SPIKE-INFERENCE.md` (detailed results)
-- `docs/REQUESTS-TO-A.md` (no new requests from this ADR)

@@ -1,4 +1,4 @@
-# P13-B — Lane B performance, after optimization
+# Performance after optimization
 
 **Measured 2026-09-01T06:06:11.192Z at `569f52bb6cef494fdf4099aaecc44a84a49b5858`.**
 

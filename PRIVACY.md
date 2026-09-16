@@ -104,5 +104,6 @@ The handles panel shows types and counts only, never a value, not in a tooltip.
 
 ## Contact
 
-SIH 2026, problem statement 26171. No data is collected, so there is nothing to
-request, export or delete beyond ending the run.
+This project does not operate a hosted GlassWall service or collect telemetry. In a
+deployment that adds hosted storage or analytics, those data flows would need to be
+documented separately. For the local build, ending the run clears the session vault.

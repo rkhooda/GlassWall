@@ -1,6 +1,6 @@
 // Any OpenAI-compatible chat endpoint: Ollama (open-weights, offline), vLLM, Groq,
 // OpenRouter, Together. This is the PS's preferred shape — an offline-deployable
-// open model, optionally cloud-hosted for the hackathon.
+// Open model, optionally hosted behind an OpenAI-compatible endpoint.
 //
 //   GLASSWALL_LLM_BASE_URL   default http://localhost:11434/v1 (Ollama)
 //   GLASSWALL_LLM_MODEL      e.g. llama3.1:8b, qwen2.5:7b, llama-3.3-70b-versatile

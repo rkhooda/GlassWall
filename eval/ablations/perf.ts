@@ -1,5 +1,5 @@
 /**
- * P13-B — the perf harness for Lane B's subsystems.
+ * Performance harness for the local privacy and perception subsystems.
  *
  * Written before any optimization, so the baseline it prints is a measurement and
  * not a memory. Every row is produced by running the real code on the real weights
@@ -12,7 +12,7 @@
  *   - Tesseract recognition: the worker is a browser worker. The OCR rows here are
  *     the *skip decision* and the fail-closed path, which are pure TS and are what
  *     the D6 claim actually rests on.
- *   - A's DOM extraction, message bus and step loop. Not my lane.
+ *   - Browser extraction, message transport, and the step loop, which are measured separately.
  */
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -341,7 +341,7 @@ export function renderFullReport(report: PerfReport): string {
   const cold = report.rows.find(r => r.metric === 'first step, model cold')?.value;
   const warm = report.rows.find(r => r.metric === 'first step, after warm-up at install')?.value;
 
-  return `${renderPerfReport(report, 'P13-B — Lane B performance, after optimization')}
+  return `${renderPerfReport(report, 'Performance after optimization')}
 
 ## Before → after
 

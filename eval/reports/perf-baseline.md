@@ -1,4 +1,4 @@
-# P13-B baseline — Lane B performance BEFORE optimization
+# Performance baseline before optimization
 
 **Measured 2026-09-01T05:54:50.537Z at `543938f1b770958764eb13898ff3a383c4ecd7ce`.**
 

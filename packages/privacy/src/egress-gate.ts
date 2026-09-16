@@ -134,7 +134,7 @@ function checkEntropy(body: unknown): Violation | null {
   for (const { value, path } of extractStrings(body)) {
     if (OPAQUE_FIELDS.test(path) || /\s/.test(value) || /⟦/.test(value)) continue;
     if (/^https?:\/\//.test(value)) continue;
-    // A path is judged segment by segment: "/shoplite/checkout/confirm" is words, a
+    // A path is checked segment by segment: "/shoplite/checkout/confirm" is words, a
     // 40-character random segment is a token.
     const tokens = value.includes('/') ? value.split('/') : [value];
     for (const token of tokens) {

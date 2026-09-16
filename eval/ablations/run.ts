@@ -16,7 +16,7 @@ export interface AblationConfig {
   weights: Partial<Record<'regex' | 'ner' | 'ocr' | 'vision' | 'deterministic', number>>;
 }
 
-/** A1/A6/A7 follow the naming in PLAN-B §6 P12-B; the single-source rows are A2–A5. */
+/** A1/A6/A7 are the historical comparison rows; the single-source rows are A2–A5. */
 export const CONFIGS: AblationConfig[] = [
   { id: 'A1', label: 'DOM only (regex)', weights: { ner: 0, ocr: 0, vision: 0, deterministic: 0 } },
   { id: 'A2', label: 'NER only', weights: { regex: 0, ocr: 0, vision: 0, deterministic: 0 } },

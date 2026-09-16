@@ -1,5 +1,5 @@
 // Image Pipeline - Offscreen Document Image Processing
-// Lane B owns: decode, downscale, DPR normalization, redaction, debug alignment
+// Image pipeline owns: decode, downscale, DPR normalization, redaction, debug alignment
 
 export * from './dpr';
 export * from './decode';

@@ -114,7 +114,7 @@ and a smaller payload, never less.
 
 ## Residuals
 
-1. The gateway is `http://localhost:3000` without TLS; this is a hackathon build.
+1. The local gateway is `http://localhost:3000` without TLS. A deployed gateway should use TLS and an appropriate access-control boundary.
 2. `BALANCED` needs a per-origin host permission to capture pixels; the panel asks on
    Start. `STRICT` needs none.
 3. No trained face or visual-PII detector. Image regions without a DOM owner are masked
@@ -127,5 +127,6 @@ and a smaller payload, never less.
 
 ## Reporting
 
-SIH 2026, problem statement 26171. The useful form of a report is a failing test in
-`eval/leakage/` or `packages/privacy/src/*.test.ts`.
+The useful form of a security report is a failing test in `eval/leakage/` or
+`packages/privacy/src/*.test.ts`. Please include the affected boundary and a minimal
+reproduction when reporting an issue.

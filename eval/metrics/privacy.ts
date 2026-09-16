@@ -1,5 +1,5 @@
 /**
- * Privacy metrics (PLAN-B §6 P11/P12-B).
+ * Privacy metrics for the local browser benchmark.
  *
  * The numbers answer different questions and are reported separately on purpose:
  *

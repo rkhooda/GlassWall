@@ -1,7 +1,7 @@
 # GLASSWALL — Agent Context
 
-Repo for SIH 2026 problem statement **SIH26171** (ISRO): *On-device Visual Perception
-for Light-weight Browser Agents*. Read this file fully before any task.
+Standalone personal project exploring privacy-first browser agents with on-device
+perception. Read this file fully before any task.
 
 ## Documents
 
@@ -11,21 +11,20 @@ for Light-weight Browser Agents*. Read this file fully before any task.
 | `docs/CONTRACTS.md` | Interface contracts between extension, privacy library and gateway |
 | `ARCHITECTURE.md` | Component map and data flow |
 | `SECURITY.md` · `PRIVACY.md` · `EVALUATION.md` · `MODEL_CARD.md` | Threat model, data handling, measurements, models |
-| `DEMO.md` | The judge demo script |
-| `docs/archive/` | Original two-lane plans. History only; not authoritative |
+| `DEMO.md` | Rehearsed local walkthrough |
+| `docs/archive/` | Historical planning and project-origin material; not authoritative |
 
 The repository is single-owner. Every directory may be edited when a task needs it.
 
-## The problem statement, in one paragraph
+## Product context
 
 A browser extension perceives the page locally (DOM + accessibility tree + a local
 vision/OCR pass on the screenshot), detects and redacts sensitive data before any
 network request, sends only sanitized structure (and a pixel-redacted screenshot when
 policy allows) to a gateway that asks an LLM/VLM for the next UI action, and executes
-that action in the page, looping until the task is done. Judges score: visual-context
-accuracy 25%, PII precision/recall 20%, redaction precision 20%, client resource use
-20%, end-to-end latency 15%. Finale use cases are supplied by the judges, so the agent
-must work on pages we have not seen.
+that action in the page, looping until the task is done. The local evaluation harness
+tracks visual context, PII handling, redaction, client resource use, and latency, but
+those measurements are benchmark results rather than product guarantees.
 
 ## Hard rules (violating any of these fails the task)
 

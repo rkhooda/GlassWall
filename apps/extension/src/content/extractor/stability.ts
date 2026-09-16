@@ -1,5 +1,5 @@
 // DOM stability checking for validation ladder (WAIT_STABLE)
-// Implements PLAN.md section 12.4: Validation ladder
+// Implements the extractor validation ladder.
 
 // Configuration for stability checking
 const STABILITY_CHECK_INTERVAL = 50; // ms between stability checks

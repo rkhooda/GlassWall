@@ -35,7 +35,7 @@ const FILES: Record<NerDtype, string> = {
 const SWEEP: NerDtype[] = ['q8', 'q4f16', 'fp16'];
 const HAVE_ALL = SWEEP.every(d => existsSync(resolve(ONNX_DIR, FILES[d])));
 
-/** The 30MB acceptance budget from PLAN-B §6 P8. */
+/** The 30 MB exploratory model-size budget. */
 const SIZE_BUDGET_BYTES = 30 * 1024 * 1024;
 
 const SEEDS = Array.from({ length: 25 }, (_, i) => 1000 + i);

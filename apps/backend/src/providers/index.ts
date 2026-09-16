@@ -22,7 +22,8 @@ export function buildProviderChain(env: NodeJS.ProcessEnv = process.env): Provid
   };
   const chain = order.flatMap(n => byName[n] ?? []);
   if (!chain.includes(scriptedProvider)) chain.push(scriptedProvider);
-  // Demo switch: a simulated prompt-injected planner goes first so judges can watch the client block it.
+  // Demo switch: a simulated prompt-injected planner goes first so the client-side
+  // validator can be exercised interactively.
   if (env.GLASSWALL_DEMO_HIJACKED === '1') chain.unshift(hijackedProvider);
   return chain;
 }

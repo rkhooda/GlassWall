@@ -1,7 +1,7 @@
 /**
  * Shared style tokens for the privacy inspector.
  *
- * Built to be read from three metres away (PLAN-B §6 P12-B): nothing below 14px,
+ * Built for quick scanning during a local run: nothing below 14px,
  * and every foreground/background pair here clears WCAG AA at that size. Plain
  * inline styles — a demo-critical panel should not depend on a stylesheet
  * arriving — but the colours and faces are the panel's own tokens, so the

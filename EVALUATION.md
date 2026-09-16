@@ -3,12 +3,13 @@
 Every number GLASSWALL claims, where it comes from, and the command that regenerates it.
 Where a criterion is missed, the miss is stated in place of the criterion.
 
-## The five problem-statement metrics
+## Evaluation dimensions
 
-SIH 26171 scores: visual-context accuracy 25%, PII precision/recall 20%, redaction
-precision 20%, client-side resource utilization 20%, end-to-end latency 15%. All five
-are measured end to end: the real extension, loaded in Chromium by Playwright, driving
-the instrumented bench sites through the real gateway with the scripted planner.
+The benchmark tracks visual-context accuracy, PII precision/recall, redaction precision,
+client-side resource utilization, and end-to-end latency. All five are measured end to
+end: the real extension, loaded in Chromium by Playwright, drives instrumented local
+bench sites through the real gateway with the scripted planner. The weights below are
+kept as a consistent comparison rubric, not as a product guarantee.
 
 Last full run (`eval/reports/summary.md`, commit deb468a, Apple M1 8 GB, Node 24,
 Chromium via Playwright; seeds 1337, 42, 7; STRICT and BALANCED; T1–T5 and T7):

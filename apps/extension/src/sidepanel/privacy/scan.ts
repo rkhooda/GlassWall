@@ -1,7 +1,7 @@
 /**
- * The registry scan behind the inspector's search box (PLAN-B §6 P12-B).
+ * The registry scan behind the inspector's search box.
  *
- * A judge names a secret and we answer one question: is that value present in the
+ * A user names a secret and we answer one question: is that value present in the
  * payload we would put on the wire — in *any* encoding the egress gate protects
  * against? Answering only for the literal form would be a rubber stamp, so every
  * encoding `generateEncodings()` produces is probed here, and each probe is
@@ -12,7 +12,7 @@
  * it never looked for.
  *
  * Nothing here touches the vault or the registry's stored values. The only secret
- * involved is the one the judge typed, and it stays in component state.
+ * involved is the one the user typed, and it stays in component state.
  */
 import { normalize, base64Utf8 } from '@glasswall/privacy';
 
@@ -56,7 +56,7 @@ export interface EncodingProbe {
 }
 
 export interface ScanResult {
-  /** What the judge typed, verbatim. Echoed back so the answer names its question. */
+  /** What the user typed, verbatim. Echoed back so the answer names its question. */
   query: string;
   found: boolean;
   matchedEncodings: string[];
