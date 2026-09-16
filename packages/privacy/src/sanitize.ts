@@ -245,7 +245,11 @@ export async function sanitize(input: SanitizeInput): Promise<SanitizeResult> {
       const tokenizedLabel = substitute(el.label_raw);
       const tokenizedPlaceholder = scrubPlaceholder(el.placeholder_raw);
       // Unexplained regions with no owner (canvas, image, cross-origin frame) carry no readable label anyway.
-      const masked = inside.some(r => r.evidence.length === 0) && el.unexplained;
+      // A screenshot region may be unexplained, but an interactive control's
+      // accessible label is already available from the DOM and is needed to plan
+      // the action. Sensitive values in it still pass through substitution and the
+      // recognizer/egress checks below.
+      const masked = !INTERACTIVE_TAGS.has(el.tag) && inside.some(r => r.evidence.length === 0) && el.unexplained;
       return {
         rawElement: el,
         tokenizedLabel: masked && tokenizedLabel ? getHandleForValue(tokenizer, registry, tokenizedLabel, 'PERSONAL') ?? '[REDACTED]' : tokenizedLabel,

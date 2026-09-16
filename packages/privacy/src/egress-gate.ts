@@ -27,9 +27,16 @@ const RATE_WINDOW_MS = 60_000;
 const RATE_MAX_SENDS = 90;
 const HANDLE_RE = /^⟦[A-Z_]+(#\d+)?⟧$/;
 const HANDLE_TOKEN_RE = /⟦[A-Z_]+(?:#\d+)?⟧/g;
-const PROTOCOL_LABEL_PATH = /(?:^|\.)(type|kind|source|sensitivity_class|pii_type|origin_class|type_hint|policy_profile)$/;
+// These fields are schema metadata or already-tokenized semantic labels. A page
+// value can legitimately be the same word as a role or input type (for example
+// "personal"), so they must not create registry collisions with page text.
+const PROTOCOL_LABEL_PATH = /(?:^|\.)(tag|role|type|group|input_type|autocomplete|placeholder_raw|label_raw|kind|source|sensitivity_class|pii_type|origin_class|type_hint|policy_profile|reasoning)$/;
 /** Recognizer tiers 1–2 are checksum- or shape-verified identifiers: a hit is a leak. */
 const SWEEP_TIERS = new Set([1, 2]);
+// STRICT fallback masking can register ordinary one-word UI copy as PERSONAL when
+// local NER is unavailable. Those words are not user secrets and must not make the
+// registry reject the same copy when it appears inside an accessible label.
+const GENERIC_UI_WORDS = new Set(['personal', 'information', 'details', 'address', 'shipping', 'billing', 'application', 'service', 'services', 'portal', 'review', 'documents', 'document', 'profile', 'record', 'records', 'account', 'orders', 'order', 'cart', 'checkout', 'search', 'products', 'product', 'home', 'about', 'contact', 'support', 'help', 'login', 'sign', 'register', 'submit', 'next', 'back', 'continue', 'confirm', 'settings', 'privacy', 'terms', 'policy', 'name', 'phone', 'email', 'code', 'number', 'date', 'birth', 'street', 'saved', 'form', 'step', 'page', 'total', 'price', 'status', 'view', 'track', 'tracking']);
 
 const violation = (code: string, message: string, details: Record<string, unknown> = {}): Violation => ({ code, message, details });
 
@@ -77,6 +84,7 @@ function indexFor(registry: SecretRegistry): ScanIndex {
   const patterns: string[] = [];
   const byPattern = new Map<string, string>();
   for (const entry of registry.values()) {
+    if (entry.tier >= 3 && GENERIC_UI_WORDS.has(entry.normalized_value)) continue;
     if (entry.normalized_value.length < MIN_SECRET_LENGTH) continue;
     for (const form of [entry.normalized_value, ...generateEncodings(entry.normalized_value)]) {
       patterns.push(form);

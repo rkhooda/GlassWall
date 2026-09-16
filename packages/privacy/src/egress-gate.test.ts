@@ -114,6 +114,32 @@ describe('egressGate', () => {
         expect(JSON.stringify(r.error)).not.toContain('anita');
       }
     });
+
+    it('does not confuse a registered content word with protocol metadata', () => {
+      const secrets = createSessionSecrets('metadata');
+      secrets.record('personal', 'PERSONAL', 3);
+      const obs = observation();
+      obs.elements[0]!.role = 'personal';
+      obs.elements[0]!.group = 'personal';
+      obs.elements[0]!.placeholder_raw = 'personal';
+      expect(gate(step(obs), secrets.registry).ok).toBe(true);
+    });
+
+    it('does not scan a typed handle embedded in a control label', () => {
+      const secrets = createSessionSecrets('embedded-handle');
+      const handle = secrets.record('personal', 'PERSONAL', 3);
+      const obs = observation();
+      obs.elements[0]!.label_raw = `Add ${handle} to cart`;
+      expect(gate(step(obs), secrets.registry).ok).toBe(true);
+    });
+
+    it('does not treat a generic fallback word as a secret', () => {
+      const secrets = createSessionSecrets('generic-fallback');
+      secrets.record('personal', 'PERSONAL', 3);
+      const obs = observation();
+      obs.elements[0]!.label_raw = 'Personal details';
+      expect(gate(step(obs), secrets.registry).ok).toBe(true);
+    });
   });
 
   it('4 entropy: a long random token in a text node is rejected, a sentence is not', () => {

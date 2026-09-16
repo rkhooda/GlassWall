@@ -123,6 +123,10 @@ export interface DriveResult {
 export async function drive(h: Harness, opts: DriveOptions): Promise<DriveResult> {
   const started = Date.now();
   await h.panel.bringToFront();
+  // A fresh extension profile shows the welcome screen once. The harness owns a
+  // temporary profile per run, so dismiss it before interacting with the task form.
+  const getStarted = h.panel.getByRole('button', { name: 'Get Started' });
+  if (await getStarted.count()) await getStarted.click();
   await h.panel.fill('#task', opts.task);
   await h.panel.selectOption('select', opts.policy);
   await h.panel.click('button.primary');
@@ -131,8 +135,9 @@ export async function drive(h: Harness, opts: DriveOptions): Promise<DriveResult
   let seen = 0;
   let state: RunState = { status: 'running', sessionId: null, step: 0, provider: null };
   while (Date.now() < deadline) {
-    if (opts.autoApprove !== false && (await h.panel.locator('.modal button.primary').count())) {
-      await h.panel.click('.modal button.primary');
+    const approve = h.panel.getByRole('button', { name: 'Approve' });
+    if (opts.autoApprove !== false && (await approve.count())) {
+      await approve.click();
       approvals++;
     }
     const audit = await getAudit(h).catch(() => [] as AuditEntry[]);

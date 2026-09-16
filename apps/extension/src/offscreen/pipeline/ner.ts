@@ -116,12 +116,20 @@ export const nerSource: PerceptionSource = {
  * sanitize() handles when this source throws or hangs and never returns anything.
  */
 function textCoverage(ctx: PerceptionContext, reason: string) {
+  const controlIds = new Set(
+    ctx.raw.text_nodes
+      .filter(tn => {
+        const owner = tn.owner_element_id ? ctx.raw.elements.find(e => e.id === tn.owner_element_id) : undefined;
+        return !!owner && (['button', 'a', 'select', 'option', 'summary', 'label', 'input', 'textarea'].includes(owner.tag) || owner.role === 'button' || owner.role === 'link');
+      })
+      .map(tn => tn.id),
+  );
   return ctx.raw.text_nodes
-    .filter(node => node.text.trim().length > 0)
+    .filter(node => node.text.trim().length > 0 && !controlIds.has(node.id))
     .map(node => ({ rect: node.rect, reason }));
 }
 
-/** No NER means no account of what the text says, so every text block is masked. */
+/** No NER means no account of ordinary prose, so every non-control text block is masked. */
 function unavailable(ctx: PerceptionContext): SourceOutput {
   return {
     evidence: [],

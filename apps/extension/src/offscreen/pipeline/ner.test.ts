@@ -75,6 +75,20 @@ describe('load failure', () => {
     expect(loadNerModel).toHaveBeenCalledTimes(1);
   });
 
+  it('does not register control labels as unexplained prose', async () => {
+    loadNerModel.mockRejectedValue(new Error('model file missing'));
+    const ctx = context([
+      { id: 'button-text', rect: [0, 0, 200, 20], text: 'Confirm order', owner_element_id: 'button', source: 'dom' },
+      { id: 'body-text', rect: [0, 25, 200, 20], text: 'Ship to a saved address', owner_element_id: null, source: 'dom' },
+    ]);
+    ctx.raw.elements = [{
+      id: 'button', id_hash: 'hash', tag: 'button', role: 'button', label_raw: 'Confirm order', rect: [0, 0, 200, 20], visible: true, enabled: true, focusable: true, value_state: 'n/a', group: 'actions', frame: 0,
+    }];
+    const out = await nerSource.run(ctx);
+
+    expect(out.unexplained).toEqual([{ rect: [0, 25, 200, 20], reason: NER_UNAVAILABLE }]);
+  });
+
   it('degrades the same way when the run itself throws', async () => {
     runNer.mockRejectedValue(new Error('backend crashed'));
     const out = await nerSource.run(context());
