@@ -102,7 +102,16 @@ function fillForm(input: PlanInput): ActionEnvelope | null {
   }
   // Nothing left to fill: submit. A confirm dialog button wins over the page's submit.
   const dialogButton = observation.page.modal_active ? observation.elements.find(e => isClickable(e) && /confirm|yes|place|ok/i.test(e.label_raw)) : undefined;
-  const submit = dialogButton ?? observation.elements.find(e => isClickable(e) && SUBMIT_RE.test(e.label_raw));
+  const visibleButtons = observation.elements.filter(isClickable);
+  // A conservative redaction can hide a submit label while preserving the DOM
+  // control. On a form with no fields left, the final visible control is the
+  // submit affordance in the supported multi-step layouts.
+  const maskedSubmit = visibleButtons.length === 2
+    && /^back$/i.test(visibleButtons[0]!.label_raw)
+    && /^⟦[A-Z_]+(?:#\d+)?⟧$/.test(visibleButtons[1]!.label_raw)
+    ? visibleButtons[1]
+    : undefined;
+  const submit = dialogButton ?? visibleButtons.find(e => SUBMIT_RE.test(e.label_raw)) ?? maskedSubmit;
   if (submit) return envelope({ type: 'CLICK', target: target(submit) }, input, 'high', `submit via "${submit.label_raw}"`);
   // Nothing fillable and no submit in view: the rest of the form is below the fold.
   const scrolls = history.filter(h => h.action.type === 'SCROLL').length;
@@ -176,6 +185,13 @@ export function planScripted(input: PlanInput): ActionEnvelope {
     }
     const next = fillForm(input);
     if (next) return next;
+    // A successful submit can land on a confirmation view whose prose is masked
+    // under a degraded perception run. No remaining inputs or buttons is still a
+    // useful local completion signal after a click.
+    const hasFormControl = input.observation.elements.some(e => isTypeable(e) || e.tag === 'button' || e.type === 'submit');
+    if (!hasFormControl && input.history.some(h => h.action.type === 'CLICK')) {
+      return envelope({ type: 'DONE', outcome: 'success' }, input, 'low', 'form submitted; no remaining form controls');
+    }
   }
   if (/search|find|look for|add .* cart|buy/i.test(task)) {
     const next = searchAndAdd(input);

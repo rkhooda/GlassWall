@@ -124,6 +124,19 @@ describe('gateway', () => {
     expect(seen).toEqual(['TYPE:wireless earbuds', 'PRESS_KEY', 'CLICK', 'DONE:success']);
   });
 
+  it('keeps a form moving when the submit label is redacted', async () => {
+    const session = (await app.inject({ method: 'POST', url: '/v1/session', payload: { task: 'Submit the application form', policy_profile: 'STRICT', site_allowlist: [] } })).json();
+    const review = checkout({
+      page: { ...checkout().page, type_hint: 'form' },
+      elements: [
+        { id: 'back', id_hash: 'h_back', tag: 'button', role: 'button', label_raw: 'Back', rect: [0, 0, 100, 30], visible: true, enabled: true, focusable: true, value_state: 'n/a', group: 'form', frame: 0, available_actions: ['CLICK'] },
+        { id: 'submit', id_hash: 'h_submit', tag: 'button', role: 'button', label_raw: '⟦PERSONAL#27⟧', rect: [110, 0, 100, 30], visible: true, enabled: true, focusable: true, value_state: 'n/a', group: 'form', frame: 0, available_actions: ['CLICK'] },
+      ],
+    });
+    const body = (await app.inject({ method: 'POST', url: '/v1/step', payload: { session_id: session.session_id, observation: review, history: [] } })).json();
+    expect(body.action_envelope.action).toMatchObject({ type: 'CLICK', target: { id: 'submit', id_hash: 'h_submit' } });
+  });
+
   it('gives up honestly on a task it cannot script', async () => {
     const session = (await app.inject({ method: 'POST', url: '/v1/session', payload: { task: 'Compose a haiku about the page', policy_profile: 'STRICT', site_allowlist: [] } })).json();
     const body = (await app.inject({ method: 'POST', url: '/v1/step', payload: { session_id: session.session_id, observation: checkout(), history: [] } })).json();
